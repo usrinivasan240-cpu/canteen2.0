@@ -1,0 +1,1137 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from 'react';
+import {
+  Users, Trash2, LogOut, CheckCircle, AlertTriangle, UserPlus, Sparkles, X, Globe, MapPin, Plus, TrendingUp
+} from 'lucide-react';
+import { Order, MenuItem } from '../types';
+import { API_BASE } from '../config';
+
+interface ServicePanelProps {
+  orders: Order[];
+  menuItems: MenuItem[];
+  onUpdateOrderStatus: (id: string, status: string) => Promise<any>;
+  onFetchCanteen: () => void;
+  onLogout: () => void;
+  currentUser?: any;
+}
+
+export default function ServicePanel({
+  orders,
+  menuItems,
+  onUpdateOrderStatus,
+  onFetchCanteen,
+  onLogout,
+  currentUser
+}: ServicePanelProps) {
+  const [users, setUsers] = useState<any[]>([]);
+  const [canteens, setCanteens] = useState<any[]>([]);
+  const [subCanteens, setSubCanteens] = useState<any[]>([]);
+  const [colleges, setColleges] = useState<any[]>([]);
+
+  const activeCollegeId = currentUser?.role === 'admin' ? currentUser?.collegeId : 'college_001';
+  const collegeName = colleges.find(c => c.id === activeCollegeId)?.name || 'Your College';
+
+  const [viewingCanteenId, setViewingCanteenId] = useState<string | null>(null);
+  const [viewingCanteenData, setViewingCanteenData] = useState<any | null>(null);
+  const [viewingLoading, setViewingLoading] = useState<boolean>(false);
+
+  const handleLoadCanteenDashboard = async (canteenId: string) => {
+    setViewingLoading(true);
+    setViewingCanteenId(canteenId);
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteen?canteenId=${canteenId}`);
+      const data = await resp.json();
+      if (data.success && data.canteen) {
+        setViewingCanteenData(data.canteen);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setViewingLoading(false);
+    }
+  };
+
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const [activeTab, setActiveTab] = useState<'users' | 'colleges' | 'canteens'>(isSuperAdmin ? 'canteens' : 'users');
+  const [selectedCollegeFilter, setSelectedCollegeFilter] = useState<string>('all');
+
+  const [scanStatus, setScanStatus] = useState<{ success: boolean; text: string } | null>(null);
+
+  // Form states for User
+  const [usrName, setUsrName] = useState('');
+  const [usrEmail, setUsrEmail] = useState('');
+  const [usrRole, setUsrRole] = useState<'customer' | 'owner' | 'chef' | 'staff' | 'admin' | 'superadmin'>('chef');
+  const [usrColId, setUsrColId] = useState('');
+  const [usrCantId, setUsrCantId] = useState('');
+  const [usrSubId, setUsrSubId] = useState('');
+  const [usrPosting, setUsrPosting] = useState('');
+
+  // Form states for College
+  const [colName, setColName] = useState('');
+  const [colLoc, setColLoc] = useState('');
+
+  // Form states for Canteen
+  const [cantName, setCantName] = useState('');
+  const [cantCol, setCantCol] = useState('');
+  const [cantOwnName, setCantOwnName] = useState('');
+  const [cantOwnEmail, setCantOwnEmail] = useState('');
+  const [cantLoc, setCantLoc] = useState('');
+
+  // Form states for Sub-Canteen
+  const [subName, setSubName] = useState('');
+  const [subCantId, setSubCantId] = useState('');
+
+  const syncAdminData = async () => {
+    try {
+      const [colResp, cantResp, subResp, usrResp] = await Promise.all([
+        fetch(`${API_BASE}/api/colleges`),
+        fetch(`${API_BASE}/api/canteens`),
+        fetch(`${API_BASE}/api/subcanteens`),
+        fetch(`${API_BASE}/api/users`)
+      ]);
+      const col = await colResp.json();
+      const cant = await cantResp.json();
+      const sub = await subResp.json();
+      const usr = await usrResp.json();
+      if (col.success) setColleges(col.colleges);
+      if (cant.success) setCanteens(cant.canteens);
+      if (sub.success) setSubCanteens(sub.subCanteens);
+      if (usr.success) setUsers(usr.users);
+    } catch (e) {
+      console.error("Failed to sync service data", e);
+    }
+  };
+
+  useEffect(() => {
+    syncAdminData();
+  }, []);
+
+  const handleCreateCollege = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!colName) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/colleges`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: colName, location: colLoc })
+      });
+      const d = await resp.json();
+      if (d.success) {
+        setColName('');
+        setColLoc('');
+        setScanStatus({ success: true, text: `Successfully registered college: ${colName}` });
+        await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || "Failed to create college" });
+      }
+    } catch (e) {
+      console.error(e);
+      setScanStatus({ success: false, text: "Network failure creating college." });
+    }
+  };
+
+  const handleCreateCanteen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cantName || !cantCol || !cantOwnEmail) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteens`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cantName,
+          collegeId: cantCol,
+          ownerName: cantOwnName,
+          ownerEmail: cantOwnEmail,
+          location: cantLoc
+        })
+      });
+      const d = await resp.json();
+      if (d.success) {
+        // Also register/auto-create the Owner User account
+        await fetch(`${API_BASE}/api/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: cantOwnName || 'Canteen Owner',
+            email: cantOwnEmail,
+            role: 'owner',
+            canteenId: d.canteen.id,
+            collegeId: cantCol
+          })
+        });
+        setCantName('');
+        setCantCol('');
+        setCantOwnName('');
+        setCantOwnEmail('');
+        setCantLoc('');
+        setScanStatus({ success: true, text: `Successfully registered canteen: ${cantName}` });
+        await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || "Failed to create canteen" });
+      }
+    } catch (e) {
+      console.error(e);
+      setScanStatus({ success: false, text: "Network failure creating canteen." });
+    }
+  };
+
+  const handleCreateSubCanteen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subName || !subCantId) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/subcanteens`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: subName, canteenId: subCantId })
+      });
+      const d = await resp.json();
+      if (d.success) {
+        setSubName('');
+        setSubCantId('');
+        setScanStatus({ success: true, text: `Successfully created counter: ${subName}` });
+        await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || "Failed to create sub-canteen counter" });
+      }
+    } catch (e) {
+      console.error(e);
+      setScanStatus({ success: false, text: "Network failure creating counter." });
+    }
+  };
+
+  const handleDeleteCollege = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this college?')) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/colleges/${id}`, { method: 'DELETE' });
+      const d = await resp.json();
+      if (d.success) {
+        setScanStatus({ success: true, text: "Successfully deleted college." });
+        await syncAdminData();
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteCanteen = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this canteen?')) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteens/${id}`, { method: 'DELETE' });
+      const d = await resp.json();
+      if (d.success) {
+        setScanStatus({ success: true, text: "Successfully deleted canteen." });
+        await syncAdminData();
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteSubCanteen = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this counter?')) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/subcanteens/${id}`, { method: 'DELETE' });
+      const d = await resp.json();
+      if (d.success) {
+        setScanStatus({ success: true, text: "Successfully deleted counter." });
+        await syncAdminData();
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!usrName || !usrEmail || !usrRole) return;
+    try {
+      const targetCollegeId = currentUser?.role === 'superadmin' ? usrColId : (currentUser?.role === 'admin' ? currentUser?.collegeId : 'college_001');
+      
+      const resp = await fetch(`${API_BASE}/api/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: usrName,
+          email: usrEmail,
+          role: usrRole,
+          collegeId: targetCollegeId,
+          canteenId: usrCantId || undefined,
+          subCanteenId: usrSubId || undefined,
+          posting: usrPosting || undefined
+        })
+      });
+      const d = await resp.json();
+      if (d.success) {
+        setUsrName('');
+        setUsrEmail('');
+        setUsrRole('chef');
+        setUsrCantId('');
+        setUsrSubId('');
+        setUsrPosting('');
+        setScanStatus({ success: true, text: `Provisioned user account for ${usrEmail} successfully!` });
+        await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || "Failed to create user account" });
+      }
+    } catch (e) {
+      console.error(e);
+      setScanStatus({ success: false, text: "Network failure creating user account." });
+    }
+  };
+
+  const handleDeleteUser = async (email: string) => {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/users/${email}`, { method: 'DELETE' });
+      const d = await resp.json();
+      if (d.success) {
+        setScanStatus({ success: true, text: `Successfully deleted user: ${email}` });
+        await syncAdminData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUpdateUserRole = async (email: string, newRole: string, newPosting?: string) => {
+    try {
+      const existingUser = users.find(u => u.email === email);
+      const postingVal = newPosting !== undefined ? newPosting : (existingUser?.posting || "");
+      const resp = await fetch(`${API_BASE}/api/users/${email}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole, posting: postingVal })
+      });
+      const d = await resp.json();
+      if (d.success) {
+        setScanStatus({ success: true, text: `Successfully updated user ${email}` });
+        await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || "Failed to update user profile." });
+      }
+    } catch (e) {
+      console.error(e);
+      setScanStatus({ success: false, text: "Network failure updating user profile." });
+    }
+  };
+
+  // Filter canteens list
+  const filteredCanteens = canteens.filter(c => {
+    if (isSuperAdmin && selectedCollegeFilter === 'all') return true;
+    const targetColId = isSuperAdmin ? selectedCollegeFilter : activeCollegeId;
+    return c.collegeId === targetColId;
+  });
+
+  // Filter users list
+  const filteredUsers = users.filter(usr => {
+    if (isSuperAdmin) {
+      if (selectedCollegeFilter === 'all') return true;
+      return usr.collegeId === selectedCollegeFilter;
+    }
+    // For College Admin: only see staff, chef, owner, customer, and only for this college
+    return usr.collegeId === activeCollegeId && usr.role !== 'admin' && usr.role !== 'superadmin';
+  });
+
+  const completedOrders = orders.filter(o => o.status === 'delivered' || o.status === 'collected');
+  const targetCompletedOrders = completedOrders.filter(o => {
+    const targetColId = isSuperAdmin ? selectedCollegeFilter : activeCollegeId;
+    if (isSuperAdmin && selectedCollegeFilter === 'all') return true;
+    const orderCollegeId = o.collegeId || canteens.find(c => c.id === o.canteenId)?.collegeId;
+    return orderCollegeId === targetColId;
+  });
+  const cumulativeIncome = targetCompletedOrders.reduce((sum, o) => sum + o.totalPrice, 0);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/40 pb-12">
+      {/* HEADER */}
+      <header className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-md border-b border-violet-100/80 px-4 py-4 md:px-8 shadow-xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-violet-600 to-fuchsia-600 text-white flex items-center justify-center shadow-lg shadow-violet-500/20">
+              <Users className="h-5.5 w-5.5" />
+            </div>
+            <div>
+              <h1 className="font-display font-black text-base md:text-lg text-gray-900 tracking-tight leading-tight">
+                {isSuperAdmin ? 'Super Admin Control Center' : 'College Accounts Directory'}
+              </h1>
+              <div className="flex items-center space-x-1.5 mt-0.5">
+                <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-[10px] text-gray-500 font-sans tracking-wide uppercase font-semibold">
+                  {isSuperAdmin ? 'Platform Wide Administration' : `Scoped: ${collegeName}`}
+                </span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onLogout}
+            className="flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 bg-rose-50/50 hover:bg-rose-50 hover:text-rose-700 active:scale-95 transition-all cursor-pointer border border-rose-100/55"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Sign Out Control</span>
+          </button>
+        </div>
+      </header>
+
+      {/* TABS (SUPER ADMIN ONLY) */}
+      {isSuperAdmin && (
+        <div className="max-w-6xl mx-auto px-4 mt-6">
+          <div className="flex border-b border-violet-100 space-x-2">
+            <button
+              onClick={() => setActiveTab('canteens')}
+              className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'canteens' ? 'border-violet-600 text-violet-750 font-black' : 'border-transparent text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <MapPin className="h-4 w-4" />
+              <span>Canteens & Counters</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('colleges')}
+              className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'colleges' ? 'border-violet-600 text-violet-750 font-black' : 'border-transparent text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <Globe className="h-4 w-4" />
+              <span>Colleges</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'users' ? 'border-violet-600 text-violet-750 font-black' : 'border-transparent text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              <span>Users Directory</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('dashboards')}
+              className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'dashboards' ? 'border-violet-600 text-violet-750 font-black' : 'border-transparent text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <TrendingUp className="h-4 w-4" />
+              <span>Canteen Dashboards</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* SUPER ADMIN SPECIFIC COLLEGE METRICS & INCOME FILTER */}
+      {isSuperAdmin && (
+        <div className="max-w-6xl mx-auto px-4 mt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-violet-100 rounded-3xl p-5 shadow-sm text-left">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Scope Dashboard View</label>
+            <select
+              value={selectedCollegeFilter}
+              onChange={(e) => setSelectedCollegeFilter(e.target.value)}
+              className="bg-violet-50/55 hover:bg-violet-50 focus:bg-white text-xs px-3.5 py-2 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-semibold text-gray-800 cursor-pointer"
+            >
+              <option value="all">Global (All Colleges)</option>
+              {colleges.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-6 flex-wrap text-left">
+            <div className="bg-violet-50/25 px-4 py-2 border border-violet-100/60 rounded-xl min-w-[120px]">
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide block">Active Canteens</span>
+              <span className="block font-display font-extrabold text-base text-violet-750 mt-0.5">{filteredCanteens.length} canteens</span>
+            </div>
+            <div className="bg-violet-50/25 px-4 py-2 border border-violet-100/60 rounded-xl min-w-[120px]">
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide block">Directory Users</span>
+              <span className="block font-display font-extrabold text-base text-gray-900 mt-0.5">{filteredUsers.length} profiles</span>
+            </div>
+            <div className="bg-violet-55/25 px-4 py-2 border border-violet-150 rounded-xl min-w-[120px]">
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide block font-semibold text-emerald-800">Total Income</span>
+              <span className="block font-display font-extrabold text-base text-emerald-700 mt-0.5">₹{cumulativeIncome.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CORE WORKSPACE CONTENT */}
+      <main className="max-w-6xl mx-auto px-4 mt-8 space-y-6">
+
+        {/* FEEDBACK STATUS BAR */}
+        {scanStatus && (
+          <div className={`p-4 rounded-2xl text-xs font-sans flex items-start space-x-2.5 border ${
+            scanStatus.success 
+              ? 'bg-emerald-50/80 border-emerald-200/60 text-emerald-800' 
+              : 'bg-rose-50/80 border-rose-200/60 text-rose-800'
+          } text-left shadow-xs`}>
+            {scanStatus.success ? (
+              <CheckCircle className="h-4.5 w-4.5 shrink-0 text-emerald-500" />
+            ) : (
+              <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-rose-500" />
+            )}
+            <div className="flex-1">
+              <span className="font-bold block tracking-wide uppercase text-[10px] mb-0.5">
+                {scanStatus.success ? 'Success Notification' : 'System Error'}
+              </span>
+              <p>{scanStatus.text}</p>
+            </div>
+            <button onClick={() => setScanStatus(null)} className="text-gray-400 hover:text-gray-600">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* COLLEGES TAB VIEW */}
+        {activeTab === 'colleges' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in">
+            {/* Form */}
+            <div className="lg:col-span-4 bg-white border border-violet-100/70 rounded-3xl p-5 md:p-6 shadow-sm space-y-5">
+              <div>
+                <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">
+                  Create College
+                </h3>
+                <p className="text-[11px] text-gray-400 font-sans mt-0.5">
+                  Register a new university/college campus in the network.
+                </p>
+              </div>
+              <form onSubmit={handleCreateCollege} className="space-y-4 text-xs font-sans text-left">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">College Name</label>
+                  <input
+                    type="text"
+                    value={colName}
+                    onChange={(e) => setColName(e.target.value)}
+                    required
+                    placeholder="e.g. Engineering College East"
+                    className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Location / Address</label>
+                  <input
+                    type="text"
+                    value={colLoc}
+                    onChange={(e) => setColLoc(e.target.value)}
+                    required
+                    placeholder="e.g. Main Campus Block A"
+                    className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-750 hover:to-fuchsia-750 text-white rounded-xl text-xs py-3 font-bold transition-all shadow-md cursor-pointer flex items-center justify-center space-x-1.5 font-display"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Create College</span>
+                </button>
+              </form>
+            </div>
+
+            {/* Table */}
+            <div className="lg:col-span-8 bg-white rounded-3xl border border-violet-100/60 shadow-xs overflow-hidden text-left">
+              <div className="p-5 border-b border-violet-50/50">
+                <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">
+                  Registered Colleges ({colleges.length})
+                </h3>
+              </div>
+              <div className="overflow-x-auto text-xs">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-violet-50/50 border-b border-violet-100/40 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
+                      <th className="px-6 py-4.5 text-left">College ID</th>
+                      <th className="px-6 py-4.5 text-left">College Name</th>
+                      <th className="px-6 py-4.5 text-left">Location</th>
+                      <th className="px-6 py-4.5 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-violet-50 font-sans text-slate-700">
+                    {colleges.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="text-xs text-gray-400 p-8 text-center">
+                          No colleges registered yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      colleges.map(c => (
+                        <tr key={c.id}>
+                          <td className="px-6 py-4 font-mono font-bold text-gray-500">{c.id}</td>
+                          <td className="px-6 py-4 font-bold text-gray-950">{c.name}</td>
+                          <td className="px-6 py-4 text-gray-500">{c.location}</td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              onClick={() => handleDeleteCollege(c.id)}
+                              className="text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 p-2 rounded-xl transition cursor-pointer flex items-center justify-center ml-auto border border-rose-100/25"
+                            >
+                              <Trash2 className="h-4.5 w-4.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CANTEENS TAB VIEW */}
+        {activeTab === 'canteens' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in">
+            {/* Forms Side */}
+            <div className="lg:col-span-4 space-y-6">
+              {/* Form Create Canteen */}
+              <div className="bg-white border border-violet-100/70 rounded-3xl p-5 shadow-sm space-y-4">
+                <div>
+                  <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">
+                    Create Canteen
+                  </h3>
+                  <p className="text-[11px] text-gray-400 font-sans mt-0.5">
+                    Add a physical canteen dining node to a college.
+                  </p>
+                </div>
+                <form onSubmit={handleCreateCanteen} className="space-y-3.5 text-xs font-sans text-left">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Canteen Name</label>
+                    <input
+                      type="text"
+                      value={cantName}
+                      onChange={(e) => setCantName(e.target.value)}
+                      required
+                      placeholder="e.g. Violet Bites"
+                      className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Assigned College</label>
+                    <select
+                      value={cantCol}
+                      onChange={(e) => setCantCol(e.target.value)}
+                      required
+                      className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold cursor-pointer"
+                    >
+                      <option value="">Select College...</option>
+                      {colleges.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Owner Full Name</label>
+                    <input
+                      type="text"
+                      value={cantOwnName}
+                      onChange={(e) => setCantOwnName(e.target.value)}
+                      required
+                      placeholder="e.g. Chef Watson"
+                      className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Owner Email (Credentials)</label>
+                    <input
+                      type="email"
+                      value={cantOwnEmail}
+                      onChange={(e) => setCantOwnEmail(e.target.value)}
+                      required
+                      placeholder="e.g. owner@gmail.com"
+                      className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Location in Campus</label>
+                    <input
+                      type="text"
+                      value={cantLoc}
+                      onChange={(e) => setCantLoc(e.target.value)}
+                      placeholder="e.g. Ground Floor, Food Court"
+                      className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-750 hover:to-fuchsia-750 text-white rounded-xl text-xs py-3 font-bold transition-all shadow-md cursor-pointer flex items-center justify-center space-x-1.5 font-display"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Create Canteen</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Form Create Sub-Canteen */}
+              <div className="bg-white border border-violet-100/70 rounded-3xl p-5 shadow-sm space-y-4">
+                <div>
+                  <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">
+                    Create Counter (Sub-Canteen)
+                  </h3>
+                  <p className="text-[11px] text-gray-400 font-sans mt-0.5">
+                    Add specific kitchen counters / food stalls to an active canteen.
+                  </p>
+                </div>
+                <form onSubmit={handleCreateSubCanteen} className="space-y-3.5 text-xs font-sans text-left">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Counter Name</label>
+                    <input
+                      type="text"
+                      value={subName}
+                      onChange={(e) => setSubName(e.target.value)}
+                      required
+                      placeholder="e.g. Chinese Corner Counter 1"
+                      className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Assigned Canteen</label>
+                    <select
+                      value={subCantId}
+                      onChange={(e) => setSubCantId(e.target.value)}
+                      required
+                      className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold cursor-pointer"
+                    >
+                      <option value="">Select Canteen...</option>
+                      {canteens.map(c => (
+                        <option key={c.id} value={c.id}>{c.name} ({colleges.find(col => col.id === c.collegeId)?.name || c.collegeId})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-750 hover:to-fuchsia-750 text-white rounded-xl text-xs py-3 font-bold transition-all shadow-md cursor-pointer flex items-center justify-center space-x-1.5 font-display"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Create Counter</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Tables Side */}
+            <div className="lg:col-span-8 space-y-6">
+              {/* Canteens List */}
+              <div className="bg-white rounded-3xl border border-violet-100/60 shadow-xs overflow-hidden text-left">
+                <div className="p-5 border-b border-violet-50/50">
+                  <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">
+                    Active Canteens ({canteens.length})
+                  </h3>
+                </div>
+                <div className="overflow-x-auto text-xs">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-violet-50/50 border-b border-violet-100/40 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
+                        <th className="px-6 py-4.5 text-left">Canteen Name</th>
+                        <th className="px-6 py-4.5 text-left">College Campus</th>
+                        <th className="px-6 py-4.5 text-left">Owner</th>
+                        <th className="px-6 py-4.5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-violet-50 font-sans text-slate-700">
+                      {filteredCanteens.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="text-xs text-gray-400 p-8 text-center">No canteens active.</td>
+                        </tr>
+                      ) : (
+                        filteredCanteens.map(c => (
+                          <tr key={c.id}>
+                            <td className="px-6 py-4 font-bold text-gray-950">
+                              <span>{c.name}</span>
+                              <span className="block text-[10px] text-gray-400 font-mono font-normal mt-0.5">{c.location}</span>
+                            </td>
+                            <td className="px-6 py-4 font-semibold text-gray-700">
+                              {colleges.find(col => col.id === c.collegeId)?.name || c.collegeId}
+                            </td>
+                            <td className="px-6 py-4 text-gray-550">
+                              <span>{c.ownerName}</span>
+                            </td>
+                            <td className="px-6 py-4 text-right flex items-center justify-end space-x-2">
+                              <button
+                                onClick={() => {
+                                  setActiveTab('dashboards');
+                                  handleLoadCanteenDashboard(c.id);
+                                }}
+                                className="text-violet-655 hover:text-violet-800 hover:bg-violet-50 px-2.5 py-1.5 rounded-lg transition cursor-pointer font-bold text-[10px] uppercase border border-violet-200"
+                              >
+                                View Dashboard
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCanteen(c.id)}
+                                className="text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 p-2 rounded-xl transition cursor-pointer flex items-center justify-center border border-rose-100/25"
+                              >
+                                <Trash2 className="h-4.5 w-4.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Sub-Canteens List */}
+              <div className="bg-white rounded-3xl border border-violet-100/60 shadow-xs overflow-hidden text-left">
+                <div className="p-5 border-b border-violet-50/50">
+                  <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">
+                    Kitchen Counters / Sub-Canteens ({subCanteens.length})
+                  </h3>
+                </div>
+                <div className="overflow-x-auto text-xs">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-violet-50/50 border-b border-violet-100/40 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
+                        <th className="px-6 py-4.5 text-left">Counter Name</th>
+                        <th className="px-6 py-4.5 text-left">Parent Canteen</th>
+                        <th className="px-6 py-4.5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-violet-50 font-sans text-slate-700">
+                      {subCanteens.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="text-xs text-gray-400 p-8 text-center">No kitchen counters registered yet.</td>
+                        </tr>
+                      ) : (
+                        subCanteens.map(s => (
+                          <tr key={s.id}>
+                            <td className="px-6 py-4 font-bold text-gray-950">{s.name}</td>
+                            <td className="px-6 py-4 font-semibold text-gray-700">
+                              {canteens.find(c => c.id === s.canteenId)?.name || s.canteenId}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button
+                                onClick={() => handleDeleteSubCanteen(s.id)}
+                                className="text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 p-2 rounded-xl transition cursor-pointer flex items-center justify-center ml-auto border border-rose-100/25"
+                              >
+                                <Trash2 className="h-4.5 w-4.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* USERS TAB VIEW */}
+        {activeTab === 'users' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            {/* USER ACCOUNT PROVISION FORM */}
+            <div className="lg:col-span-4 bg-white border border-violet-100/70 rounded-3xl p-5 md:p-6 shadow-sm space-y-5">
+              <div>
+                <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">
+                  Provision User Account
+                </h3>
+                <p className="text-[11px] text-gray-400 font-sans mt-0.5">
+                  Create new student, kitchen, or counter staff access profiles.
+                </p>
+              </div>
+
+              <form onSubmit={handleCreateUser} className="space-y-4 text-xs font-sans text-left">
+                {isSuperAdmin && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Assigned College</label>
+                    <select
+                      value={usrColId}
+                      onChange={(e) => setUsrColId(e.target.value)}
+                      required
+                      className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold cursor-pointer"
+                    >
+                      <option value="">Select College...</option>
+                      {colleges.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Full Name</label>
+                  <input
+                    type="text"
+                    value={usrName}
+                    onChange={(e) => setUsrName(e.target.value)}
+                    required
+                    placeholder="e.g. Chef Watson"
+                    className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Email Address</label>
+                  <input
+                    type="email"
+                    value={usrEmail}
+                    onChange={(e) => setUsrEmail(e.target.value)}
+                    required
+                    placeholder="e.g. chef@gmail.com"
+                    className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Access Role</label>
+                  <select
+                    value={usrRole}
+                    onChange={(e) => setUsrRole(e.target.value as any)}
+                    required
+                    className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold cursor-pointer"
+                  >
+                    <option value="customer">Customer</option>
+                    <option value="chef">Chef</option>
+                    <option value="staff">Counter Staff</option>
+                    <option value="owner">Canteen Owner</option>
+                    {isSuperAdmin && <option value="admin">College Admin</option>}
+                    {isSuperAdmin && <option value="superadmin">Super Admin</option>}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Posting / Designation</label>
+                  <input
+                    type="text"
+                    value={usrPosting}
+                    onChange={(e) => setUsrPosting(e.target.value)}
+                    placeholder="e.g. Counter 1 Manager / North Chef"
+                    className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
+                  />
+                </div>
+
+                {/* Scoped Canteen selection */}
+                {(usrRole === 'owner' || usrRole === 'chef' || usrRole === 'staff') && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Assigned Canteen</label>
+                    <select
+                      value={usrCantId}
+                      onChange={(e) => setUsrCantId(e.target.value)}
+                      required
+                      className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold cursor-pointer"
+                    >
+                      <option value="">Select Canteen...</option>
+                      {canteens.filter(c => isSuperAdmin ? c.collegeId === usrColId : c.collegeId === activeCollegeId).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Sub-canteen counter select */}
+                {(usrRole === 'chef' || usrRole === 'staff') && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Assigned Sub-Canteen</label>
+                    <select
+                      value={usrSubId}
+                      onChange={(e) => setUsrSubId(e.target.value)}
+                      className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold cursor-pointer"
+                    >
+                      <option value="">Select Counter...</option>
+                      {subCanteens.filter(s => s.canteenId === usrCantId).map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-750 hover:to-fuchsia-750 text-white rounded-xl text-xs py-3 font-bold transition-all shadow-md cursor-pointer flex items-center justify-center space-x-1.5 font-display"
+                >
+                  <UserPlus className="h-4.5 w-4.5" />
+                  <span>Add User Account</span>
+                </button>
+              </form>
+            </div>
+
+            {/* REGISTERED USERS DIRECTORY */}
+            <div className="lg:col-span-8 bg-white rounded-3xl border border-violet-100/60 shadow-xs overflow-hidden text-left">
+              <div className="p-5 border-b border-violet-50/50 flex justify-between items-center">
+                <div>
+                  <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">
+                    Accounts Registry ({filteredUsers.length})
+                  </h3>
+                  <p className="text-[11px] text-gray-400 font-sans">
+                    Active directory of students, kitchen counters, and outlet owners.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto text-xs">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-violet-50/50 border-b border-violet-100/40 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
+                      <th className="px-6 py-4.5 text-left">User Profile</th>
+                      <th className="px-6 py-4.5 text-left">Email Address</th>
+                      <th className="px-6 py-4.5 text-left">Role Control</th>
+                      <th className="px-6 py-4.5 text-right">Emergency Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-violet-50 font-sans text-slate-700">
+                    {filteredUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="text-xs text-gray-400 p-8 text-center">
+                          No registered accounts found.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredUsers.map(usr => (
+                        <tr key={usr.email} className="hover:bg-violet-50/15">
+                          <td className="px-6 py-4">
+                            <span className="font-bold text-gray-900 block capitalize">{usr.name}</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {isSuperAdmin && (
+                                <span className="text-[9px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold uppercase border border-slate-200">
+                                  {colleges.find(c => c.id === usr.collegeId)?.name || usr.collegeId || 'No College'}
+                                </span>
+                              )}
+                              {usr.canteenId && (
+                                <span className="text-[9px] bg-violet-50 text-violet-750 px-2 py-0.5 rounded-full font-bold uppercase border border-violet-100/45">
+                                  {canteens.find(c => c.id === usr.canteenId)?.name || usr.canteenId}
+                                </span>
+                              )}
+                              {usr.posting && (
+                                <span className="text-[9px] bg-emerald-50 text-emerald-750 px-2 py-0.5 rounded-full font-bold border border-emerald-100/45">
+                                  Posting: {usr.posting}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-mono text-gray-500 truncate max-w-[160px]">{usr.email}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col space-y-1">
+                              <select
+                                value={usr.role}
+                                onChange={(e) => handleUpdateUserRole(usr.email, e.target.value)}
+                                className="bg-violet-50/60 border border-violet-100 rounded-lg px-2.5 py-1 text-[11px] font-bold text-violet-850 outline-none cursor-pointer focus:bg-white"
+                              >
+                                <option value="customer">Customer</option>
+                                <option value="chef">Chef</option>
+                                <option value="staff">Counter Staff</option>
+                                <option value="owner">Canteen Owner</option>
+                                {isSuperAdmin && <option value="admin">College Admin</option>}
+                                {isSuperAdmin && <option value="superadmin">Super Admin</option>}
+                              </select>
+                              <input
+                                type="text"
+                                defaultValue={usr.posting || ''}
+                                placeholder="Enter Posting..."
+                                onBlur={(e) => {
+                                  if (e.target.value !== (usr.posting || '')) {
+                                    handleUpdateUserRole(usr.email, usr.role, e.target.value);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className="bg-violet-55/35 border border-violet-100 rounded-lg px-2 py-0.5 text-[10px] text-gray-700 outline-none focus:bg-white"
+                              />
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              onClick={() => handleDeleteUser(usr.email)}
+                              className="text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 p-2 rounded-xl transition cursor-pointer flex items-center justify-center ml-auto border border-rose-100/25"
+                            >
+                              <Trash2 className="h-4.5 w-4.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CANTEEN DASHBOARDS REPLICATOR TAB */}
+        {activeTab === 'dashboards' && (
+          <div className="space-y-6 animate-fade-in text-left">
+            <div className="bg-white border border-violet-100 rounded-3xl p-6 shadow-sm">
+              <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide mb-2">
+                Live Canteen Dashboard Replicator
+              </h3>
+              <p className="text-xs text-gray-550 mb-4">
+                Select any active canteen to view and manage its stock, menu, orders, and sales performance in real-time.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <label className="text-xs font-bold text-gray-600">Select Canteen:</label>
+                <select
+                  value={viewingCanteenId || ''}
+                  onChange={(e) => {
+                    const cid = e.target.value;
+                    if (cid) {
+                      handleLoadCanteenDashboard(cid);
+                    } else {
+                      setViewingCanteenId(null);
+                      setViewingCanteenData(null);
+                    }
+                  }}
+                  className="bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-semibold text-gray-800 cursor-pointer min-w-[200px]"
+                >
+                  <option value="">Choose a canteen...</option>
+                  {canteens.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({colleges.find(col => col.id === c.collegeId)?.name || c.collegeId})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {viewingCanteenId && (
+              <div className="bg-white border border-violet-100 rounded-3xl shadow-sm overflow-hidden">
+                {viewingLoading || !viewingCanteenData ? (
+                  <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center">
+                    <div className="h-10 w-10 border-4 border-violet-600 border-t-transparent rounded-full animate-spin mb-4" />
+                    <p className="text-xs font-semibold">Synchronizing Live Canteen Dashboard...</p>
+                  </div>
+                ) : (
+                  <div className="border-t border-violet-50">
+                    <CanteenAdmin
+                      menuItems={viewingCanteenData.items || []}
+                      orders={viewingCanteenData.orders || []}
+                      reviews={viewingCanteenData.reviews || []}
+                      ingredients={viewingCanteenData.ingredients || []}
+                      settings={viewingCanteenData.settings}
+                      onAddMenuItem={async (payload) => {
+                        const resp = await fetch(`${API_BASE}/api/canteen/menu`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ ...payload, canteenId: viewingCanteenId })
+                        });
+                        const d = await resp.json();
+                        if (d.success) handleLoadCanteenDashboard(viewingCanteenId);
+                        return d;
+                      }}
+                      onDeleteMenuItem={async (id) => {
+                        const resp = await fetch(`${API_BASE}/api/canteen/menu/${id}`, { method: 'DELETE' });
+                        const d = await resp.json();
+                        if (d.success) handleLoadCanteenDashboard(viewingCanteenId);
+                        return d;
+                      }}
+                      onUpdateOrderStatus={async (id, status) => {
+                        const resp = await fetch(`${API_BASE}/api/canteen/order/status`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id, status })
+                        });
+                        const d = await resp.json();
+                        if (d.success) handleLoadCanteenDashboard(viewingCanteenId);
+                        return d;
+                      }}
+                      onFetchCanteen={() => handleLoadCanteenDashboard(viewingCanteenId)}
+                      onLogout={() => {
+                        setViewingCanteenId(null);
+                        setViewingCanteenData(null);
+                      }}
+                      userRole="owner"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
+}

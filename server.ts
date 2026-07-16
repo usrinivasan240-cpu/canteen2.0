@@ -1,0 +1,2204 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import express from 'express';
+import path from 'path';
+import dotenv from 'dotenv';
+import fs from 'fs';
+import admin from 'firebase-admin';
+import Razorpay from 'razorpay';
+import { GoogleGenAI, Type } from '@google/genai';
+import crypto from 'crypto';
+import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User } from './src/types';
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+const PORT = 3000;
+
+app.use(express.json());
+
+// Enable CORS for mobile Capacitor WebView clients (http://localhost and capacitor://)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = ['http://localhost:3000', 'http://localhost:5173', 'https://canteen20.vercel.app', 'capacitor://localhost'];
+  
+  if (origin && allowedOrigins.some(o => origin.startsWith(o))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
+const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
+let razorpay: any = null;
+
+if (razorpayKeyId && razorpayKeySecret) {
+  try {
+    razorpay = new Razorpay({
+      key_id: razorpayKeyId,
+      key_secret: razorpayKeySecret
+    });
+    console.log('Razorpay SDK initialized successfully.');
+  } catch (err) {
+    console.error('Failed to initialize Razorpay SDK:', err);
+  }
+} else {
+  console.log('Razorpay keys not configured. Operating with sandbox payment fallback.');
+}
+
+// Vercel path rewriting middleware to ensure backend routes match Express definitions
+if (process.env.VERCEL) {
+  app.use((req, res, next) => {
+    if (req.url && !req.url.startsWith('/api')) {
+      req.url = '/api' + req.url;
+    }
+    next();
+  });
+}
+
+app.get('/api/test', (req, res) => {
+  res.json({ success: true, message: "Server is working!" });
+});
+
+// Initialize Firebase Admin using token.json or env variable fallback
+let db: admin.firestore.Firestore | null = null;
+try {
+  const envCreds = process.env.FIREBASE_SERVICE_ACCOUNT;
+  const tokenPath = path.join(process.cwd(), 'token.json');
+
+  if (envCreds) {
+    const serviceAccount = JSON.parse(envCreds);
+    if (admin.apps.length === 0) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    }
+    db = admin.firestore();
+    db.settings({ ignoreUndefinedProperties: true });
+    console.log('Firebase Admin SDK initialized successfully via FIREBASE_SERVICE_ACCOUNT environment variable!');
+  } else if (fs.existsSync(tokenPath)) {
+    const serviceAccount = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
+    if (admin.apps.length === 0) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    }
+    db = admin.firestore();
+    db.settings({ ignoreUndefinedProperties: true });
+    console.log('Firebase Admin SDK initialized successfully with token.json!');
+  } else {
+    console.warn('token.json not found and FIREBASE_SERVICE_ACCOUNT not set. Operating with fallback in-memory state.');
+  }
+} catch (error) {
+  console.error('Failed to initialize Firebase Admin:', error);
+}
+
+// Initialize Google Gen AI only when needed or gracefully check its existence
+let genAI: GoogleGenAI | null = null;
+const API_KEY = process.env.GEMINI_API_KEY;
+
+if (API_KEY && API_KEY !== 'MY_GEMINI_API_KEY') {
+  try {
+    genAI = new GoogleGenAI({
+      apiKey: API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+    console.log('Google GenAI initialized successfully on the server.');
+  } catch (error) {
+    console.error('Failed to initialize Google Gen AI:', error);
+  }
+} else {
+  console.log('GEMINI_API_KEY is not configured or holds placeholder. Using simulated AI fallback.');
+}
+
+async function seedFirestoreIfNeeded() {
+  if (!db) return;
+  try {
+    const itemsSnapshot = await db.collection('items').get();
+    if (itemsSnapshot.empty) {
+      console.log('Seeding initial menu items to Firestore...');
+      const batch = db.batch();
+      INITIAL_MENU_ITEMS.forEach(item => {
+        const ref = db!.collection('items').doc(item.id);
+        batch.set(ref, item);
+      });
+      await batch.commit();
+    }
+
+    const reviewsSnapshot = await db.collection('reviews').get();
+    if (reviewsSnapshot.empty) {
+      console.log('Seeding initial reviews to Firestore...');
+      const batch = db.batch();
+      INITIAL_REVIEWS.forEach(review => {
+        const ref = db!.collection('reviews').doc(review.id);
+        batch.set(ref, review);
+      });
+      await batch.commit();
+    }
+
+    const ordersSnapshot = await db.collection('orders').get();
+    if (ordersSnapshot.empty) {
+      console.log('Seeding initial orders to Firestore...');
+      const batch = db.batch();
+      INITIAL_ORDERS.forEach(order => {
+        const ref = db!.collection('orders').doc(order.id);
+        batch.set(ref, order);
+      });
+      await batch.commit();
+    }
+    console.log('Firestore check/seeding complete.');
+  } catch (err) {
+    console.error('Error seeding Firestore:', err);
+  }
+}
+// Run seed check immediately
+seedFirestoreIfNeeded();
+
+/**
+ * Resilient Wrapper for Google GenAI generateContent calls.
+ * Automatically handles transient Service Interruptions (503) or Rate Limit (429) errors
+ * by retrying with the highly responsive and low-congested 'gemini-3.1-flash-lite' model.
+ */
+async function generateContentWithFallback(params: any): Promise<any> {
+  if (!genAI) {
+    throw new Error('Google Gen AI client is not initialized');
+  }
+
+  const primaryModel = params.model || 'gemini-3.5-flash';
+  const backupModel = 'gemini-3.1-flash-lite';
+
+  try {
+    return await genAI.models.generateContent(params);
+  } catch (error: any) {
+    const errorStr = String(error?.message || error || '').toUpperCase();
+    const isServiceInterrupted = 
+      error?.status === 503 || 
+      error?.statusCode === 503 || 
+      errorStr.includes('503') || 
+      errorStr.includes('UNAVAILABLE') || 
+      errorStr.includes('HIGH DEMAND') ||
+      errorStr.includes('RESOURCE_EXHAUSTED') ||
+      errorStr.includes('429');
+
+    if (isServiceInterrupted && primaryModel !== backupModel) {
+      console.warn(`[GEMINI WARNING] Model ${primaryModel} failed with service/rate issue. Attempting transparent fallback to '${backupModel}'...`);
+      try {
+        const backupParams = { ...params, model: backupModel };
+        return await genAI.models.generateContent(backupParams);
+      } catch (backupError: any) {
+        console.error(`[GEMINI ERROR] Fallback model '${backupModel}' also failed. Error:`, backupError.message || backupError);
+        throw error; // throw original
+      }
+    }
+    throw error;
+  }
+}
+
+// -------------------------------------------------------------
+// In-Memory Stateful Database representing our Canteen and User
+// -------------------------------------------------------------
+const INITIAL_INGREDIENTS: Ingredient[] = [
+  { id: 'ing_rice', name: 'Rice', stockGrams: 20000, unit: 'kg' },
+  { id: 'ing_veg', name: 'Vegetables', stockGrams: 10000, unit: 'kg' },
+  { id: 'ing_sauce', name: 'Sauce', stockGrams: 5000, unit: 'kg' },
+  { id: 'ing_egg', name: 'Egg', stockGrams: 150, unit: 'pcs' },
+  { id: 'ing_flour', name: 'Wheat Flour', stockGrams: 15000, unit: 'kg' },
+  { id: 'ing_potato', name: 'Potatoes', stockGrams: 10000, unit: 'kg' }
+];
+
+let canteenSettings: CanteenSettings = {
+  noShowMinutes: 30,
+  defaultSlotCapacity: 30
+};
+
+const INITIAL_MENU_ITEMS: MenuItem[] = [
+  {
+    id: 'item_001',
+    name: 'poori 1 pcs',
+    price: 10,
+    stock: 25,
+    rating: 4.8,
+    ratingCount: 142,
+    available: true,
+    category: 'Meals',
+    description: 'Crisp, hot, puffed fried flatbread. Light on the oil, high on taste.',
+    imageUrl: 'https://images.unsplash.com/photo-1626132647523-66f5bf380027?q=80&w=600&auto=format&fit=crop',
+    tags: ['Best Seller', 'Light', 'Traditional'],
+    prepTime: 8,
+    dailyLimit: 100,
+    bookedToday: 0,
+    isPaused: false,
+    recipe: [
+      { ingredientId: 'ing_flour', amountGrams: 50 },
+      { ingredientId: 'ing_potato', amountGrams: 30 }
+    ]
+  },
+  {
+    id: 'item_002',
+    name: 'chapati (per quantity)',
+    price: 20,
+    stock: 50,
+    rating: 4.9,
+    ratingCount: 310,
+    available: true,
+    category: 'Meals',
+    description: 'Single hand-rolled soft wheat flatbread cooked to perfection on flat tawa.',
+    imageUrl: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?q=80&w=600&auto=format&fit=crop',
+    tags: ['Healthy', 'Homemade'],
+    prepTime: 5,
+    dailyLimit: 200,
+    bookedToday: 0,
+    isPaused: false,
+    recipe: [
+      { ingredientId: 'ing_flour', amountGrams: 40 }
+    ]
+  },
+  {
+    id: 'item_003',
+    name: 'chicken fried rice',
+    price: 80,
+    stock: 12,
+    rating: 4.6,
+    ratingCount: 68,
+    available: true,
+    category: 'Meals',
+    description: 'Perfectly stir-fried basmati rice with tender succulent chicken pieces, spring onions, eggs, and authentic spices.',
+    imageUrl: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?q=80&w=600&auto=format&fit=crop',
+    tags: ['Heavy', 'Popular'],
+    prepTime: 15,
+    dailyLimit: 100,
+    bookedToday: 0,
+    isPaused: false,
+    recipe: [
+      { ingredientId: 'ing_rice', amountGrams: 250 },
+      { ingredientId: 'ing_veg', amountGrams: 100 },
+      { ingredientId: 'ing_sauce', amountGrams: 20 },
+      { ingredientId: 'ing_egg', amountGrams: 1 }
+    ]
+  },
+  {
+    id: 'item_004',
+    name: 'veg puffs',
+    price: 10,
+    stock: 24,
+    rating: 4.5,
+    ratingCount: 84,
+    available: true,
+    category: 'Snacks & Beverages',
+    description: 'Flaky baked golden pastry triangle layered with delicious mildly-spiked potato and mixed veg filling.',
+    imageUrl: 'https://images.unsplash.com/photo-1541532713592-79a0317b6b77?q=80&w=600&auto=format&fit=crop',
+    tags: ['Hot Snack', 'Crunchy'],
+    prepTime: 10,
+    dailyLimit: 120,
+    bookedToday: 0,
+    isPaused: false,
+    recipe: [
+      { ingredientId: 'ing_flour', amountGrams: 30 },
+      { ingredientId: 'ing_veg', amountGrams: 20 },
+      { ingredientId: 'ing_potato', amountGrams: 20 }
+    ]
+  },
+  {
+    id: 'item_005',
+    name: 'chaki chaki',
+    price: 2,
+    stock: 150,
+    rating: 4.7,
+    ratingCount: 290,
+    available: true,
+    category: 'Snacks & Beverages',
+    description: 'Traditional crunchy bite-sized sticks - super addictive snack that will make you ask for more.',
+    imageUrl: 'https://images.unsplash.com/photo-1581798459219-318e76aecc7b?q=80&w=600&auto=format&fit=crop',
+    tags: ['Pocket Friendly', 'Kids Choice'],
+    prepTime: 2,
+    dailyLimit: 300,
+    bookedToday: 0,
+    isPaused: false,
+    recipe: [
+      { ingredientId: 'ing_flour', amountGrams: 10 }
+    ]
+  },
+  {
+    id: 'item_006',
+    name: 'egg puffs',
+    price: 10,
+    stock: 18,
+    rating: 4.4,
+    ratingCount: 42,
+    available: true,
+    category: 'Snacks & Beverages',
+    description: 'Delectable hot baked folded pastry pocket stuffed with delicious hardboiled egg half and spiced caramelized onions.',
+    imageUrl: 'https://images.unsplash.com/photo-1608797178974-15b35a61d121?q=80&w=600&auto=format&fit=crop',
+    tags: ['Savory', 'High Protein'],
+    prepTime: 10,
+    dailyLimit: 80,
+    bookedToday: 0,
+    isPaused: false,
+    recipe: [
+      { ingredientId: 'ing_flour', amountGrams: 30 },
+      { ingredientId: 'ing_egg', amountGrams: 1 }
+    ]
+  },
+  {
+    id: 'item_007',
+    name: 'veg biryani',
+    price: 89,
+    stock: 35,
+    rating: 4.7,
+    ratingCount: 94,
+    available: true,
+    category: 'Meals',
+    description: 'Aromatic, spice-infused biryani rice slow-cooked on dum. Served without meat, but bursting with full flavors.',
+    imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?q=80&w=600&auto=format&fit=crop',
+    tags: ['Trending', 'Flavorful', 'Dum Biryani'],
+    prepTime: 20,
+    dailyLimit: 150,
+    bookedToday: 0,
+    isPaused: false,
+    recipe: [
+      { ingredientId: 'ing_rice', amountGrams: 250 },
+      { ingredientId: 'ing_veg', amountGrams: 50 },
+      { ingredientId: 'ing_sauce', amountGrams: 10 }
+    ]
+  }
+];
+
+const INITIAL_REVIEWS: Review[] = [
+  {
+    id: 'rev_001',
+    userId: 'user_0yq23cEG6ZNs1Dkkm3',
+    userName: 'Raju Watson',
+    rating: 5,
+    comment: 'The chicken fried rice is extremely flavor-packed and large portion! Best on campus.',
+    sentiment: 'positive',
+    timestamp: '2026-06-05T12:00:00Z',
+    menuItemId: 'item_003',
+    menuItemName: 'chicken fried rice',
+  },
+  {
+    id: 'rev_002',
+    userId: 'user_0E8xcyyh941IWmUi1TQ6N',
+    userName: 'Amit Kumar',
+    rating: 5,
+    comment: 'The poori is so crisp and piping hot! Handed over in literally 2 minutes.',
+    sentiment: 'positive',
+    timestamp: '2026-06-04T15:30:00Z',
+    menuItemId: 'item_001',
+    menuItemName: 'poori 1 pcs',
+  }
+];
+
+const INITIAL_ORDERS: Order[] = [
+  {
+    id: '2o0Kt5HmX3Co2vPPq32q',
+    userId: 'user_0E8xcyyh941IWmUi1TQ6N6M53',
+    userName: 'Amit Kumar',
+    items: [
+      { itemId: 'item_003', name: 'chicken fried rice', price: 80, quantity: 64 }
+    ],
+    totalPrice: 5120,
+    paymentStatus: 'paid',
+    paymentMethod: 'UPI Intent (watson777@okaxis)',
+    status: 'delivered',
+    qrCode: 'QR_2o0Kt5HmX3Co2vPPq32q',
+    createdAt: 1762439520000,
+    timestamp: '2025-11-06T14:32:00Z',
+    pickupTimeText: 'Completed',
+    pickupSlot: '12:45 PM',
+    prepStartTime: 1762439520000 - 15 * 60 * 1000 - 5 * 60 * 1000,
+    expiryTime: 1762439520000 + 30 * 60 * 1000
+  },
+  {
+    id: '0Rj19Bw7lko29u9mWREu',
+    userId: 'user_0yq23cEG6ZNs1Dkkm3MtHSYyAjy1',
+    userName: 'Raju Watson',
+    items: [
+      { itemId: 'item_001', name: 'poori 1 pecs', price: 10, quantity: 2 }
+    ],
+    totalPrice: 21,
+    paymentStatus: 'paid',
+    paymentMethod: 'Google Pay',
+    status: 'preparing',
+    qrCode: 'QR_0Rj19Bw7lko29u9mWREu',
+    createdAt: 1763118900000,
+    timestamp: '2025-11-14T11:15:00Z',
+    pickupTimeText: 'Approx. 5 mins remaining',
+    pickupSlot: '12:00 PM',
+    prepStartTime: 1763118900000 - 8 * 60 * 1000 - 5 * 60 * 1000,
+    expiryTime: 1763118900000 + 30 * 60 * 1000
+  }
+];
+
+let collegesState: College[] = [
+  { id: 'college_001', name: 'Engineering College East', location: 'Main Campus', status: 'active' },
+  { id: 'college_002', name: 'Science University West', location: 'Tech Campus', status: 'active' }
+];
+
+let usersState: User[] = [
+  { id: 'user_owner_default', name: 'Chef Watson', email: 'canteen_owner@gmail.com', role: 'owner', canteenId: 'canteen_001', status: 'active' },
+  { id: 'user_chef_default', name: 'Kitchen Chef', email: 'chef@gmail.com', role: 'chef', canteenId: 'canteen_001', subCanteenId: 'sub_001', status: 'active' },
+  { id: 'user_staff_default', name: 'Counter Staff', email: 'staff@gmail.com', role: 'staff', canteenId: 'canteen_001', subCanteenId: 'sub_001', status: 'active' },
+  { id: 'user_admin_default', name: 'College Admin', email: 'college_admin@gmail.com', role: 'admin', collegeId: 'college_001', status: 'active' },
+  { id: 'user_super_default', name: 'Food Court Admin', email: 'superadmin@gmail.com', role: 'superadmin', status: 'active' }
+];
+
+let subCanteensState: SubCanteen[] = [
+  { id: 'sub_001', name: 'North Wing Counter', canteenId: 'canteen_001', status: 'active' },
+  { id: 'sub_002', name: 'South Wing Counter', canteenId: 'canteen_001', status: 'active' }
+];
+
+let canteensState: Canteen[] = [
+  {
+    id: 'canteen_001',
+    name: 'Violet Bites',
+    collegeId: 'college_001',
+    ownerId: 'user_owner_default',
+    ownerName: 'Chef Watson',
+    status: 'active',
+    location: 'Campus Plaza',
+    razorpayAccountId: 'acc_GX82jso291jS',
+    items: [...INITIAL_MENU_ITEMS],
+    orders: [...INITIAL_ORDERS],
+    reviews: [...INITIAL_REVIEWS],
+    ingredients: [...INITIAL_INGREDIENTS],
+    settings: canteenSettings,
+  }
+];
+
+let canteenState: Canteen = canteensState[0];
+
+const LOCAL_DB_PATH = path.join(process.cwd(), 'local_db.json');
+
+function loadLocalDB() {
+  if (fs.existsSync(LOCAL_DB_PATH)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(LOCAL_DB_PATH, 'utf8'));
+      if (data.colleges) collegesState = data.colleges;
+      if (data.users) usersState = data.users;
+      if (data.subCanteens) subCanteensState = data.subCanteens;
+      if (data.canteens) canteensState = data.canteens;
+      console.log('Loaded local DB from local_db.json');
+    } catch (e) {
+      console.error('Failed to parse local DB file, using default memory state', e);
+    }
+  }
+}
+
+function saveLocalDB() {
+  try {
+    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify({
+      colleges: collegesState,
+      users: usersState,
+      subCanteens: subCanteensState,
+      canteens: canteensState
+    }, null, 2));
+  } catch (e) {
+    console.error('Failed to write to local DB file', e);
+  }
+}
+
+loadLocalDB();
+
+function getCanteenState(canteenId: string): Canteen {
+  let c = canteensState.find(x => x.id === canteenId);
+  if (!c) {
+    c = {
+      id: canteenId,
+      name: 'Default Canteen',
+      collegeId: 'college_001',
+      ownerId: 'user_owner_default',
+      ownerName: 'Chef Watson',
+      status: 'active',
+      items: [],
+      orders: [],
+      reviews: [],
+      ingredients: [],
+      settings: { noShowMinutes: 30, defaultSlotCapacity: 30, canteenId }
+    };
+    canteensState.push(c);
+  }
+  return c;
+}
+
+// -------------------------------------------------------------
+// REST API ENDPOINTS
+// -------------------------------------------------------------
+
+// 0. User Authentication (Register & Login)
+app.post('/api/auth/register', async (req, res) => {
+  const { name, email, password, role } = req.body;
+  if (!name || !email || !password) {
+    return res.status(400).json({ success: false, error: 'Name, email, and password are required.' });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const selectedRole = role || 'customer';
+  const userId = `user_${Math.random().toString(36).substring(2, 11)}`;
+
+  if (db) {
+    try {
+      const userDoc = await db.collection('users').doc(normalizedEmail).get();
+      if (userDoc.exists) {
+        return res.status(400).json({ success: false, error: 'User with this email already exists.' });
+      }
+      const newUser = { id: userId, name, email: normalizedEmail, password, role: selectedRole };
+      await db.collection('users').doc(normalizedEmail).set(newUser);
+      return res.json({ success: true, user: { id: userId, name, email: normalizedEmail, role: selectedRole } });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ success: false, error: 'Server authentication database error.' });
+    }
+  }
+
+  return res.json({ success: true, user: { id: userId, name, email: normalizedEmail, role: selectedRole } });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password, role } = req.body;
+  console.log('--- LOGIN ATTEMPT ---', { email, role });
+  if (!email || !password) {
+    return res.status(400).json({ success: false, error: 'Email and password are required.' });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const selectedRole = role || 'customer';
+
+  if (db) {
+    try {
+      const userDoc = await db.collection('users').doc(normalizedEmail).get();
+      if (userDoc.exists) {
+        const user = userDoc.data();
+        if (user && user.password === password) {
+          // Dynamic role alignment for default demo users
+          let finalRole = user.role;
+          if (['watson777@gmail.com', 'canteen_owner@gmail.com', 'superadmin@gmail.com', 'college_admin@gmail.com', 'chef@gmail.com', 'staff@gmail.com'].includes(normalizedEmail)) {
+            finalRole = selectedRole;
+            if (user.role !== selectedRole) {
+              await db.collection('users').doc(normalizedEmail).update({ role: selectedRole });
+            }
+          }
+          console.log('--- LOGIN SUCCESS (DB) ---', { email: user.email, resolvedRole: finalRole });
+          return res.json({ success: true, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId } });
+        } else {
+          return res.status(400).json({ success: false, error: 'Incorrect password.' });
+        }
+      }
+      
+      if (['watson777@gmail.com', 'canteen_owner@gmail.com', 'superadmin@gmail.com', 'college_admin@gmail.com', 'chef@gmail.com', 'staff@gmail.com'].includes(normalizedEmail)) {
+        let defaultRole = 'customer';
+        let defaultName = 'Raju Watson';
+        let collegeId: string | undefined;
+        let canteenId: string | undefined;
+        let subCanteenId: string | undefined;
+
+        if (normalizedEmail === 'canteen_owner@gmail.com') {
+          defaultRole = 'owner';
+          defaultName = 'Canteen Owner';
+          canteenId = 'canteen_001';
+        } else if (normalizedEmail === 'superadmin@gmail.com') {
+          defaultRole = 'superadmin';
+          defaultName = 'Super Admin';
+        } else if (normalizedEmail === 'college_admin@gmail.com') {
+          defaultRole = 'admin';
+          defaultName = 'College Admin';
+          collegeId = 'college_001';
+        } else if (normalizedEmail === 'chef@gmail.com') {
+          defaultRole = 'chef';
+          defaultName = 'Kitchen Chef';
+          canteenId = 'canteen_001';
+          subCanteenId = 'sub_001';
+        } else if (normalizedEmail === 'staff@gmail.com') {
+          defaultRole = 'staff';
+          defaultName = 'Counter Staff';
+          canteenId = 'canteen_001';
+          subCanteenId = 'sub_001';
+        }
+
+        const defaultUser: any = { 
+          id: `user_${defaultRole}_default`, 
+          name: defaultName, 
+          email: normalizedEmail, 
+          password, 
+          role: defaultRole,
+          status: 'active'
+        };
+        if (collegeId) defaultUser.collegeId = collegeId;
+        if (canteenId) defaultUser.canteenId = canteenId;
+        if (subCanteenId) defaultUser.subCanteenId = subCanteenId;
+
+        await db.collection('users').doc(normalizedEmail).set(defaultUser);
+        return res.json({ success: true, user: { id: defaultUser.id, name: defaultUser.name, email: defaultUser.email, role: defaultUser.role, collegeId, canteenId, subCanteenId } });
+      }
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ success: false, error: 'Database access failure.' });
+    }
+  }
+
+  let fallbackCollegeId: string | undefined;
+  let fallbackCanteenId: string | undefined;
+  let fallbackSubCanteenId: string | undefined;
+  if (selectedRole === 'owner') {
+    fallbackCanteenId = 'canteen_001';
+  } else if (selectedRole === 'admin') {
+    fallbackCollegeId = 'college_001';
+  } else if (selectedRole === 'chef' || selectedRole === 'staff') {
+    fallbackCanteenId = 'canteen_001';
+    fallbackSubCanteenId = 'sub_001';
+  }
+
+  return res.json({
+    success: true,
+    user: {
+      id: `user_${Math.random().toString(36).substring(2, 11)}`,
+      name: normalizedEmail.split('@')[0],
+      email: normalizedEmail,
+      role: selectedRole,
+      collegeId: fallbackCollegeId,
+      canteenId: fallbackCanteenId,
+      subCanteenId: fallbackSubCanteenId
+    }
+  });
+});
+
+// ============================================================================
+// SUPER ADMIN ENDPOINTS
+// ============================================================================
+
+// --- Colleges CRUD ---
+app.get('/api/colleges', async (req, res) => {
+  if (db) {
+    try {
+      const snap = await db.collection('colleges').get();
+      const list = snap.docs.map(doc => doc.data() as College);
+      return res.json({ success: true, colleges: list });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  res.json({ success: true, colleges: collegesState });
+});
+
+app.post('/api/colleges', async (req, res) => {
+  const college = req.body as College;
+  if (!college.name) return res.status(400).json({ success: false, error: 'Name is required' });
+  if (!college.id) college.id = `college_${Date.now()}`;
+  if (!college.status) college.status = 'active';
+
+  if (db) {
+    try {
+      await db.collection('colleges').doc(college.id).set(college);
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ success: false, error: 'DB Save failed' });
+    }
+  }
+  const idx = collegesState.findIndex(c => c.id === college.id);
+  if (idx !== -1) {
+    collegesState[idx] = college;
+  } else {
+    collegesState.push(college);
+  }
+  saveLocalDB();
+  res.json({ success: true, college });
+});
+
+app.delete('/api/colleges/:id', async (req, res) => {
+  const { id } = req.params;
+  if (db) {
+    try {
+      await db.collection('colleges').doc(id).delete();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  collegesState = collegesState.filter(c => c.id !== id);
+  saveLocalDB();
+  res.json({ success: true });
+});
+
+// --- Canteens CRUD ---
+app.get('/api/canteens', async (req, res) => {
+  if (db) {
+    try {
+      const snap = await db.collection('canteens').get();
+      const list = snap.docs.map(doc => doc.data() as Canteen);
+      return res.json({ success: true, canteens: list });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  res.json({ success: true, canteens: canteensState });
+});
+
+app.post('/api/canteens', async (req, res) => {
+  const canteenData = req.body as Canteen;
+  if (!canteenData.name || !canteenData.collegeId) {
+    return res.status(400).json({ success: false, error: 'Name and College ID are required' });
+  }
+  if (!canteenData.id) canteenData.id = `canteen_${Date.now()}`;
+  if (!canteenData.status) canteenData.status = 'active';
+  if (!canteenData.razorpayAccountId) {
+    canteenData.razorpayAccountId = 'acc_' + Math.random().toString(36).substring(2, 11);
+  }
+
+  if (db) {
+    try {
+      await db.collection('canteens').doc(canteenData.id).set(canteenData);
+      
+      // Auto-seed default settings
+      const settingsDocId = `settings_${canteenData.id}`;
+      const setDoc = await db.collection('settings').doc(settingsDocId).get();
+      if (!setDoc.exists) {
+        await db.collection('settings').doc(settingsDocId).set({
+          noShowMinutes: 30,
+          defaultSlotCapacity: 30,
+          canteenId: canteenData.id
+        });
+      }
+
+      // Auto-seed default ingredients
+      const ingSnap = await db.collection('ingredients').where('canteenId', '==', canteenData.id).get();
+      if (ingSnap.empty) {
+        const batch = db.batch();
+        INITIAL_INGREDIENTS.forEach(ing => {
+          const ref = db!.collection('ingredients').doc(`${ing.id}_${canteenData.id}`);
+          batch.set(ref, { ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id });
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ success: false, error: 'DB Save failed' });
+    }
+  }
+
+  const idx = canteensState.findIndex(c => c.id === canteenData.id);
+  if (idx !== -1) {
+    canteensState[idx] = { ...canteensState[idx], ...canteenData };
+  } else {
+    canteensState.push({
+      ...canteenData,
+      items: [],
+      orders: [],
+      reviews: [],
+      ingredients: INITIAL_INGREDIENTS.map(ing => ({ ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id })),
+      settings: { noShowMinutes: 30, defaultSlotCapacity: 30, canteenId: canteenData.id }
+    });
+  }
+  saveLocalDB();
+  res.json({ success: true, canteen: getCanteenState(canteenData.id) });
+});
+
+app.post('/api/canteen/update-name', async (req, res) => {
+  const { canteenId, name } = req.body;
+  if (!canteenId || !name) {
+    return res.status(400).json({ success: false, error: 'canteenId and name are required.' });
+  }
+  if (db) {
+    try {
+      await db.collection('canteens').doc(canteenId).update({ name });
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ success: false, error: 'Failed to update canteen name in database.' });
+    }
+  }
+  const c = getCanteenState(canteenId);
+  c.name = name;
+  saveLocalDB();
+  res.json({ success: true, name });
+});
+
+app.delete('/api/canteens/:id', async (req, res) => {
+  const { id } = req.params;
+  if (db) {
+    try {
+      await db.collection('canteens').doc(id).delete();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  canteensState = canteensState.filter(c => c.id !== id);
+  saveLocalDB();
+  res.json({ success: true });
+});
+
+// --- Sub-Canteens CRUD ---
+app.get('/api/subcanteens', async (req, res) => {
+  if (db) {
+    try {
+      const snap = await db.collection('subcanteens').get();
+      const list = snap.docs.map(doc => doc.data() as SubCanteen);
+      return res.json({ success: true, subCanteens: list });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  res.json({ success: true, subCanteens: subCanteensState });
+});
+
+app.post('/api/subcanteens', async (req, res) => {
+  const sub = req.body as SubCanteen;
+  if (!sub.name || !sub.canteenId) {
+    return res.status(400).json({ success: false, error: 'Name and Canteen ID are required' });
+  }
+  if (!sub.id) sub.id = `sub_${Date.now()}`;
+  if (!sub.status) sub.status = 'active';
+
+  if (db) {
+    try {
+      await db.collection('subcanteens').doc(sub.id).set(sub);
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ success: false, error: 'DB Save failed' });
+    }
+  }
+  const idx = subCanteensState.findIndex(s => s.id === sub.id);
+  if (idx !== -1) {
+    subCanteensState[idx] = sub;
+  } else {
+    subCanteensState.push(sub);
+  }
+  saveLocalDB();
+  res.json({ success: true, subCanteen: sub });
+});
+
+app.delete('/api/subcanteens/:id', async (req, res) => {
+  const { id } = req.params;
+  if (db) {
+    try {
+      await db.collection('subcanteens').doc(id).delete();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  subCanteensState = subCanteensState.filter(s => s.id !== id);
+  saveLocalDB();
+  res.json({ success: true });
+});
+
+app.get('/api/users', async (req, res) => {
+  if (db) {
+    try {
+      const snap = await db.collection('users').get();
+      const list = snap.docs.map(doc => {
+        const u = doc.data();
+        return { id: u.id, name: u.name, email: u.email, role: u.role, collegeId: u.collegeId, canteenId: u.canteenId, subCanteenId: u.subCanteenId, status: u.status, posting: u.posting };
+      });
+      return res.json({ success: true, users: list });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  // Fallback default users
+  res.json({
+    success: true,
+    users: usersState
+  });
+});
+
+app.post('/api/users', async (req, res) => {
+  const user = req.body as User;
+  if (!user.name || !user.email || !user.role) {
+    return res.status(400).json({ success: false, error: 'Name, email, and role are required' });
+  }
+  const emailKey = user.email.trim().toLowerCase();
+  if (!user.id) user.id = `user_${Date.now()}`;
+  if (!user.status) user.status = 'active';
+  if (!user.password) user.password = 'changeme_' + Math.random().toString(36).substring(2, 10);
+
+  if (db) {
+    try {
+      await db.collection('users').doc(emailKey).set(user);
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ success: false, error: 'DB Save failed' });
+    }
+  }
+
+  // Update local in-memory fallback state
+  const idx = usersState.findIndex(u => u.email.toLowerCase() === emailKey);
+  if (idx !== -1) {
+    usersState[idx] = { ...usersState[idx], ...user };
+  } else {
+    usersState.push(user);
+  }
+
+  saveLocalDB();
+  res.json({ success: true, user });
+});
+
+app.delete('/api/users/:email', async (req, res) => {
+  const { email } = req.params;
+  const emailKey = email.trim().toLowerCase();
+  if (db) {
+    try {
+      await db.collection('users').doc(emailKey).delete();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  usersState = usersState.filter(u => u.email.toLowerCase() !== emailKey);
+  saveLocalDB();
+  res.json({ success: true });
+});
+
+app.put('/api/users/:email/role', async (req, res) => {
+  const { email } = req.params;
+  const { role, posting } = req.body;
+  const emailKey = email.trim().toLowerCase();
+  
+  if (!role) {
+    return res.status(400).json({ success: false, error: 'Role is required' });
+  }
+
+  if (db) {
+    try {
+      await db.collection('users').doc(emailKey).update({ role, posting: posting || "" });
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ success: false, error: 'Failed to update user role in DB' });
+    }
+  }
+
+  const idx = usersState.findIndex(u => u.email.toLowerCase() === emailKey);
+  if (idx !== -1) {
+    usersState[idx].role = role as any;
+    usersState[idx].posting = posting;
+  }
+
+  saveLocalDB();
+  return res.json({ success: true, message: 'Role updated successfully' });
+});
+
+
+// 1. Get entire canteen info (Menu, live orders, reviews, settings, ingredients)
+app.get('/api/canteen', async (req, res) => {
+  const canteenId = (req.query.canteenId as string) || 'canteen_001';
+  await checkExpiredOrders();
+  if (db) {
+    try {
+      const itemsSnap = await db.collection('items').where('canteenId', '==', canteenId).get();
+      let items = itemsSnap.docs.map(doc => doc.data() as MenuItem);
+      if (items.length === 0 && canteenId === 'canteen_001') {
+        const allItemsSnap = await db.collection('items').get();
+        items = allItemsSnap.docs.map(doc => doc.data() as MenuItem);
+      }
+      
+      const ordersSnap = await db.collection('orders').where('canteenId', '==', canteenId).get();
+      let orders = ordersSnap.docs.map(doc => doc.data() as Order);
+      orders.sort((a, b) => b.createdAt - a.createdAt);
+
+      const reviewsSnap = await db.collection('reviews').where('canteenId', '==', canteenId).get();
+      let reviews = reviewsSnap.docs.map(doc => doc.data() as Review);
+      reviews.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      const ingSnap = await db.collection('ingredients').where('canteenId', '==', canteenId).get();
+      const ingredients = ingSnap.empty ? INITIAL_INGREDIENTS.map(ing => ({ ...ing, canteenId })) : ingSnap.docs.map(doc => doc.data() as Ingredient);
+
+      const settingsSnap = await db.collection('settings').doc(`settings_${canteenId}`).get();
+      const settings = settingsSnap.exists ? settingsSnap.data() as CanteenSettings : { ...canteenSettings, canteenId };
+
+      let canteenName = 'Violet Bites';
+      const cRef = await db.collection('canteens').doc(canteenId).get();
+      if (cRef.exists) {
+        canteenName = cRef.data()?.name || canteenName;
+      }
+
+      return res.json({
+        success: true,
+        canteen: {
+          id: canteenId,
+          name: canteenName,
+          ownerName: cRef.exists ? cRef.data()?.ownerName || 'Chef Watson' : 'Chef Watson',
+          items,
+          orders,
+          reviews,
+          ingredients,
+          settings
+        }
+      });
+    } catch (err) {
+      console.error('Firestore get error, falling back to local memory state:', err);
+    }
+  }
+  res.json({ success: true, canteen: getCanteenState(canteenId) });
+});
+
+// 2. Add / Edit Menu Items (Owner)
+app.post('/api/canteen/menu', async (req, res) => {
+  const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe } = req.body;
+  
+  if (!name || isNaN(price) || isNaN(stock)) {
+    return res.status(400).json({ success: false, error: 'Name, valid price and stock are required.' });
+  }
+
+  const isNew = !id;
+  const targetId = id || `item_${Date.now()}`;
+
+  let existingItem: MenuItem | undefined;
+  if (db && !isNew) {
+    try {
+      const doc = await db.collection('items').doc(id).get();
+      if (doc.exists) {
+        existingItem = doc.data() as MenuItem;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  } else if (!isNew) {
+    existingItem = canteenState.items.find(i => i.id === id);
+  }
+
+  const menuItem: MenuItem = {
+    id: targetId,
+    name,
+    price: Number(price),
+    stock: Number(stock),
+    rating: existingItem?.rating || 5.0,
+    ratingCount: existingItem?.ratingCount || 1,
+    available: stock > 0 ? (available !== undefined ? available : true) : false,
+    category,
+    description: description || '',
+    tags: tags || [],
+    imageUrl: imageUrl || existingItem?.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=300&auto=format&fit=crop',
+    prepTime: Number(prepTime) || existingItem?.prepTime || 10,
+    dailyLimit: Number(dailyLimit) || existingItem?.dailyLimit || 100,
+    bookedToday: existingItem?.bookedToday || 0,
+    isPaused: isPaused !== undefined ? !!isPaused : (existingItem?.isPaused || false),
+    recipe: recipe || existingItem?.recipe || []
+  };
+
+  if (db) {
+    try {
+      await db.collection('items').doc(targetId).set(menuItem);
+    } catch (err) {
+      console.error('Firestore save item error:', err);
+    }
+  }
+
+  if (isNew) {
+    canteenState.items.push(menuItem);
+  } else {
+    canteenState.items = canteenState.items.map(item => item.id === id ? menuItem : item);
+  }
+
+  res.json({ success: true, menuItem, message: isNew ? 'Menu item added' : 'Menu item updated' });
+});
+
+// 3. Delete Menu Item (Owner)
+app.delete('/api/canteen/menu/:id', async (req, res) => {
+  const { id } = req.params;
+  if (db) {
+    try {
+      await db.collection('items').doc(id).delete();
+    } catch (err) {
+      console.error('Firestore delete error:', err);
+    }
+  }
+  canteenState.items = canteenState.items.filter(item => item.id !== id);
+  res.json({ success: true, message: 'Item deleted successfully' });
+});
+
+// 3b. Add / Edit Ingredients (Owner)
+app.post('/api/canteen/ingredients', async (req, res) => {
+  const { id, name, stockGrams, unit, canteenId } = req.body;
+  if (!name || isNaN(stockGrams)) {
+    return res.status(400).json({ success: false, error: 'Name and valid stock quantity are required.' });
+  }
+  const isNew = !id;
+  const targetId = id || `ing_${Date.now()}`;
+  const targetCanteenId = canteenId || 'canteen_001';
+
+  const ingredient: Ingredient = {
+    id: targetId,
+    name,
+    stockGrams: Number(stockGrams),
+    unit: unit || 'g',
+    canteenId: targetCanteenId
+  };
+
+  if (db) {
+    try {
+      await db.collection('ingredients').doc(targetId).set(ingredient);
+    } catch (err) {
+      console.error('Firestore save ingredient error:', err);
+    }
+  }
+
+  const activeC = getCanteenState(targetCanteenId);
+  if (!activeC.ingredients) activeC.ingredients = [];
+
+  if (isNew) {
+    activeC.ingredients.push(ingredient);
+  } else {
+    activeC.ingredients = activeC.ingredients.map(ing => ing.id === id ? ingredient : ing);
+  }
+
+  // Update legacy global state fallback if canteen matches
+  if (targetCanteenId === 'canteen_001') {
+    if (isNew) {
+      if (!canteenState.ingredients) canteenState.ingredients = [];
+      canteenState.ingredients.push(ingredient);
+    } else {
+      canteenState.ingredients = (canteenState.ingredients || []).map(ing => ing.id === id ? ingredient : ing);
+    }
+  }
+
+  saveLocalDB();
+  res.json({ success: true, ingredient, message: isNew ? 'Ingredient added' : 'Ingredient updated' });
+});
+
+// 3c. Delete Ingredient (Owner)
+app.delete('/api/canteen/ingredients/:id', async (req, res) => {
+  const { id } = req.params;
+  const canteenId = (req.query.canteenId as string) || 'canteen_001';
+  if (db) {
+    try {
+      await db.collection('ingredients').doc(id).delete();
+    } catch (err) {
+      console.error('Firestore delete ingredient error:', err);
+    }
+  }
+  const activeC = getCanteenState(canteenId);
+  if (activeC.ingredients) {
+    activeC.ingredients = activeC.ingredients.filter(ing => ing.id !== id);
+  }
+  if (canteenId === 'canteen_001') {
+    canteenState.ingredients = (canteenState.ingredients || []).filter(ing => ing.id !== id);
+  }
+  saveLocalDB();
+  res.json({ success: true, message: 'Ingredient deleted successfully' });
+});
+
+// Helper to parse "12:45 PM" into today's unix timestamp
+function parseSlotToTimestamp(slot: string): number {
+  const match = slot.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+  if (!match) return Date.now();
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3].toUpperCase();
+  if (ampm === 'PM' && hours < 12) hours += 12;
+  if (ampm === 'AM' && hours === 12) hours = 0;
+  
+  const d = new Date();
+  d.setHours(hours, minutes, 0, 0);
+  return d.getTime();
+}
+
+// 4. Place an Order (Customer)
+app.post('/api/canteen/order', async (req, res) => {
+  const { userId, userName, items, paymentMethod, pickupSlot, canteenId, subCanteenId } = req.body;
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, error: 'Cannot place empty order.' });
+  }
+
+  const selectedSlot = pickupSlot || 'ASAP (Instant)';
+
+  // 1. Check Slot Capacity
+  let capacityLimit = canteenSettings.defaultSlotCapacity;
+  let currentSlotBookingsCount = 0;
+  if (db) {
+    try {
+      const settingsDoc = await db.collection('settings').doc('canteen_settings').get();
+      if (settingsDoc.exists) {
+        capacityLimit = (settingsDoc.data() as CanteenSettings).defaultSlotCapacity;
+      }
+      const ordersInSlot = await db.collection('orders').where('pickupSlot', '==', selectedSlot).get();
+      currentSlotBookingsCount = ordersInSlot.docs.filter(doc => {
+        const o = doc.data() as Order;
+        return o.status !== 'cancelled' && o.status !== 'expired';
+      }).length;
+    } catch (err) {
+      console.error(err);
+    }
+  } else {
+    capacityLimit = canteenState.settings?.defaultSlotCapacity || 30;
+    currentSlotBookingsCount = canteenState.orders.filter(o => o.pickupSlot === selectedSlot && o.status !== 'cancelled' && o.status !== 'expired').length;
+  }
+
+  if (selectedSlot !== 'ASAP (Instant)' && currentSlotBookingsCount >= capacityLimit) {
+    return res.status(400).json({ success: false, error: `The ${selectedSlot} slot is fully booked. Please choose another pickup slot.` });
+  }
+
+  // Retrieve current items to check stock/limits
+  let currentItems: MenuItem[] = [];
+  if (db) {
+    try {
+      const snap = await db.collection('items').get();
+      currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+    } catch (err) {
+      console.error(err);
+      currentItems = canteenState.items;
+    }
+  } else {
+    currentItems = canteenState.items;
+  }
+
+  // Retrieve current raw ingredients
+  let currentIngredients: Ingredient[] = [];
+  if (db) {
+    try {
+      const snap = await db.collection('ingredients').get();
+      currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+    } catch (err) {
+      console.error(err);
+      currentIngredients = canteenState.ingredients || [];
+    }
+  } else {
+    currentIngredients = canteenState.ingredients || [];
+  }
+
+  const validatedItems: OrderItem[] = [];
+  let foodAmount = 0;
+  let maxPrepTime = 5;
+
+  // Recipe requirements tracker
+  const requiredIngredients: { [ingId: string]: number } = {};
+
+  for (const clientItem of items) {
+    const itemInMenu = currentItems.find(item => item.id === clientItem.itemId);
+    if (!itemInMenu) {
+      return res.status(404).json({ success: false, error: `Food item ${clientItem.name} not found.` });
+    }
+
+    if (itemInMenu.isPaused) {
+      return res.status(400).json({ success: false, error: `Sorry, ${itemInMenu.name} is currently unavailable due to kitchen controls.` });
+    }
+
+    if (itemInMenu.bookedToday + clientItem.quantity > itemInMenu.dailyLimit) {
+      return res.status(400).json({ success: false, error: `Sorry, ${itemInMenu.name} is Sold Out for today (daily limit reached).` });
+    }
+
+    if (itemInMenu.stock < clientItem.quantity) {
+      return res.status(432).json({ 
+        success: false, 
+        error: `Insufficient stock for ${itemInMenu.name}. Only ${itemInMenu.stock} units available.` 
+      });
+    }
+
+    // Accumulate recipe ingredients needed
+    if (itemInMenu.recipe && Array.isArray(itemInMenu.recipe)) {
+      for (const recipeItem of itemInMenu.recipe) {
+        const totalNeeded = recipeItem.amountGrams * clientItem.quantity;
+        requiredIngredients[recipeItem.ingredientId] = (requiredIngredients[recipeItem.ingredientId] || 0) + totalNeeded;
+      }
+    }
+
+    validatedItems.push({
+      itemId: itemInMenu.id,
+      name: itemInMenu.name,
+      price: itemInMenu.price,
+      quantity: clientItem.quantity,
+    });
+
+    foodAmount += itemInMenu.price * clientItem.quantity;
+    if (itemInMenu.prepTime > maxPrepTime) {
+      maxPrepTime = itemInMenu.prepTime;
+    }
+  }
+
+  // Check ingredient stocks
+  for (const [ingId, reqAmount] of Object.entries(requiredIngredients)) {
+    const ingredient = currentIngredients.find(i => i.id === ingId);
+    if (!ingredient) continue;
+    if (ingredient.stockGrams < reqAmount) {
+      const displayStock = ingredient.stockGrams < 1000 ? `${ingredient.stockGrams}g` : `${(ingredient.stockGrams / 1000).toFixed(2)}kg`;
+      const displayReq = reqAmount < 1000 ? `${reqAmount}g` : `${(reqAmount / 1000).toFixed(2)}kg`;
+      return res.status(400).json({
+        success: false,
+        error: `Insufficient raw inventory for: ${ingredient.name}. Needed: ${displayReq}, available: ${displayStock}.`
+      });
+    }
+  }
+
+  const convenienceFee = foodAmount > 0 ? Math.ceil(foodAmount / 100) : 0;
+  const subtotal = foodAmount + convenienceFee;
+  const orderId = `ORD_${Math.floor(1000 + Math.random() * 9000)}`;
+
+  const pickupTimestamp = parseSlotToTimestamp(selectedSlot);
+  const prepStartTime = pickupTimestamp - (maxPrepTime * 60 * 1000) - (5 * 60 * 1000); // 5 mins buffer
+  const noShowMinutes = db 
+    ? (await db.collection('settings').doc('canteen_settings').get()).data()?.noShowMinutes || 30
+    : canteenState.settings?.noShowMinutes || 30;
+  const expiryTime = pickupTimestamp + (noShowMinutes * 60 * 1000);
+
+  if (razorpay) {
+    try {
+      const totalPrice = Number((subtotal / 0.9764).toFixed(2));
+      const totalAmountPaise = Math.round(totalPrice * 100);
+      let rzpOrder: any = null;
+      try {
+        rzpOrder = await razorpay.orders.create({
+          amount: totalAmountPaise,
+          currency: 'INR',
+          transfers: [
+            {
+              account: canteenState.razorpayAccountId || 'acc_GX82jso291jS',
+              amount: foodAmount * 100,
+              currency: 'INR',
+              on_hold: false
+            }
+          ]
+        });
+      } catch (transferErr) {
+        console.warn('Razorpay split transfer failed, trying standard:', transferErr);
+        rzpOrder = await razorpay.orders.create({
+          amount: totalAmountPaise,
+          currency: 'INR'
+        });
+      }
+
+      const newOrder: Order = {
+        id: orderId,
+        userId: userId || 'user_guest',
+        userName: userName || 'Guest User',
+        items: validatedItems,
+        totalPrice,
+        paymentStatus: 'pending',
+        paymentMethod: 'Razorpay Online Gateway',
+        qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
+        status: 'pending',
+        timestamp: new Date().toISOString(),
+        createdAt: Date.now(),
+        pickupTimeText: 'Pending payment confirmation',
+        razorpayOrderId: rzpOrder.id,
+        pickupSlot: selectedSlot,
+        prepStartTime,
+        expiryTime,
+        canteenId: canteenId || 'canteen_001',
+        subCanteenId: subCanteenId || 'sub_001'
+      };
+
+      if (db) {
+        await db.collection('orders').doc(orderId).set(newOrder);
+      }
+      canteenState.orders.unshift(newOrder);
+
+      return res.json({
+        success: true,
+        useRazorpay: true,
+        razorpayOrderId: rzpOrder.id,
+        amount: totalAmountPaise,
+        key: razorpayKeyId,
+        order: newOrder,
+        qrPayload: generateSignedQR(orderId)
+      });
+    } catch (err: any) {
+      console.error('Razorpay order creation error:', err);
+      return res.status(500).json({ success: false, error: 'Payment gateway order initialization failed.' });
+    }
+  }
+
+  // Fallback to Instant Mock Checkout when Razorpay credentials are not defined
+  // Deduct ingredient stock, decrement item stock, increment bookedToday
+  for (const clientItem of items) {
+    const itemInMenu = currentItems.find(item => item.id === clientItem.itemId);
+    if (itemInMenu) {
+      itemInMenu.stock -= clientItem.quantity;
+      itemInMenu.bookedToday += clientItem.quantity;
+      if (itemInMenu.stock <= 0) {
+        itemInMenu.available = false;
+      }
+      if (db) {
+        await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+      }
+    }
+  }
+  canteenState.items = currentItems;
+
+  for (const [ingId, reqAmount] of Object.entries(requiredIngredients)) {
+    const ingredient = currentIngredients.find(i => i.id === ingId);
+    if (ingredient) {
+      ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
+      if (db) {
+        await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+      }
+    }
+  }
+  canteenState.ingredients = currentIngredients;
+
+  const totalPrice = Number((subtotal / 0.9764).toFixed(2));
+  const containsChefItems = validatedItems.some(it => {
+    const itemMenu = currentItems.find(m => m.id === it.itemId);
+    return itemMenu ? itemMenu.requiresChef !== false : true;
+  });
+
+  const newOrder: Order = {
+    id: orderId,
+    userId: userId || 'user_guest',
+    userName: userName || 'Raju Watson',
+    items: validatedItems,
+    totalPrice: totalPrice,
+    paymentStatus: 'paid', 
+    paymentMethod: paymentMethod || 'Mock UPI Checkout',
+    qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
+    status: containsChefItems ? 'scheduled' : 'ready',
+    timestamp: new Date().toISOString(),
+    createdAt: Date.now(),
+    pickupTimeText: containsChefItems ? `Scheduled for pickup at ${selectedSlot}` : 'Ready for collection at counter',
+    pickupSlot: selectedSlot,
+    prepStartTime,
+    expiryTime,
+    canteenId: canteenId || 'canteen_001',
+    subCanteenId: subCanteenId || 'sub_001'
+  };
+
+  if (db) {
+    try {
+      await db.collection('orders').doc(orderId).set(newOrder);
+    } catch (err) {
+      console.error('Firestore save order error:', err);
+    }
+  }
+
+  canteenState.orders.unshift(newOrder);
+  res.json({ success: true, useRazorpay: false, order: newOrder, qrPayload: generateSignedQR(orderId), message: 'Order placed & payment verified!' });
+});
+
+// 4b. Verify Razorpay Payment Signature (Customer Checkout completion)
+app.post('/api/canteen/payment/verify', async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    return res.status(400).json({ success: false, error: 'Missing payment signature verification parameters.' });
+  }
+
+  if (!razorpayKeySecret) {
+    return res.status(500).json({ success: false, error: 'Razorpay client is not configured on the server.' });
+  }
+
+  try {
+    const crypto = await import('crypto');
+    const generatedSignature = crypto
+      .createHmac('sha256', razorpayKeySecret)
+      .update(razorpay_order_id + '|' + razorpay_payment_id)
+      .digest('hex');
+
+    if (generatedSignature !== razorpay_signature) {
+      return res.status(400).json({ success: false, error: 'Payment verification failed. Signature mismatch.' });
+    }
+
+    // Retrieve order
+    let targetOrder: Order | undefined;
+    if (db) {
+      const snap = await db.collection('orders').where('razorpayOrderId', '==', razorpay_order_id).get();
+      if (!snap.empty) {
+        targetOrder = snap.docs[0].data() as Order;
+      }
+    } else {
+      targetOrder = canteenState.orders.find(o => o.razorpayOrderId === razorpay_order_id);
+    }
+
+    if (!targetOrder) {
+      return res.status(404).json({ success: false, error: 'Order profile matching payment ID not found.' });
+    }
+
+    // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
+    let currentItems: MenuItem[] = [];
+    if (db) {
+      const snap = await db.collection('items').get();
+      currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+    } else {
+      currentItems = canteenState.items;
+    }
+
+    let currentIngredients: Ingredient[] = [];
+    if (db) {
+      const snap = await db.collection('ingredients').get();
+      currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+    } else {
+      currentIngredients = canteenState.ingredients || [];
+    }
+
+    for (const item of targetOrder.items) {
+      const itemInMenu = currentItems.find(i => i.id === item.itemId);
+      if (itemInMenu) {
+        itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
+        itemInMenu.bookedToday += item.quantity;
+        if (itemInMenu.stock <= 0) {
+          itemInMenu.available = false;
+        }
+        if (db) {
+          await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+        }
+
+        // Deduct ingredients
+        if (itemInMenu.recipe) {
+          for (const recipeItem of itemInMenu.recipe) {
+            const reqAmount = recipeItem.amountGrams * item.quantity;
+            const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
+            if (ingredient) {
+              ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
+              if (db) {
+                await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+              }
+            }
+          }
+        }
+      }
+    }
+    canteenState.items = currentItems;
+    canteenState.ingredients = currentIngredients;
+
+    const containsChefItems = targetOrder.items.some(it => {
+      const itemMenu = currentItems.find(m => m.id === it.itemId);
+      return itemMenu ? itemMenu.requiresChef !== false : true;
+    });
+
+    // Finalize order status to 'scheduled' or 'preparing' depending on time
+    const updatedOrder: Order = {
+      ...targetOrder,
+      paymentStatus: 'paid',
+      status: containsChefItems ? 'scheduled' : 'ready',
+      razorpayPaymentId: razorpay_payment_id,
+      pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
+    };
+
+    if (db) {
+      await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
+    }
+
+    canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
+
+    res.json({ success: true, order: updatedOrder, message: 'Payment verified & order finalized.' });
+  } catch (err: any) {
+    console.error('Signature verification server error:', err);
+    res.status(500).json({ success: false, error: 'Error finalising transaction payment.' });
+  }
+});
+
+// 4c. QR Code Verification Endpoint (Staff scanning customer QR)
+const QR_SECRET = process.env.QR_SECRET || crypto.randomBytes(32).toString('hex');
+
+function generateSignedQR(orderId: string): string {
+  const ts = Date.now().toString();
+  const sig = crypto.createHmac('sha256', QR_SECRET).update(`${orderId}.${ts}`).digest('hex');
+  return JSON.stringify({ o: orderId, t: ts, s: sig });
+}
+
+app.get('/api/canteen/qr/verify', async (req, res) => {
+  const { code } = req.query;
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ success: false, error: 'QR code parameter is required.' });
+  }
+
+  try {
+    const crypto = await import('crypto');
+    let orderId: string;
+    let sig: string;
+    let ts: string;
+
+    // Try JSON payload format first: {"o":"orderId","t":"timestamp","s":"signature"}
+    try {
+      const parsed = JSON.parse(code);
+      if (parsed.o && parsed.s && parsed.t) {
+        orderId = parsed.o;
+        sig = parsed.s;
+        ts = parsed.t;
+        const expectedSig = crypto.createHmac('sha256', QR_SECRET).update(`${orderId}.${ts}`).digest('hex');
+        if (sig !== expectedSig) {
+          return res.status(400).json({ success: false, verified: false, error: 'QR signature verification failed. Invalid or tampered code.' });
+        }
+      } else {
+        orderId = code;
+      }
+    } catch {
+      // Not JSON - treat as raw order ID or QR_xxx format
+      orderId = code.replace(/^QR_/, '').split('_')[0];
+    }
+
+    // Look up order in Firestore or in-memory
+    let targetOrder: Order | undefined;
+    if (db) {
+      try {
+        const doc = await db.collection('orders').doc(orderId).get();
+        if (doc.exists) {
+          targetOrder = doc.data() as Order;
+        }
+      } catch (err) {
+        console.error('QR verify Firestore error:', err);
+      }
+    }
+
+    if (!targetOrder) {
+      targetOrder = canteenState.orders.find(o => o.id === orderId || o.qrCode === code || o.id === code);
+    }
+
+    if (!targetOrder) {
+      return res.status(404).json({ success: false, verified: false, error: `No order found matching code "${orderId}".` });
+    }
+
+    return res.json({
+      success: true,
+      verified: true,
+      order: targetOrder,
+      message: `Order ${targetOrder.id} verified successfully. Status: ${targetOrder.status}`
+    });
+  } catch (err: any) {
+    console.error('QR verification error:', err);
+    res.status(500).json({ success: false, error: 'Server error during QR verification.' });
+  }
+});
+
+app.post('/api/canteen/qr/verify', async (req, res) => {
+  const { code, orderId: directOrderId } = req.body;
+  const scanInput = code || directOrderId;
+  if (!scanInput) {
+    return res.status(400).json({ success: false, error: 'QR code or order ID is required.' });
+  }
+
+  try {
+    const crypto = await import('crypto');
+    let orderId: string;
+
+    // Try JSON payload format
+    try {
+      const parsed = JSON.parse(scanInput);
+      if (parsed.o && parsed.s && parsed.t) {
+        orderId = parsed.o;
+        const expectedSig = crypto.createHmac('sha256', QR_SECRET).update(`${orderId}.${parsed.t}`).digest('hex');
+        if (parsed.s !== expectedSig) {
+          return res.status(400).json({ success: false, verified: false, error: 'QR signature verification failed.' });
+        }
+      } else {
+        orderId = scanInput;
+      }
+    } catch {
+      orderId = scanInput.replace(/^QR_/, '').split('_')[0];
+    }
+
+    let targetOrder: Order | undefined;
+    if (db) {
+      try {
+        const doc = await db.collection('orders').doc(orderId).get();
+        if (doc.exists) {
+          targetOrder = doc.data() as Order;
+        }
+      } catch (err) {
+        console.error('QR verify POST Firestore error:', err);
+      }
+    }
+
+    if (!targetOrder) {
+      targetOrder = canteenState.orders.find(o => o.id === orderId || o.qrCode === scanInput || o.id === scanInput);
+    }
+
+    if (!targetOrder) {
+      return res.status(404).json({ success: false, verified: false, error: `No order found matching "${scanInput}".` });
+    }
+
+    return res.json({
+      success: true,
+      verified: true,
+      order: targetOrder,
+      message: `Order ${targetOrder.id} verified. Status: ${targetOrder.status}`
+    });
+  } catch (err: any) {
+    console.error('QR verification POST error:', err);
+    res.status(500).json({ success: false, error: 'Server error during QR verification.' });
+  }
+});
+
+// 5. Update Order Status (Owner / Customer collection pickup)
+app.post('/api/canteen/order/status', async (req, res) => {
+  const { id, status } = req.body;
+
+  if (!id || !status) {
+    return res.status(400).json({ success: false, error: 'Order ID and status are required.' });
+  }
+
+  let targetOrder: Order | undefined;
+  if (db) {
+    try {
+      const doc = await db.collection('orders').doc(id).get();
+      if (doc.exists) {
+        targetOrder = doc.data() as Order;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  if (!targetOrder) {
+    targetOrder = canteenState.orders.find(order => order.id === id);
+  }
+
+  if (!targetOrder) {
+    return res.status(404).json({ success: false, error: 'Order not found.' });
+  }
+
+  let pickupText = targetOrder.pickupTimeText;
+  if (status === 'preparing') pickupText = 'Chef is preparing your meal';
+  if (status === 'ready') pickupText = 'Ready! Scan QR code at the counter to collect.';
+  if (status === 'collected' || status === 'delivered') pickupText = 'Collected';
+  if (status === 'expired') pickupText = 'Expired (Not collected on time)';
+  if (status === 'cancelled') pickupText = 'Cancelled';
+
+  // Map 'delivered' to 'collected' for compatibility
+  const mappedStatus = (status === 'delivered') ? 'collected' : status;
+
+  const updatedOrder = { ...targetOrder, status: mappedStatus, pickupTimeText: pickupText };
+
+  if (db) {
+    try {
+      await db.collection('orders').doc(id).set(updatedOrder);
+    } catch (err) {
+      console.error('Firestore order update status error:', err);
+    }
+  }
+
+  canteenState.orders = canteenState.orders.map(order => order.id === id ? updatedOrder : order);
+  res.json({ success: true, message: `Order status set to: ${mappedStatus}` });
+});
+
+// 5a. Update Order Pickup Slot (Owner editing order)
+app.post('/api/canteen/order/update-slot', async (req, res) => {
+  const { id, pickupSlot } = req.body;
+  if (!id || !pickupSlot) {
+    return res.status(400).json({ success: false, error: 'Order ID and slot are required.' });
+  }
+
+  let targetOrder: Order | undefined;
+  if (db) {
+    try {
+      const doc = await db.collection('orders').doc(id).get();
+      if (doc.exists) {
+        targetOrder = doc.data() as Order;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  if (!targetOrder) {
+    targetOrder = canteenState.orders.find(order => order.id === id);
+  }
+
+  if (!targetOrder) {
+    return res.status(404).json({ success: false, error: 'Order not found.' });
+  }
+
+  const updatedOrder = { ...targetOrder, pickupSlot };
+
+  if (db) {
+    try {
+      await db.collection('orders').doc(id).set(updatedOrder);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  canteenState.orders = canteenState.orders.map(order => order.id === id ? updatedOrder : order);
+  saveLocalDB();
+  res.json({ success: true, order: updatedOrder });
+});
+
+// 5b. Update Batch Orders Status (Smart Batch Cooking)
+app.post('/api/canteen/order/batch-status', async (req, res) => {
+  const { ids, status } = req.body;
+  if (!ids || !Array.isArray(ids) || !status) {
+    return res.status(400).json({ success: false, error: 'Order IDs array and target status are required.' });
+  }
+
+  const updatedOrders: Order[] = [];
+
+  for (const id of ids) {
+    let targetOrder: Order | undefined;
+    if (db) {
+      try {
+        const doc = await db.collection('orders').doc(id).get();
+        if (doc.exists) {
+          targetOrder = doc.data() as Order;
+        }
+      } catch (e) {}
+    } else {
+      targetOrder = canteenState.orders.find(o => o.id === id);
+    }
+
+    if (targetOrder) {
+      let pickupText = targetOrder.pickupTimeText;
+      if (status === 'preparing') pickupText = 'Chef is preparing your meal';
+      if (status === 'ready') pickupText = 'Ready! Scan QR code at the counter to collect.';
+      if (status === 'collected' || status === 'delivered') pickupText = 'Collected';
+      if (status === 'expired') pickupText = 'Expired (Not collected on time)';
+      if (status === 'cancelled') pickupText = 'Cancelled';
+
+      const mappedStatus = (status === 'delivered') ? 'collected' : status;
+      const updated = { ...targetOrder, status: mappedStatus, pickupTimeText: pickupText };
+
+      if (db) {
+        await db.collection('orders').doc(id).set(updated);
+      }
+      canteenState.orders = canteenState.orders.map(o => o.id === id ? updated : o);
+      updatedOrders.push(updated);
+    }
+  }
+
+  res.json({ success: true, count: updatedOrders.length, message: `Updated status to ${status} for ${updatedOrders.length} orders.` });
+});
+
+// 6. Add Review & Trigger sentiment analyzer (Customer)
+app.post('/api/canteen/review', async (req, res) => {
+  const { userId, userName, rating, comment, menuItemId, menuItemName } = req.body;
+
+  if (!rating || !comment) {
+    return res.status(400).json({ success: false, error: 'Rating and comment text are required.' });
+  }
+
+  const reviewId = `rev_${Date.now()}`;
+  let detectedSentiment: 'positive' | 'neutral' | 'negative' = 'neutral';
+
+  if (genAI) {
+    try {
+      const response = await generateContentWithFallback({
+        model: 'gemini-3.5-flash',
+        contents: `Analyze the sentiment of this food review. Determine if it is positive, neutral, or negative. Respond with exactly one of those words: "positive", "neutral", "negative". All lowercase.\nReview: "${comment}"`,
+      });
+      const aiSentiment = response.text ? response.text.trim().toLowerCase() : 'neutral';
+      if (aiSentiment.includes('positive')) detectedSentiment = 'positive';
+      else if (aiSentiment.includes('negative')) detectedSentiment = 'negative';
+      else if (aiSentiment.includes('neutral')) detectedSentiment = 'neutral';
+    } catch (err) {
+      console.error('Gemini sentiment service error, fallback to local search:', err);
+      detectedSentiment = classifyRuleBasedSentiment(comment);
+    }
+  } else {
+    detectedSentiment = classifyRuleBasedSentiment(comment);
+  }
+
+  const newReview: Review = {
+    id: reviewId,
+    userId: userId || 'user_guest',
+    userName: userName || 'Guest User',
+    rating: Number(rating),
+    comment,
+    sentiment: detectedSentiment,
+    timestamp: new Date().toISOString(),
+    menuItemId,
+    menuItemName,
+  };
+
+  if (db) {
+    try {
+      await db.collection('reviews').doc(reviewId).set(newReview);
+      if (menuItemId) {
+        const itemDoc = await db.collection('items').doc(menuItemId).get();
+        if (itemDoc.exists) {
+          const item = itemDoc.data() as MenuItem;
+          const count = item.ratingCount || 0;
+          const currentRating = item.rating || 5.0;
+          const newRating = ((currentRating * count) + Number(rating)) / (count + 1);
+          item.rating = Number(newRating.toFixed(1));
+          item.ratingCount = count + 1;
+          await db.collection('items').doc(menuItemId).set(item);
+        }
+      }
+    } catch (err) {
+      console.error('Firestore save review error:', err);
+    }
+  }
+
+  canteenState.reviews.unshift(newReview);
+
+  if (menuItemId) {
+    canteenState.items = canteenState.items.map(item => {
+      if (item.id === menuItemId) {
+         const count = item.ratingCount || 0;
+         const currentRating = item.rating || 5.0;
+         const newRating = ((currentRating * count) + Number(rating)) / (count + 1);
+         return {
+           ...item,
+           rating: Number(newRating.toFixed(1)),
+           ratingCount: count + 1
+         };
+      }
+      return item;
+    });
+  }
+
+  res.json({ success: true, review: newReview, message: 'Review added. Sentiment calculated.' });
+});
+
+// 7. Reset state (for demo debugging)
+app.post('/api/canteen/reset', async (req, res) => {
+  if (db) {
+    try {
+      const items = await db.collection('items').get();
+      for (const doc of items.docs) await doc.ref.delete();
+      const orders = await db.collection('orders').get();
+      for (const doc of orders.docs) await doc.ref.delete();
+      const reviews = await db.collection('reviews').get();
+      for (const doc of reviews.docs) await doc.ref.delete();
+      await seedFirestoreIfNeeded();
+    } catch (err) {
+      console.error('Firestore reset error:', err);
+    }
+  }
+
+  const canteenId = (req.body.canteenId || req.query.canteenId || 'canteen_001') as string;
+  const targetCanteen = getCanteenState(canteenId);
+  const resetCanteen: Canteen = {
+    id: canteenId,
+    name: canteenId === 'canteen_001' ? 'Violet Bites' : 'Default Canteen',
+    collegeId: targetCanteen.collegeId || 'college_001',
+    ownerId: targetCanteen.ownerId || 'user_owner_default',
+    status: targetCanteen.status || 'active',
+    ownerName: targetCanteen.ownerName || 'Chef Watson',
+    items: [...INITIAL_MENU_ITEMS],
+    orders: [...INITIAL_ORDERS],
+    reviews: [...INITIAL_REVIEWS],
+    ingredients: [...INITIAL_INGREDIENTS],
+    settings: { ...canteenSettings, canteenId }
+  };
+  const idx = canteensState.findIndex(x => x.id === canteenId);
+  if (idx !== -1) {
+    canteensState[idx] = resetCanteen;
+  }
+  res.json({ success: true, canteen: resetCanteen });
+});
+
+// Expiry checker logic
+async function checkExpiredOrders() {
+  const now = Date.now();
+  let ordersToUpdate: Order[] = [];
+  if (db) {
+    try {
+      const snap = await db.collection('orders').where('status', '==', 'ready').get();
+      for (const doc of snap.docs) {
+        const o = doc.data() as Order;
+        if (o.expiryTime && now > o.expiryTime) {
+          o.status = 'expired';
+          o.pickupTimeText = 'Expired (Not collected on time)';
+          await doc.ref.set(o);
+          ordersToUpdate.push(o);
+        }
+      }
+    } catch (e) {
+      console.error('Firestore expiry check error:', e);
+    }
+  } else {
+    canteenState.orders = canteenState.orders.map(o => {
+      if (o.status === 'ready' && o.expiryTime && now > o.expiryTime) {
+        o.status = 'expired';
+        o.pickupTimeText = 'Expired (Not collected on time)';
+        ordersToUpdate.push(o);
+      }
+      return o;
+    });
+  }
+  if (ordersToUpdate.length > 0) {
+    console.log(`Auto-expired ${ordersToUpdate.length} ready orders.`);
+  }
+}
+
+// 7b. Update Settings (Owner)
+app.post('/api/canteen/settings', async (req, res) => {
+  const { noShowMinutes, defaultSlotCapacity } = req.body;
+  
+  if (noShowMinutes !== undefined) canteenSettings.noShowMinutes = Number(noShowMinutes);
+  if (defaultSlotCapacity !== undefined) canteenSettings.defaultSlotCapacity = Number(defaultSlotCapacity);
+
+  if (db) {
+    try {
+      await db.collection('settings').doc('canteen_settings').set(canteenSettings);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  canteenState.settings = canteenSettings;
+  res.json({ success: true, settings: canteenSettings, message: 'Settings updated successfully.' });
+});
+
+// 7c. Update Ingredients Stock (Owner) - Batch Update
+app.post('/api/canteen/ingredients/batch', async (req, res) => {
+  const { ingredients } = req.body;
+  if (!ingredients || !Array.isArray(ingredients)) {
+    return res.status(400).json({ success: false, error: 'Ingredients array required.' });
+  }
+
+  for (const ing of ingredients) {
+    const match = canteenState.ingredients?.find(i => i.id === ing.id);
+    if (match) {
+      match.stockGrams = ing.stockGrams;
+      match.name = ing.name;
+      match.unit = ing.unit;
+    } else {
+      canteenState.ingredients?.push(ing);
+    }
+    if (db) {
+      try {
+        await db.collection('ingredients').doc(ing.id).set(ing);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+  res.json({ success: true, ingredients: canteenState.ingredients, message: 'Ingredients updated successfully.' });
+});
+
+// Help functions
+function classifyRuleBasedSentiment(text: string): 'positive' | 'neutral' | 'negative' {
+  const norm = text.toLowerCase();
+  const posWords = ['great', 'delicious', 'good', 'crisp', 'fast', 'love', 'amazing', 'tasty', 'fresh', 'best', 'authentic'];
+  const negWords = ['bad', 'cold', 'slow', 'poor', 'disappointed', 'late', 'rubbish', 'worst', 'stale', 'horrible', 'delay'];
+  
+  let posCount = 0;
+  let negCount = 0;
+  
+  posWords.forEach(w => { if (norm.includes(w)) posCount++; });
+  negWords.forEach(w => { if (norm.includes(w)) negCount++; });
+
+  if (posCount > negCount) return 'positive';
+  if (negCount > posCount) return 'negative';
+  return 'neutral';
+}
+
+
+// -------------------------------------------------------------
+// AI ENDPOINTS powered by server-side Gemini 3.5-flash
+// -------------------------------------------------------------
+
+// AI Smart Recommendations API
+app.post('/api/ai/recommend', async (req, res) => {
+  const { orderHistory, timeOfDay, currentTempCelsius } = req.body;
+  const time = timeOfDay || 'Afternoon';
+  
+  // Format items lists for the model context
+  const menuSummary = canteenState.items
+    .filter(i => i.stock > 0)
+    .map(i => `${i.id}: ${i.name} (Price Rs.${i.price}, Category: ${i.category}, tags: [${(i.tags || []).join(', ')}])`)
+    .join('\n');
+
+  const systemInstruction = `You are the smart AI recommendations engine for "QR Dine", a canteen food ordering app.
+Based on the current time of day, user order history, and available menu stock, you need to suggest exactly 2 or 3 food items from the menu that would be most enticing right now.
+For example, Coffee or light snacks in mornings, heavy meal/combos at lunch.
+Your output must be structured exactly in JSON matching this schema:
+{
+  "title": "A catchy lavender purple thematic recommendation card title, e.g., Sunup Aromas, Spicy Lunch Selections, Sunset Cravings",
+  "reason": "An elegant, human-like 1-sentence reason explaining why these are recommended based on context (time of day / taste)",
+  "itemIds": ["list of strings containing matching item IDs from the menu, e.g., ['item_001', 'item_002']"]
+}`;
+
+  if (genAI) {
+    try {
+      const response = await generateContentWithFallback({
+        model: 'gemini-3.5-flash',
+        contents: `Recommend items from the following canteen menu:\n${menuSummary}\n\nContext criteria:\nTime of day: ${time}\nOrder History hints: ${JSON.stringify(orderHistory || [])}\nTemperature outside: ${currentTempCelsius || 31}°C.`,
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              reason: { type: Type.STRING },
+              itemIds: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              }
+            },
+            required: ['title', 'reason', 'itemIds']
+          }
+        }
+      });
+
+      const designRec = JSON.parse(response.text?.trim() || '{}');
+      return res.json({ success: true, recommendation: designRec });
+    } catch (error) {
+      console.error('Gemini Recommendation failure. Falling back to local rules:', error);
+    }
+  }
+
+  // Fallback Rule-Based Smart Recommendation (Pillar 2 schema compliant)
+  const isMorning = ['Morning', '8:00 AM', 'Breakfast'].some(m => time.toLowerCase().includes(m.toLowerCase()));
+  const isMealTime = ['Noon', 'Lunch', 'Afternoon'].some(l => time.toLowerCase().includes(l.toLowerCase()));
+  
+  let recIds: string[] = [];
+  let title = 'Popular Daily Picks';
+  let reason = 'These are the top items voted highly by your campus peers right now.';
+
+  if (isMorning) {
+    title = 'Morning Fresh Energizers';
+    reason = 'Rich frothed filter coffee paired with light south Indian idlis are the perfect kickstart to a study day.';
+    recIds = ['item_002', 'item_005'];
+  } else if (isMealTime) {
+    title = 'Savory Midday Combo';
+    reason = 'Recharge your energy for upcoming lectures with our hearty paneer butter masala combo.';
+    recIds = ['item_003', 'item_001'];
+  } else {
+    title = 'Midday Tea & Treats';
+    reason = 'Perfect sweet chocolate indulgence and hot beverages to fuel your afternoon sessions.';
+    recIds = ['item_004', 'item_002'];
+  }
+
+  // Ensure items are available in stock
+  const validIds = recIds.filter(id => canteenState.items.find(i => i.id === id && i.stock > 0));
+
+  res.json({
+    success: true,
+    recommendation: {
+      title,
+      reason,
+      itemIds: validIds.length > 0 ? validIds : ['item_001', 'item_002']
+    }
+  });
+});
+
+
+
+
+// -------------------------------------------------------------
+// VITE DEV SERVER OR STATIC PROD PRODUCTION MIDDLEWARE Setup
+// -------------------------------------------------------------
+async function startServer() {
+  if (process.env.NODE_ENV !== 'production') {
+    const { createServer } = await import('vite');
+    const vite = await createServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+    console.log('Mounted Vite development server middleware.');
+  } else {
+    // Serve production static assets compiled inside dist
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+    console.log('Serving production-ready compiled assets from dist/.');
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`QR Dine Full-Stack Server booted and running on http://localhost:${PORT}`);
+  });
+}
+
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+// Global error handling middleware for better production diagnostics
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('GLOBAL SERVER ERROR:', err);
+  res.status(500).json({ success: false, error: err?.message || String(err) });
+});
+
+export default app;

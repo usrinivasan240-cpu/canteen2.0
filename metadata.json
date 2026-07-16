@@ -1,0 +1,6 @@
+{
+  "name": "QR Dine",
+  "description": "Smart AI-powered canteen food ordering system featuring table QR menus, BookMyShow-style e-tickets, instant payments, and auto-generated restocking prediction dashboards.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

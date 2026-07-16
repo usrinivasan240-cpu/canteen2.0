@@ -1,0 +1,362 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from 'react';
+import { ChefHat, AlertCircle } from 'lucide-react';
+import AppHeader from './components/AppHeader';
+import CustomerApp from './components/CustomerApp';
+import CanteenAdmin from './components/CanteenAdmin';
+import ServicePanel from './components/ServicePanel';
+import LoginScreen from './components/LoginScreen';
+import { MenuItem, Order, Review, Canteen } from './types';
+import { API_BASE } from './config';
+
+export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [role, setRole] = useState<'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'>('customer');
+  const [canteen, setCanteen] = useState<Canteen | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name: string; role: 'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'; collegeId?: string; canteenId?: string; subCanteenId?: string } | null>(null);
+  const [selectedCanteenId, setSelectedCanteenId] = useState<string>('canteen_001');
+
+  const userEmail = currentUser ? currentUser.email : '';
+
+  const fetchCanteenData = async (canteenId?: string) => {
+    try {
+      const activeCanteenId = canteenId || selectedCanteenId;
+      const resp = await fetch(`${API_BASE}/api/canteen?canteenId=${activeCanteenId}`);
+      const data = await resp.json();
+      if (data.success && data.canteen) {
+        setCanteen(data.canteen);
+        setErrorMessage('');
+      } else {
+        setErrorMessage('Failed to fetch cafeteria details from backend.');
+      }
+    } catch (e) {
+      console.error('Error synchronizing database:', e);
+      setErrorMessage('Full-Stack Server connection offline. Retrying soon...');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCanteenData(selectedCanteenId);
+    // poll order statuses incrementally to update customer alerts
+    const interval = setInterval(() => fetchCanteenData(selectedCanteenId), 15000);
+    return () => clearInterval(interval);
+  }, [selectedCanteenId]);
+
+  const handleOrderPlaced = async (cartItems: { itemId: string; name: string; quantity: number }[], pickupSlot?: string, canteenId?: string, subCanteenId?: string): Promise<any> => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteen/order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: currentUser ? currentUser.id : 'user_guest',
+          userName: currentUser ? currentUser.name : 'Raju Watson',
+          items: cartItems,
+          paymentMethod: 'Razorpay Online Gateway',
+          pickupSlot,
+          canteenId,
+          subCanteenId
+        })
+      });
+      const data = await resp.json();
+      if (!data.success) {
+        return data;
+      }
+
+      if (data.useRazorpay) {
+        return new Promise((resolve) => {
+          const options = {
+            key: data.key,
+            amount: data.amount,
+            currency: 'INR',
+            name: 'SkipQ',
+            description: 'Campus Canteen Food Order',
+            order_id: data.razorpayOrderId,
+            handler: async function (response: any) {
+              try {
+                const verifyResp = await fetch(`${API_BASE}/api/canteen/payment/verify`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                  })
+                });
+                const verifyData = await verifyResp.json();
+                if (verifyData.success) {
+                  await fetchCanteenData();
+                  resolve({ success: true, order: verifyData.order });
+                } else {
+                  resolve({ success: false, error: verifyData.error || 'Payment signature verification failed.' });
+                }
+              } catch (err) {
+                console.error(err);
+                resolve({ success: false, error: 'Verification network failure.' });
+              }
+            },
+            prefill: {
+              name: currentUser ? currentUser.name : 'Raju Watson',
+              email: currentUser ? currentUser.email : 'watson777@gmail.com',
+            },
+            theme: {
+              color: '#7c3aed',
+            },
+            modal: {
+              ondismiss: function () {
+                resolve({ success: false, error: 'Payment checkout dismissed by user.' });
+              }
+            }
+          };
+          const rzp = new (window as any).Razorpay(options);
+          rzp.open();
+        });
+      }
+
+      await fetchCanteenData(); // resync lists
+      return data;
+    } catch (e) {
+      console.error(e);
+      return { success: false, error: 'Network failure placing checkout' };
+    }
+  };
+
+  const handleAddReview = async (rating: number, comment: string, menuItemId?: string, menuItemName?: string) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteen/review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: currentUser ? currentUser.id : 'user_guest',
+          userName: currentUser ? currentUser.name : 'Raju Watson',
+          rating,
+          comment,
+          menuItemId,
+          menuItemName
+        })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        await fetchCanteenData();
+      }
+      return data;
+    } catch (e) {
+      console.error(e);
+      return { success: false, error: 'Network failure recording review' };
+    }
+  };
+
+  const handleAddMenuItem = async (payload: any) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteen/menu`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if (data.success) {
+        await fetchCanteenData();
+      }
+      return data;
+    } catch (e) {
+      console.error(e);
+      return { success: false, error: 'Network failure saving menu item' };
+    }
+  };
+
+  const handleDeleteMenuItem = async (id: string) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteen/menu/${id}`, {
+        method: 'DELETE',
+      });
+      const data = await resp.json();
+      if (data.success) {
+        await fetchCanteenData();
+      }
+      return data;
+    } catch (e) {
+      console.error(e);
+      return { success: false, error: 'Network failure deleting item' };
+    }
+  };
+
+  const handleUpdateOrderStatus = async (id: string, status: string) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteen/order/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id, status })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        await fetchCanteenData();
+      }
+      return data;
+    } catch (e) {
+      console.error(e);
+      return { success: false, error: 'Network failure updating order' };
+    }
+  };
+
+  const handleResetCanteen = async () => {
+    if (confirm("Are you sure you want to reset the food ordering demo database? All user reviews and custom recipes will be wiped.")) {
+      try {
+        const resp = await fetch(`${API_BASE}/api/canteen/reset`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+          await fetchCanteenData();
+          alert("Demo states successfully reset back to factory defaults!");
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  const handleLoginSuccess = (user: any) => {
+    setCurrentUser(user);
+    setRole(user.role);
+    if (user.canteenId) {
+      setSelectedCanteenId(user.canteenId);
+    }
+    setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setIsLoggedIn(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#e8e4f5] flex flex-col items-center justify-center p-6 text-center text-gray-500">
+        <div className="relative mb-6">
+          <div className="h-16 w-16 bg-violet-600 rounded-3xl flex items-center justify-center text-white shadow-lg animate-bounce">
+            <ChefHat className="h-8 w-8" />
+          </div>
+          <div className="absolute -bottom-2 -right-2 h-6 w-6 bg-white rounded-full flex items-center justify-center shadow-xs">
+            <div className="h-4.5 w-4.5 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        </div>
+        <h2 className="font-display font-bold text-gray-950 text-xl tracking-tight">Booting Violet Bites</h2>
+        <p className="text-xs text-violet-650 mt-1 max-w-xs font-semibold">Connecting smart dining cloud network...</p>
+      </div>
+    );
+  }
+
+  // 1. GATED ENTRY FOR LOGIN
+  if (!isLoggedIn) {
+    return (
+      <LoginScreen
+        onLoginSuccess={handleLoginSuccess}
+      />
+    );
+  }
+
+  // 2. MAIN LOGGED-IN VIEWPORT
+  return (
+    <div className="min-h-screen flex flex-col bg-[#fbfcff] text-slate-800 antialiased font-sans transition-colors duration-150">
+      
+      {/* Dynamic server warning offline bar */}
+      {errorMessage && (
+        <div className="bg-amber-50 border-b border-amber-200 py-2.5 px-4 text-center text-xs font-medium text-amber-800 flex items-center justify-center space-x-2">
+          <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* HEADER CONTROL BAR (Disabled for superadmin who has its own layout) */}
+      {role !== 'superadmin' && (
+        <AppHeader
+          currentRole={role === 'customer' ? 'customer' : 'owner'}
+          onChangeRole={(newRole) => setRole(newRole as any)}
+          userEmail={userEmail}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {/* INTERACTIVE VIEWS */}
+      <main className="flex-1">
+        {role === 'customer' ? (
+          <CustomerApp
+            canteenName={canteen ? canteen.name : 'Violet Bites'}
+            menuItems={canteen ? canteen.items : []}
+            orders={canteen ? canteen.orders : []}
+            reviews={canteen ? canteen.reviews : []}
+            onOrderPlaced={handleOrderPlaced}
+            onAddReview={handleAddReview}
+            onResetCanteen={handleResetCanteen}
+            userEmail={userEmail}
+            onLogout={handleLogout}
+            onCanteenChange={setSelectedCanteenId}
+          />
+        ) : (role === 'owner' || role === 'chef' || role === 'staff') ? (
+          <CanteenAdmin
+            menuItems={canteen ? canteen.items : []}
+            orders={canteen ? canteen.orders : []}
+            reviews={canteen ? canteen.reviews : []}
+            ingredients={canteen ? (canteen.ingredients || []) : []}
+            settings={canteen ? canteen.settings : undefined}
+            onAddMenuItem={handleAddMenuItem}
+            onDeleteMenuItem={handleDeleteMenuItem}
+            onUpdateOrderStatus={handleUpdateOrderStatus}
+            onFetchCanteen={fetchCanteenData}
+            onLogout={handleLogout}
+            userRole={role}
+            subCanteenId={currentUser?.subCanteenId}
+          />
+        ) : (
+          <ServicePanel
+            orders={canteen ? canteen.orders : []}
+            menuItems={canteen ? canteen.items : []}
+            onUpdateOrderStatus={handleUpdateOrderStatus}
+            onFetchCanteen={fetchCanteenData}
+            onLogout={handleLogout}
+            currentUser={currentUser}
+          />
+        )}
+      </main>
+
+      {/* FOOTER ACCENTS */}
+      {role !== 'superadmin' && (
+        <footer className="border-t border-violet-100 bg-white py-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between text-xs text-gray-400 font-sans gap-3">
+            <div className="flex items-center space-x-2">
+              <span className="font-bold text-violet-700 font-display text-sm">Violet Bites</span>
+              <span>&copy; 2026 Campus Cafeteria Systems. All rights reserved.</span>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="flex items-center space-x-1 font-mono text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-bold uppercase select-none ring-1 ring-emerald-200">
+                <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-ping mr-1" />
+                <span>Cloud Synced</span>
+              </span>
+              <span className="font-mono text-[10px]">Secure UPI v1.0.0</span>
+            </div>
+          </div>
+        </footer>
+      )}
+
+    </div>
+  );
+}
+

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+local_db.json
+token.json
+*.log
+.env
+.env.*
+~$*
