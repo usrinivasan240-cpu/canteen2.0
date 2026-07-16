@@ -644,7 +644,7 @@ export default function WalkinPOS({
       {/* Receipt Modal */}
       {showReceipt && lastBill && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-violet-100">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col border border-violet-100">
             <div className="p-6 text-center border-b border-violet-50">
               <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto mb-2" />
               <h3 className="font-display font-bold text-lg text-gray-900">Bill Generated!</h3>
@@ -657,7 +657,7 @@ export default function WalkinPOS({
             </div>
 
             {/* Printable Receipt */}
-            <div ref={printRef} className="p-6 font-sans text-xs">
+            <div ref={printRef} className="p-6 font-sans text-xs overflow-y-auto flex-1 min-h-0">
               <div className="text-center mb-4">
                 <p className="font-bold text-sm">VIOLET BITES</p>
                 <p className="text-[10px] text-gray-400">Smart College Canteen</p>
@@ -718,11 +718,11 @@ export default function WalkinPOS({
               </div>
             </div>
 
-            <div className="p-4 border-t border-violet-50 flex gap-2">
+            <div className="p-4 border-t border-violet-50 flex gap-2 no-print shrink-0">
               <button onClick={handlePrint} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
                 <Printer className="h-3.5 w-3.5" /> Print
               </button>
-              <button onClick={() => { setShowReceipt(false); setLastBill(null); }} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold cursor-pointer">
+              <button onClick={() => { setShowReceipt(false); setLastBill(null); setReceiptQrUrl(''); }} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold cursor-pointer">
                 Close
               </button>
             </div>
