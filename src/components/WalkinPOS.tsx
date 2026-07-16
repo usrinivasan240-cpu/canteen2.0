@@ -105,6 +105,7 @@ export default function WalkinPOS({
   const [lastBill, setLastBill] = useState<WalkinBill | null>(null);
   const [showQRPayment, setShowQRPayment] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [receiptQrUrl, setReceiptQrUrl] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeSpecialIdx, setActiveSpecialIdx] = useState<number | null>(null);
   const [specialText, setSpecialText] = useState('');
@@ -250,6 +251,14 @@ export default function WalkinPOS({
     setOfflineBills(await getOfflineBills().catch(() => []));
     setLastBill(bill);
     setShowReceipt(true);
+
+    // Generate receipt QR code
+    try {
+      const qrPayload = JSON.stringify({ bill: bill.billNumber, total: bill.grandTotal, date: bill.createdAt, verify: `${API_BASE}/api/canteen/qr/verify` });
+      const url = await QRCode.toDataURL(qrPayload, { width: 150, margin: 1, color: { dark: '#000000', light: '#ffffff' } });
+      setReceiptQrUrl(url);
+    } catch { setReceiptQrUrl(''); }
+
     setCart([]);
     setDiscount(0);
     setCustomerName('');
@@ -695,6 +704,14 @@ export default function WalkinPOS({
               <div className="space-y-1">
                 <div className="flex justify-between"><span>Payment:</span><span className="font-bold uppercase">{lastBill.paymentStatus} {lastBill.paymentMethod ? `(${lastBill.paymentMethod})` : ''}</span></div>
               </div>
+              {receiptQrUrl && (
+                <div className="text-center my-4">
+                  <div className="inline-block bg-white p-2 rounded-xl border border-gray-200">
+                    <img src={receiptQrUrl} alt="Bill QR Code" className="h-28 w-28" />
+                  </div>
+                  <p className="text-[9px] text-gray-400 mt-1">Scan to verify this bill</p>
+                </div>
+              )}
               <div className="text-center mt-4">
                 <p className="text-[10px] text-gray-400">Thank you for dining with us!</p>
                 <p className="text-[9px] text-gray-300">For support: Violet Bites Helpdesk</p>
