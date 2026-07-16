@@ -2072,6 +2072,101 @@ function classifyRuleBasedSentiment(text: string): 'positive' | 'neutral' | 'neg
 
 
 // -------------------------------------------------------------
+// WALK-IN BILLING (POS) ENDPOINT
+app.post('/api/canteen/walkin-bill', async (req, res) => {
+  try {
+    const bill = req.body;
+    bill.synced = true;
+
+    if (db) {
+      const docRef = await db.collection('walkin_bills').add(bill);
+      bill.id = docRef.id;
+
+      // Update inventory: reduce stock for each item
+      for (const item of bill.items) {
+        const menuItem = canteenState.items.find(m => m.id === item.itemId);
+        if (menuItem) {
+          menuItem.bookedToday += item.quantity;
+          menuItem.stock = Math.max(0, menuItem.stock - item.quantity);
+          // Update Firestore
+          const menuDoc = await db.collection('menu_items').where('id', '==', item.itemId).get();
+          if (!menuDoc.empty) {
+            const doc = menuDoc.docs[0];
+            await doc.ref.update({
+              bookedToday: admin.firestore.FieldValue.increment(item.quantity),
+              stock: admin.firestore.FieldValue.increment(-item.quantity),
+            });
+          }
+        }
+      }
+
+      // Store in in-memory state too
+      canteenState.orders.push({
+        id: bill.id,
+        userId: bill.customerRegNo || 'walkin',
+        userName: bill.customerName || 'Walk-in Customer',
+        items: bill.items.map((it: any) => ({ itemId: it.itemId, name: it.name, price: it.price, quantity: it.quantity })),
+        totalPrice: bill.grandTotal,
+        paymentStatus: bill.paymentStatus === 'paid' ? 'paid' : 'pending',
+        paymentMethod: bill.paymentMethod || 'cash',
+        qrCode: bill.billNumber,
+        status: bill.paymentStatus === 'paid' ? 'delivered' : 'pending',
+        timestamp: bill.timestamp,
+        createdAt: bill.createdAt,
+        canteenId: bill.canteenId,
+        subCanteenId: bill.subCanteenId,
+        type: 'walkin',
+      } as any);
+    }
+
+    res.json({ success: true, bill });
+  } catch (error) {
+    console.error('Walk-in bill error:', error);
+    res.status(500).json({ success: false, error: 'Failed to create walk-in bill' });
+  }
+});
+
+// Get walk-in bills
+app.get('/api/canteen/walkin-bills', async (req, res) => {
+  try {
+    const { canteenId, from, to } = req.query;
+    if (db) {
+      let query: FirebaseFirestore.Query = db.collection('walkin_bills');
+      if (canteenId) query = query.where('canteenId', '==', canteenId);
+      const snapshot = await query.orderBy('createdAt', 'desc').limit(500).get();
+      const bills = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      res.json({ success: true, bills });
+    } else {
+      const bills = canteenState.orders.filter((o: any) => o.type === 'walkin');
+      res.json({ success: true, bills });
+    }
+  } catch (error) {
+    console.error('Get walkin bills error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch walk-in bills' });
+  }
+});
+
+// Mark pending walk-in bill as paid
+app.post('/api/canteen/walkin-bill/mark-paid', async (req, res) => {
+  try {
+    const { billId, paymentMethod } = req.body;
+    if (db) {
+      const docRef = db.collection('walkin_bills').doc(billId);
+      await docRef.update({ paymentStatus: 'paid', paymentMethod: paymentMethod || 'cash' });
+    }
+    const order = canteenState.orders.find((o: any) => o.id === billId || o.qrCode === billId);
+    if (order) {
+      order.paymentStatus = 'paid';
+      order.paymentMethod = paymentMethod || 'cash';
+      order.status = 'delivered';
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Mark paid error:', error);
+    res.status(500).json({ success: false, error: 'Failed to mark as paid' });
+  }
+});
+
 // AI ENDPOINTS powered by server-side Gemini 3.5-flash
 // -------------------------------------------------------------
 

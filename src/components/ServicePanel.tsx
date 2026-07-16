@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Order, MenuItem } from '../types';
 import { API_BASE } from '../config';
+import CanteenAdmin from './CanteenAdmin';
 
 interface ServicePanelProps {
   orders: Order[];

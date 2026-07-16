@@ -2,6 +2,8 @@ node_modules/
 dist/
 local_db.json
 token.json
+token.rtf
+canteen2-0-firebase-adminsdk-*.json
 *.log
 .env
 .env.*

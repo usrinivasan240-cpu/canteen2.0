@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import {
   ChefHat, Layers, ClipboardList, TrendingUp, AlertTriangle, Star, CheckCircle,
   Plus, Edit2, Trash2, ShieldCheck, QrCode, Search, RefreshCw, X, MessageSquare, Sparkles, LogOut, Package,
-  Camera, Check, AlertCircle, Clock, User, Play, PlayCircle, Settings, ShieldAlert
+  Camera, Check, AlertCircle, Clock, User, Play, PlayCircle, Settings, ShieldAlert, ShoppingCart
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { MenuItem, Order, Review, Ingredient, CanteenSettings } from '../types';
 import { API_BASE } from '../config';
+import WalkinPOS from './WalkinPOS';
 
 interface CanteenAdminProps {
   menuItems: MenuItem[];
@@ -58,7 +59,7 @@ export default function CanteenAdmin({
   const [activeTab, setActiveTab] = useState<'chef' | 'counter' | 'owner'>(
     userRole === 'chef' ? 'chef' : userRole === 'staff' ? 'counter' : 'chef'
   );
-  const [ownerSubTab, setOwnerSubTab] = useState<'orders_mgr' | 'menu' | 'inventory' | 'revenue' | 'settings' | 'reviews' | 'ai'>('orders_mgr');
+  const [ownerSubTab, setOwnerSubTab] = useState<'orders_mgr' | 'pos' | 'menu' | 'inventory' | 'revenue' | 'settings' | 'reviews' | 'ai'>('orders_mgr');
   
   // State for editing order slots in Canteen Owner Hub
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
@@ -1554,6 +1555,7 @@ export default function CanteenAdmin({
           <div className="flex border-b border-violet-100 overflow-x-auto scrollbar-none pb-0.5 gap-4">
             {[
               { id: 'orders_mgr', label: 'Manage Orders', icon: ClipboardList },
+              { id: 'pos', label: 'Walk-in Billing (POS)', icon: ShoppingCart },
               { id: 'menu', label: 'Menu Catalog', icon: Layers },
               { id: 'inventory', label: 'Raw Inventory', icon: Package },
               { id: 'revenue', label: 'Revenue Dashboard', icon: TrendingUp },
@@ -1711,6 +1713,18 @@ export default function CanteenAdmin({
                 </table>
               </div>
             </div>
+          )}
+
+          {/* OWNER SUBTAB: WALK-IN BILLING (POS) */}
+          {ownerSubTab === 'pos' && (
+            <WalkinPOS
+              menuItems={menuItems}
+              canteenId={menuItems[0]?.canteenId || 'canteen_001'}
+              subCanteenId={subCanteenId}
+              cashierName={userRole === 'owner' ? 'Owner' : 'Cashier'}
+              onBillCreated={onFetchCanteen}
+              onLogout={onLogout}
+            />
           )}
 
           {/* OWNER SUBTAB: MENU CATALOG */}

@@ -155,3 +155,38 @@ export interface AISalesOptimizations {
   insights: string[];
   topPerformanceDish: string;
 }
+
+export interface WalkinCartItem {
+  itemId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  specialInstructions?: string;
+}
+
+export interface WalkinBill {
+  id: string;
+  billNumber: string;
+  items: WalkinCartItem[];
+  subtotal: number;
+  discount: number;
+  tax: number;
+  grandTotal: number;
+  paymentStatus: 'paid' | 'pending';
+  paymentMethod?: 'cash' | 'upi' | 'card' | 'netbanking' | 'wallet' | 'other';
+  customerName?: string;
+  customerPhone?: string;
+  customerRegNo?: string;
+  customerDept?: string;
+  customerNotes?: string;
+  pendingReason?: string;
+  pendingExpectedTime?: string;
+  cashierName: string;
+  canteenId: string;
+  subCanteenId?: string;
+  collegeId?: string;
+  timestamp: string;
+  createdAt: number;
+  synced: boolean;
+  type: 'walkin';
+}
