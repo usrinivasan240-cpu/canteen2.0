@@ -664,14 +664,14 @@ export default function WalkinPOS({
                 <div className="border-t border-dashed border-gray-300 my-3" />
               </div>
               <div className="space-y-1 mb-3">
-                <div className="flex justify-between"><span className="text-gray-500">Bill No:</span><span className="font-mono font-bold">{lastBill.billNumber}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Date:</span><span>{new Date(lastBill.createdAt).toLocaleDateString()}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Time:</span><span>{new Date(lastBill.createdAt).toLocaleTimeString()}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Cashier:</span><span>{lastBill.cashierName}</span></div>
-                {lastBill.customerName && <div className="flex justify-between"><span className="text-gray-500">Customer:</span><span>{lastBill.customerName}</span></div>}
+                <div className="receipt-row"><span className="text-gray-500">Bill No:</span><span className="font-mono font-bold">{lastBill.billNumber}</span></div>
+                <div className="receipt-row"><span className="text-gray-500">Date:</span><span>{new Date(lastBill.createdAt).toLocaleDateString()}</span></div>
+                <div className="receipt-row"><span className="text-gray-500">Time:</span><span>{new Date(lastBill.createdAt).toLocaleTimeString()}</span></div>
+                <div className="receipt-row"><span className="text-gray-500">Cashier:</span><span>{lastBill.cashierName}</span></div>
+                {lastBill.customerName && <div className="receipt-row"><span className="text-gray-500">Customer:</span><span>{lastBill.customerName}</span></div>}
               </div>
               <div className="border-t border-dashed border-gray-300 my-3" />
-              <table className="w-full mb-3">
+              <table className="receipt-table w-full mb-3">
                 <thead>
                   <tr className="text-[9px] text-gray-400 uppercase">
                     <th className="text-left">Item</th>
@@ -693,16 +693,16 @@ export default function WalkinPOS({
               </table>
               <div className="border-t border-dashed border-gray-300 my-3" />
               <div className="space-y-1">
-                <div className="flex justify-between"><span>Subtotal</span><span className="font-mono">₹{lastBill.subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span>Discount</span><span className="font-mono text-red-500">-₹{lastBill.discount.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span>Tax</span><span className="font-mono">₹{lastBill.tax.toFixed(2)}</span></div>
-                <div className="flex justify-between font-bold text-sm border-t border-gray-300 pt-1">
+                <div className="receipt-row"><span>Subtotal</span><span className="font-mono">₹{lastBill.subtotal.toFixed(2)}</span></div>
+                <div className="receipt-row"><span>Discount</span><span className="font-mono text-red-500">-₹{lastBill.discount.toFixed(2)}</span></div>
+                <div className="receipt-row"><span>Tax</span><span className="font-mono">₹{lastBill.tax.toFixed(2)}</span></div>
+                <div className="receipt-row font-bold text-sm border-t border-gray-300 pt-1">
                   <span>Grand Total</span><span className="font-mono">₹{lastBill.grandTotal.toFixed(2)}</span>
                 </div>
               </div>
               <div className="border-t border-dashed border-gray-300 my-3" />
               <div className="space-y-1">
-                <div className="flex justify-between"><span>Payment:</span><span className="font-bold uppercase">{lastBill.paymentStatus} {lastBill.paymentMethod ? `(${lastBill.paymentMethod})` : ''}</span></div>
+                <div className="receipt-row"><span>Payment:</span><span className="font-bold uppercase">{lastBill.paymentStatus} {lastBill.paymentMethod ? `(${lastBill.paymentMethod})` : ''}</span></div>
               </div>
               {receiptQrUrl && (
                 <div className="text-center my-4">
