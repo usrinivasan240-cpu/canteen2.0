@@ -826,6 +826,34 @@ app.post('/api/canteen/update-name', async (req, res) => {
   res.json({ success: true, name });
 });
 
+app.put('/api/canteens/:id', async (req, res) => {
+  const { id } = req.params;
+  const updates = req.body as Partial<{ name: string; collegeId: string; ownerName: string; location: string; status: string }>;
+  if (!updates || Object.keys(updates).length === 0) {
+    return res.status(400).json({ success: false, error: 'No updates provided.' });
+  }
+  const allowedFields = ['name', 'collegeId', 'ownerName', 'location', 'status'];
+  const cleanUpdates: Record<string, string> = {};
+  for (const [k, v] of Object.entries(updates)) {
+    if (allowedFields.includes(k) && typeof v === 'string') cleanUpdates[k] = v;
+  }
+  if (Object.keys(cleanUpdates).length === 0) {
+    return res.status(400).json({ success: false, error: 'No valid fields to update.' });
+  }
+  if (db) {
+    try {
+      await db.collection('canteens').doc(id).update(cleanUpdates);
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ success: false, error: 'Failed to update canteen.' });
+    }
+  }
+  const idx = canteensState.findIndex(c => c.id === id);
+  if (idx !== -1) canteensState[idx] = { ...canteensState[idx], ...cleanUpdates };
+  saveLocalDB();
+  res.json({ success: true, canteen: canteensState[idx] || cleanUpdates });
+});
+
 app.delete('/api/canteens/:id', async (req, res) => {
   const { id } = req.params;
   if (db) {
@@ -924,9 +952,52 @@ app.post('/api/users', async (req, res) => {
   if (!user.status) user.status = 'active';
   if (!user.password) user.password = 'changeme_' + Math.random().toString(36).substring(2, 10);
 
+  // Create Firebase Auth account so the user can actually log in
+  let firebaseUid: string | undefined;
+  if (admin) {
+    try {
+      const authUser = await admin.auth().createUser({
+        email: emailKey,
+        password: user.password,
+        displayName: user.name,
+        disabled: false,
+      });
+      firebaseUid = authUser.uid;
+      // Set custom claims for role-based access
+      const claims: Record<string, string> = { role: user.role };
+      if (user.collegeId) claims.collegeId = user.collegeId;
+      if (user.canteenId) claims.canteenId = user.canteenId;
+      if (user.subCanteenId) claims.subCanteenId = user.subCanteenId;
+      await admin.auth().setCustomUserClaims(authUser.uid, claims);
+      console.log(`Created Firebase Auth user: ${emailKey} (${firebaseUid}) role=${user.role}`);
+    } catch (authErr: any) {
+      // If user already exists in Auth, just link to existing
+      if (authErr.code === 'auth/email-already-exists') {
+        try {
+          const existingUser = await admin.auth().getUserByEmail(emailKey);
+          firebaseUid = existingUser.uid;
+          const claims: Record<string, string> = { role: user.role };
+          if (user.collegeId) claims.collegeId = user.collegeId;
+          if (user.canteenId) claims.canteenId = user.canteenId;
+          if (user.subCanteenId) claims.subCanteenId = user.subCanteenId;
+          await admin.auth().setCustomUserClaims(existingUser.uid, claims);
+          await admin.auth().updateUser(existingUser.uid, { password: user.password, displayName: user.name });
+          console.log(`Linked existing Auth user: ${emailKey} (${firebaseUid}) role=${user.role}`);
+        } catch (linkErr) {
+          console.error('Failed to link existing Auth user:', linkErr);
+        }
+      } else {
+        console.error('Firebase Auth create failed:', authErr);
+      }
+    }
+  }
+
+  if (firebaseUid) user.id = firebaseUid;
+
   if (db) {
     try {
-      await db.collection('users').doc(emailKey).set(user);
+      const { password: _pw, ...userWithoutPassword } = user;
+      await db.collection('users').doc(emailKey).set(userWithoutPassword);
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'DB Save failed' });
@@ -942,12 +1013,28 @@ app.post('/api/users', async (req, res) => {
   }
 
   saveLocalDB();
-  res.json({ success: true, user });
+  const { password: _pw, ...safeUser } = user;
+  res.json({ success: true, user: safeUser });
 });
 
 app.delete('/api/users/:email', async (req, res) => {
   const { email } = req.params;
   const emailKey = email.trim().toLowerCase();
+
+  // Delete from Firebase Auth
+  if (admin) {
+    try {
+      const authUser = await admin.auth().getUserByEmail(emailKey);
+      await admin.auth().deleteUser(authUser.uid);
+      console.log(`Deleted Firebase Auth user: ${emailKey} (${authUser.uid})`);
+    } catch (authErr: any) {
+      if (authErr.code !== 'auth/user-not-found') {
+        console.error('Failed to delete Auth user:', authErr);
+      }
+    }
+  }
+
+  // Delete from Firestore
   if (db) {
     try {
       await db.collection('users').doc(emailKey).delete();
@@ -955,6 +1042,7 @@ app.delete('/api/users/:email', async (req, res) => {
       console.error(e);
     }
   }
+
   usersState = usersState.filter(u => u.email.toLowerCase() !== emailKey);
   saveLocalDB();
   res.json({ success: true });
@@ -962,30 +1050,60 @@ app.delete('/api/users/:email', async (req, res) => {
 
 app.put('/api/users/:email/role', async (req, res) => {
   const { email } = req.params;
-  const { role, posting } = req.body;
+  const { role, posting, name, collegeId, canteenId, subCanteenId, status } = req.body;
   const emailKey = email.trim().toLowerCase();
   
   if (!role) {
     return res.status(400).json({ success: false, error: 'Role is required' });
   }
 
+  const updates: Record<string, string> = { role };
+  if (posting !== undefined) updates.posting = posting;
+  if (name) updates.name = name;
+  if (collegeId !== undefined) updates.collegeId = collegeId;
+  if (canteenId !== undefined) updates.canteenId = canteenId;
+  if (subCanteenId !== undefined) updates.subCanteenId = subCanteenId;
+  if (status) updates.status = status;
+
   if (db) {
     try {
-      await db.collection('users').doc(emailKey).update({ role, posting: posting || "" });
+      await db.collection('users').doc(emailKey).set(updates, { merge: true });
     } catch (e) {
       console.error(e);
-      return res.status(500).json({ success: false, error: 'Failed to update user role in DB' });
+      return res.status(500).json({ success: false, error: 'Failed to update user in DB' });
+    }
+  }
+
+  // Update Firebase Auth custom claims so the user's token reflects the new role
+  if (admin) {
+    try {
+      const authUser = await admin.auth().getUserByEmail(emailKey);
+      const claims: Record<string, string> = { role };
+      if (collegeId !== undefined && collegeId) claims.collegeId = collegeId;
+      if (canteenId !== undefined && canteenId) claims.canteenId = canteenId;
+      if (subCanteenId !== undefined && subCanteenId) claims.subCanteenId = subCanteenId;
+      await admin.auth().setCustomUserClaims(authUser.uid, claims);
+      if (name) {
+        await admin.auth().updateUser(authUser.uid, { displayName: name });
+      }
+      console.log(`Updated Auth claims for ${emailKey}: role=${role}`);
+    } catch (authErr: any) {
+      // User may not exist in Auth yet — log but don't fail
+      if (authErr.code === 'auth/user-not-found') {
+        console.warn(`Auth user not found for ${emailKey}, skipping claims update`);
+      } else {
+        console.error('Failed to update Auth claims:', authErr);
+      }
     }
   }
 
   const idx = usersState.findIndex(u => u.email.toLowerCase() === emailKey);
   if (idx !== -1) {
-    usersState[idx].role = role as any;
-    usersState[idx].posting = posting;
+    usersState[idx] = { ...usersState[idx], ...updates };
   }
 
   saveLocalDB();
-  return res.json({ success: true, message: 'Role updated successfully' });
+  return res.json({ success: true, message: 'User updated successfully' });
 });
 
 

@@ -12,7 +12,7 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
-  const [activeTab, setActiveTab] = useState<'customer' | 'owner' | 'chef' | 'staff' | 'admin' | 'superadmin'>('customer');
+  const [activeTab, setActiveTab] = useState<'customer' | 'owner' | 'chef' | 'staff' | 'admin'>('customer');
   const [isSignUp, setIsSignUp] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [emailInput, setEmailInput] = useState('watson777@gmail.com');
@@ -87,7 +87,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
         {/* ROLE BAR PILLS */}
         <div className="grid grid-cols-3 gap-2 bg-violet-50 p-2 rounded-2xl border border-violet-100/50 mb-6">
-          {(['customer', 'chef', 'staff', 'owner', 'admin', 'superadmin'] as const).map((role) => (
+          {(['customer', 'chef', 'staff', 'owner', 'admin'] as const).map((role) => (
             <button
               key={role}
               type="button"
@@ -96,8 +96,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 setError('');
                 if (role === 'owner') {
                   setEmailInput('canteen_owner@gmail.com');
-                } else if (role === 'superadmin') {
-                  setEmailInput('superadmin@gmail.com');
                 } else if (role === 'admin') {
                   setEmailInput('college_admin@gmail.com');
                 } else if (role === 'chef') {
@@ -117,7 +115,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   : 'text-gray-500 hover:text-gray-950'
               }`}
             >
-              {role === 'owner' ? 'Owner' : role === 'superadmin' ? 'Super Admin' : role === 'admin' ? 'Colg Admin' : role === 'staff' ? 'Staff' : role}
+              {role === 'owner' ? 'Owner' : role === 'admin' ? 'Colg Admin' : role === 'staff' ? 'Staff' : role}
             </button>
           ))}
         </div>
@@ -125,7 +123,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         {/* DETAILS SECTION */}
         <div className="space-y-1 mb-6">
           <h2 className="text-lg font-display font-semibold text-gray-900">
-            {isSignUp ? 'Create Account' : activeTab === 'customer' ? 'Customer Login' : activeTab === 'owner' ? 'Canteen Owner Login' : activeTab === 'chef' ? 'Chef Login' : activeTab === 'staff' ? 'Counter Staff Login' : activeTab === 'admin' ? 'College Admin Login' : 'Super Admin Login'}
+            {isSignUp ? 'Create Account' : activeTab === 'customer' ? 'Customer Login' : activeTab === 'owner' ? 'Canteen Owner Login' : activeTab === 'chef' ? 'Chef Login' : activeTab === 'staff' ? 'Counter Staff Login' : 'College Admin Login'}
           </h2>
           <p className="text-xs text-gray-500 font-sans">
             {isSignUp 
