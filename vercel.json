@@ -1,8 +1,14 @@
 {
+  "outputDirectory": "dist",
+  "buildCommand": "npm run build",
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/index.ts"
+    },
+    {
+      "source": "/((?!api/|assets/|.*\\..*).*)",
+      "destination": "/index.html"
     }
   ]
 }
