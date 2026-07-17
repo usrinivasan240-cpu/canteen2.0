@@ -24,7 +24,7 @@ app.use(express.json());
 // Enable CORS for mobile Capacitor WebView clients (http://localhost and capacitor://)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const allowedOrigins = ['http://localhost:3000', 'http://localhost:5173', 'https://canteen20.vercel.app', 'capacitor://localhost'];
+  const allowedOrigins = ['http://localhost:3000', 'http://localhost:5173', 'https://canteen20.vercel.app', 'https://canteen20-web.vercel.app', 'capacitor://localhost'];
   
   if (origin && allowedOrigins.some(o => origin.startsWith(o))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
