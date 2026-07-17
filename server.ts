@@ -560,14 +560,16 @@ app.post('/api/auth/register', async (req, res) => {
       }
       const newUser = { id: userId, name, email: normalizedEmail, password, role: selectedRole };
       await db.collection('users').doc(normalizedEmail).set(newUser);
-      return res.json({ success: true, user: { id: userId, name, email: normalizedEmail, role: selectedRole } });
+      const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
+      return res.json({ success: true, token, user: { id: userId, name, email: normalizedEmail, role: selectedRole } });
     } catch (err) {
       console.error(err);
       return res.status(500).json({ success: false, error: 'Server authentication database error.' });
     }
   }
 
-  return res.json({ success: true, user: { id: userId, name, email: normalizedEmail, role: selectedRole } });
+  const regToken = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
+  return res.json({ success: true, token: regToken, user: { id: userId, name, email: normalizedEmail, role: selectedRole } });
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -595,7 +597,8 @@ app.post('/api/auth/login', async (req, res) => {
             }
           }
           console.log('--- LOGIN SUCCESS (DB) ---', { email: user.email, resolvedRole: finalRole });
-          return res.json({ success: true, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId } });
+          const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
+          return res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId } });
         } else {
           return res.status(400).json({ success: false, error: 'Incorrect password.' });
         }
@@ -644,7 +647,8 @@ app.post('/api/auth/login', async (req, res) => {
         if (subCanteenId) defaultUser.subCanteenId = subCanteenId;
 
         await db.collection('users').doc(normalizedEmail).set(defaultUser);
-        return res.json({ success: true, user: { id: defaultUser.id, name: defaultUser.name, email: defaultUser.email, role: defaultUser.role, collegeId, canteenId, subCanteenId } });
+        const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
+        return res.json({ success: true, token, user: { id: defaultUser.id, name: defaultUser.name, email: defaultUser.email, role: defaultUser.role, collegeId, canteenId, subCanteenId } });
       }
     } catch (err) {
       console.error(err);
@@ -664,8 +668,10 @@ app.post('/api/auth/login', async (req, res) => {
     fallbackSubCanteenId = 'sub_001';
   }
 
+  const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
   return res.json({
     success: true,
+    token,
     user: {
       id: `user_${Math.random().toString(36).substring(2, 11)}`,
       name: normalizedEmail.split('@')[0],

@@ -770,7 +770,11 @@ export default function CustomerApp({
                           return (
                             <div key={itemId} className="py-3 flex justify-between items-center text-xs font-sans">
                               <div className="flex items-center space-x-2">
-                                <img src={item.imageUrl} alt={item.name} className="h-9 w-9 rounded-lg object-cover bg-violet-50" />
+                                {item.imageUrl ? (
+                                  <img src={item.imageUrl} alt={item.name} referrerPolicy="no-referrer" className="h-9 w-9 rounded-lg object-cover bg-violet-50" />
+                                ) : (
+                                  <div className="h-9 w-9 rounded-lg bg-violet-50 flex items-center justify-center text-sm">🍲</div>
+                                )}
                                 <div>
                                   <span className="font-semibold text-gray-800 block capitalize">{item.name}</span>
                                   <span className="text-[10px] text-violet-700 font-bold font-mono">₹{item.price.toFixed(2)}</span>

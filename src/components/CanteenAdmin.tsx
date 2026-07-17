@@ -249,10 +249,7 @@ export default function CanteenAdmin({
     setFormPrepTime('15');
     setFormDailyLimit('100');
     setFormRequiresChef(true);
-    setFormRecipe([
-      { ingredientId: 'ing_rice', amountGrams: 0 },
-      { ingredientId: 'ing_veg', amountGrams: 0 }
-    ]);
+    setFormRecipe([]);
     setShowItemModal(true);
   };
 
@@ -2086,14 +2083,19 @@ export default function CanteenAdmin({
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Illustration URL</label>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Food Image URL</label>
                   <input
                     type="text"
                     value={formImageUrl}
                     onChange={(e) => setFormImageUrl(e.target.value)}
-                    placeholder="https://..."
+                    placeholder="Paste Google/Unsplash image URL..."
                     className="w-full bg-violet-50/40 border border-violet-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs"
                   />
+                  {formImageUrl && (
+                    <div className="mt-1 rounded-lg overflow-hidden border border-violet-100 h-24 bg-violet-50">
+                      <img src={formImageUrl} alt="Preview" referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2135,30 +2137,56 @@ export default function CanteenAdmin({
 
               {/* INGREDIENTS RECIPE MAPPING editor inside Save item modal */}
               <div className="space-y-2 border border-violet-100 p-3 rounded-xl bg-violet-50/20">
-                <span className="text-[10px] font-bold text-violet-750 uppercase tracking-wider block">Recipe Ingredients Map (g / pcs)</span>
-                <div className="grid grid-cols-3 gap-2">
-                  {['ing_rice', 'ing_veg', 'ing_sauce', 'ing_egg', 'ing_flour', 'ing_potato'].map(ingId => {
-                    const match = formRecipe.find(r => r.ingredientId === ingId);
-                    const val = match ? match.amountGrams : 0;
-                    const ingName = ingId.replace('ing_', '');
-                    return (
-                      <div key={ingId} className="space-y-1">
-                        <label className="text-[8px] font-bold text-gray-400 uppercase capitalize block">{ingName}</label>
-                        <input
-                          type="number"
-                          value={val || ''}
-                          placeholder="0"
-                          onChange={(e) => {
-                            const num = Number(e.target.value);
-                            const copy = [...formRecipe].filter(r => r.ingredientId !== ingId);
-                            copy.push({ ingredientId: ingId, amountGrams: num });
-                            setFormRecipe(copy);
-                          }}
-                          className="w-full bg-white border border-violet-100 rounded px-2 py-1 outline-none text-[10px] font-mono"
-                        />
-                      </div>
-                    );
-                  })}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-violet-750 uppercase tracking-wider block">Recipe Ingredients Map (g / pcs)</span>
+                  <button
+                    type="button"
+                    onClick={() => setFormRecipe([...formRecipe, { ingredientId: '', amountGrams: 0 }])}
+                    className="text-[10px] font-bold text-violet-600 hover:text-violet-800 cursor-pointer"
+                  >
+                    + Add Ingredient
+                  </button>
+                </div>
+                {formRecipe.length === 0 && (
+                  <p className="text-[10px] text-gray-400 italic">No ingredients mapped. Click "+ Add Ingredient" to start.</p>
+                )}
+                <div className="space-y-2">
+                  {formRecipe.map((entry, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <select
+                        value={entry.ingredientId}
+                        onChange={(e) => {
+                          const copy = [...formRecipe];
+                          copy[idx] = { ...copy[idx], ingredientId: e.target.value };
+                          setFormRecipe(copy);
+                        }}
+                        className="flex-1 bg-white border border-violet-100 rounded px-2 py-1 outline-none text-[10px]"
+                      >
+                        <option value="">Select ingredient...</option>
+                        {ingredients.map(ing => (
+                          <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        value={entry.amountGrams || ''}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const copy = [...formRecipe];
+                          copy[idx] = { ...copy[idx], amountGrams: Number(e.target.value) };
+                          setFormRecipe(copy);
+                        }}
+                        className="w-20 bg-white border border-violet-100 rounded px-2 py-1 outline-none text-[10px] font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFormRecipe(formRecipe.filter((_, i) => i !== idx))}
+                        className="text-red-400 hover:text-red-600 text-xs font-bold cursor-pointer px-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
 
