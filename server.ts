@@ -611,14 +611,13 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password, role } = req.body;
-  console.log('--- LOGIN ATTEMPT ---', { email, role });
+  const { email, password } = req.body;
+  console.log('--- LOGIN ATTEMPT ---', { email });
   if (!email || !password) {
     return res.status(400).json({ success: false, error: 'Email and password are required.' });
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  const selectedRole = role || 'customer';
 
   if (db) {
     try {
@@ -626,14 +625,7 @@ app.post('/api/auth/login', async (req, res) => {
       if (userDoc.exists) {
         const user = userDoc.data();
         if (user && user.password === password) {
-          // Dynamic role alignment for default demo users
-          let finalRole = user.role;
-          if (['watson777@gmail.com', 'canteen_owner@gmail.com', 'superadmin@gmail.com', 'college_admin@gmail.com', 'chef@gmail.com', 'staff@gmail.com'].includes(normalizedEmail)) {
-            finalRole = selectedRole;
-            if (user.role !== selectedRole) {
-              await db.collection('users').doc(normalizedEmail).update({ role: selectedRole });
-            }
-          }
+          const finalRole = user.role;
           console.log('--- LOGIN SUCCESS (DB) ---', { email: user.email, resolvedRole: finalRole });
           const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
           return res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId } });
@@ -694,18 +686,6 @@ app.post('/api/auth/login', async (req, res) => {
     }
   }
 
-  let fallbackCollegeId: string | undefined;
-  let fallbackCanteenId: string | undefined;
-  let fallbackSubCanteenId: string | undefined;
-  if (selectedRole === 'owner') {
-    fallbackCanteenId = 'canteen_001';
-  } else if (selectedRole === 'admin') {
-    fallbackCollegeId = 'college_001';
-  } else if (selectedRole === 'chef' || selectedRole === 'staff') {
-    fallbackCanteenId = 'canteen_001';
-    fallbackSubCanteenId = 'sub_001';
-  }
-
   const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
   return res.json({
     success: true,
@@ -714,10 +694,10 @@ app.post('/api/auth/login', async (req, res) => {
       id: `user_${Math.random().toString(36).substring(2, 11)}`,
       name: normalizedEmail.split('@')[0],
       email: normalizedEmail,
-      role: selectedRole,
-      collegeId: fallbackCollegeId,
-      canteenId: fallbackCanteenId,
-      subCanteenId: fallbackSubCanteenId
+      role: 'customer',
+      collegeId: undefined,
+      canteenId: undefined,
+      subCanteenId: undefined
     }
   });
 });
