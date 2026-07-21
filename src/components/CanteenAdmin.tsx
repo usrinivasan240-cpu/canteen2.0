@@ -866,18 +866,36 @@ export default function CanteenAdmin({
                 <X className="h-5 w-5" />
               </button>
               
-              <h2 className="font-display font-bold text-lg text-gray-900 text-center">Order Details</h2>
-              <p className="text-[11px] text-gray-400 text-center mt-1">Complete information for order {scannedOrder.id}.</p>
+              <h2 className="font-display font-bold text-lg text-gray-900 text-center">
+                {(scannedOrder as any).type === 'walkin' ? 'Walk-in Bill Details' : 'Order Details'}
+              </h2>
+              <p className="text-[11px] text-gray-400 text-center mt-1">
+                {(scannedOrder as any).type === 'walkin'
+                  ? `Bill ${(scannedOrder as any).billNumber || scannedOrder.id}`
+                  : `Complete information for order ${scannedOrder.id}.`}
+              </p>
 
               <div className="border-t border-violet-50 my-4" />
 
               <div className="space-y-3.5 text-xs font-sans">
+                {(scannedOrder as any).type === 'walkin' && (scannedOrder as any).customerName && (
+                  <div className="flex justify-between py-1 border-b border-violet-50/50">
+                    <span className="text-violet-750 font-medium">Customer:</span>
+                    <span className="font-semibold text-gray-900">{(scannedOrder as any).customerName}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-1 border-b border-violet-50/50">
-                  <span className="text-violet-750 font-medium">Customer ID:</span>
-                  <span className="font-mono text-gray-600 truncate max-w-[200px] select-all">{scannedOrder.userId}</span>
+                  <span className="text-violet-750 font-medium">
+                    {(scannedOrder as any).type === 'walkin' ? 'Bill Number:' : 'Customer ID:'}
+                  </span>
+                  <span className="font-mono text-gray-600 truncate max-w-[200px] select-all">
+                    {(scannedOrder as any).billNumber || scannedOrder.userId}
+                  </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-violet-50/50">
-                  <span className="text-violet-750 font-medium">Order ID:</span>
+                  <span className="text-violet-750 font-medium">
+                    {(scannedOrder as any).type === 'walkin' ? 'Bill ID:' : 'Order ID:'}
+                  </span>
                   <span className="font-mono text-gray-955 font-bold">{scannedOrder.id}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-violet-50/50">
@@ -886,6 +904,14 @@ export default function CanteenAdmin({
                     {new Date(scannedOrder.timestamp || scannedOrder.createdAt).toLocaleString()}
                   </span>
                 </div>
+                {(scannedOrder as any).type === 'walkin' && (
+                  <div className="flex justify-between py-1 border-b border-violet-50/50">
+                    <span className="text-violet-750 font-medium">Payment:</span>
+                    <span className="font-semibold text-gray-900 capitalize">
+                      {(scannedOrder as any).paymentMethod || 'cash'} ({(scannedOrder as any).paymentStatus || 'pending'})
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between py-1 items-center border-b border-violet-50/50">
                   <span className="text-violet-750 font-medium">Status:</span>
                   <span className="px-3 py-1 bg-violet-600 text-white text-[10px] font-bold rounded-full uppercase">
@@ -918,17 +944,20 @@ export default function CanteenAdmin({
 
               {(() => {
                 const orderFoodAmount = scannedOrder.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-                const orderFee = Math.max(0, scannedOrder.totalPrice - orderFoodAmount);
+                const isWalkin = (scannedOrder as any).type === 'walkin';
+                const orderFee = isWalkin ? 0 : Math.max(0, scannedOrder.totalPrice - orderFoodAmount);
                 return (
                   <div className="border-t border-violet-100 pt-4 mt-4 space-y-2.5 text-xs font-sans text-gray-500">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
                       <span className="font-mono text-gray-900 font-medium">₹{orderFoodAmount.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Convenience Fee:</span>
-                      <span className="font-mono text-gray-900 font-medium">₹{orderFee.toFixed(2)}</span>
-                    </div>
+                    {!isWalkin && orderFee > 0 && (
+                      <div className="flex justify-between">
+                        <span>Convenience Fee:</span>
+                        <span className="font-mono text-gray-900 font-medium">₹{orderFee.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="border-t border-violet-50 pt-3 flex justify-between font-bold text-sm text-gray-900">
                       <span>Grand Total:</span>
                       <span className="font-mono text-violet-750 text-base">₹{scannedOrder.totalPrice.toFixed(2)}</span>
@@ -939,8 +968,8 @@ export default function CanteenAdmin({
 
               <div className="mt-6 space-y-2">
                 <button
-                  onClick={() => {
-                    handleMarkAsServedStaff(scannedOrder.id);
+                  onClick={async () => {
+                    await handleMarkAsServedStaff(scannedOrder.id);
                     setScannedOrder(null);
                   }}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold py-3 px-4 rounded-xl text-xs tracking-wide transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer font-display"

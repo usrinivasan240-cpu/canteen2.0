@@ -1792,38 +1792,124 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
 
   try {
     const crypto = await import('crypto');
-    let orderId: string;
+    let orderId: string | null = null;
+    let billNumber: string | null = null;
+    let isWalkin = false;
 
     // Try JSON payload format
     try {
       const parsed = JSON.parse(scanInput);
+      // Signed order QR: { o, s, t }
       if (parsed.o && parsed.s && parsed.t) {
         orderId = parsed.o;
         const expectedSig = crypto.createHmac('sha256', QR_SECRET).update(`${orderId}.${parsed.t}`).digest('hex');
         if (parsed.s !== expectedSig) {
           return res.status(400).json({ success: false, verified: false, error: 'QR signature verification failed.' });
         }
+      }
+      // Walk-in bill QR: { bill, total, date, verify }
+      else if (parsed.bill) {
+        billNumber = parsed.bill;
+        isWalkin = true;
       } else {
         orderId = scanInput;
       }
     } catch {
+      // Plain text — could be order ID or bill number
       orderId = scanInput.replace(/^QR_/, '').split('_')[0];
     }
 
-    let targetOrder: Order | undefined;
-    if (db) {
-      try {
-        const doc = await db.collection('orders').doc(orderId).get();
-        if (doc.exists) {
-          targetOrder = doc.data() as Order;
+    let targetOrder: any = null;
+
+    // --- Walk-in bill lookup ---
+    if (isWalkin && billNumber) {
+      // Firestore lookup in walkin_bills
+      if (db) {
+        try {
+          const snap = await db.collection('walkin_bills').where('billNumber', '==', billNumber).limit(1).get();
+          if (!snap.empty) {
+            const doc = snap.docs[0];
+            const bill = doc.data();
+            targetOrder = {
+              id: doc.id,
+              userId: bill.customerRegNo || 'walkin',
+              userName: bill.customerName || 'Walk-in Customer',
+              items: bill.items || [],
+              totalPrice: bill.grandTotal || 0,
+              paymentStatus: bill.paymentStatus || 'pending',
+              paymentMethod: bill.paymentMethod || 'cash',
+              qrCode: bill.billNumber,
+              status: bill.paymentStatus === 'paid' ? 'delivered' : 'pending',
+              timestamp: bill.timestamp,
+              createdAt: bill.createdAt,
+              canteenId: bill.canteenId,
+              type: 'walkin',
+              billNumber: bill.billNumber,
+              customerName: bill.customerName,
+              customerPhone: bill.customerPhone,
+              customerRegNo: bill.customerRegNo,
+            };
+          }
+        } catch (err) {
+          console.error('QR verify walkin Firestore error:', err);
         }
-      } catch (err) {
-        console.error('QR verify POST Firestore error:', err);
+      }
+      // In-memory fallback
+      if (!targetOrder) {
+        const found = canteenState.orders.find(o => (o as any).type === 'walkin' && ((o as any).qrCode === billNumber || (o as any).billNumber === billNumber));
+        if (found) targetOrder = found;
       }
     }
 
-    if (!targetOrder) {
-      targetOrder = canteenState.orders.find(o => o.id === orderId || o.qrCode === scanInput || o.id === scanInput);
+    // --- Regular order lookup ---
+    if (!targetOrder && orderId) {
+      if (db) {
+        try {
+          const doc = await db.collection('orders').doc(orderId).get();
+          if (doc.exists) {
+            targetOrder = doc.data() as Order;
+          }
+        } catch (err) {
+          console.error('QR verify POST Firestore error:', err);
+        }
+      }
+
+      if (!targetOrder) {
+        targetOrder = canteenState.orders.find(o => o.id === orderId || o.qrCode === scanInput || o.id === scanInput);
+      }
+    }
+
+    // --- Last resort: search all collections by raw scan input ---
+    if (!targetOrder && db) {
+      try {
+        // Try as bill number in walkin_bills
+        const snap = await db.collection('walkin_bills').where('billNumber', '==', scanInput).limit(1).get();
+        if (!snap.empty) {
+          const doc = snap.docs[0];
+          const bill = doc.data();
+          targetOrder = {
+            id: doc.id,
+            userId: bill.customerRegNo || 'walkin',
+            userName: bill.customerName || 'Walk-in Customer',
+            items: bill.items || [],
+            totalPrice: bill.grandTotal || 0,
+            paymentStatus: bill.paymentStatus || 'pending',
+            paymentMethod: bill.paymentMethod || 'cash',
+            qrCode: bill.billNumber,
+            status: bill.paymentStatus === 'paid' ? 'delivered' : 'pending',
+            timestamp: bill.timestamp,
+            createdAt: bill.createdAt,
+            canteenId: bill.canteenId,
+            type: 'walkin',
+            billNumber: bill.billNumber,
+            customerName: bill.customerName,
+            customerPhone: bill.customerPhone,
+            customerRegNo: bill.customerRegNo,
+          };
+        }
+      } catch (err) {
+        console.error('QR verify fallback search error:', err);
+      }
     }
 
     if (!targetOrder) {
@@ -1848,6 +1934,26 @@ app.post('/api/canteen/order/status', async (req, res) => {
 
   if (!id || !status) {
     return res.status(400).json({ success: false, error: 'Order ID and status are required.' });
+  }
+
+  // Map 'delivered' to 'collected' for compatibility
+  const mappedStatus = (status === 'delivered') ? 'collected' : status;
+
+  // Try walkin_bills first
+  if (db) {
+    try {
+      const walkinDoc = await db.collection('walkin_bills').doc(id).get();
+      if (walkinDoc.exists) {
+        const bill = walkinDoc.data();
+        const updated = { ...bill, paymentStatus: mappedStatus === 'collected' || mappedStatus === 'delivered' ? 'paid' : bill.paymentStatus, status: mappedStatus };
+        await db.collection('walkin_bills').doc(id).set(updated, { merge: true });
+        // Update in-memory state too
+        canteenState.orders = canteenState.orders.map(order => order.id === id ? { ...order, status: mappedStatus } : order);
+        return res.json({ success: true, message: `Walk-in bill status set to: ${mappedStatus}` });
+      }
+    } catch (err) {
+      console.error('Firestore walkin bill status update error:', err);
+    }
   }
 
   let targetOrder: Order | undefined;
@@ -1876,9 +1982,6 @@ app.post('/api/canteen/order/status', async (req, res) => {
   if (status === 'collected' || status === 'delivered') pickupText = 'Collected';
   if (status === 'expired') pickupText = 'Expired (Not collected on time)';
   if (status === 'cancelled') pickupText = 'Cancelled';
-
-  // Map 'delivered' to 'collected' for compatibility
-  const mappedStatus = (status === 'delivered') ? 'collected' : status;
 
   const updatedOrder = { ...targetOrder, status: mappedStatus, pickupTimeText: pickupText };
 
