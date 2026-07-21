@@ -612,10 +612,31 @@ export default function CanteenAdmin({
           return;
         }
       } catch (err) {
-        console.error('QR verify API failed, falling back to local lookup:', err);
+        console.error('QR verify API failed:', err);
       }
 
-      // Fallback: local in-memory lookup
+      // Fallback 1: Direct walkin bill lookup
+      try {
+        const lookupResp = await fetch(`${API_BASE}/api/canteen/walkin-bill/lookup?billNumber=${encodeURIComponent(orderId.trim())}`);
+        const lookupData = await lookupResp.json();
+        if (lookupData.success && lookupData.order) {
+          const order = lookupData.order;
+          if (order.status === 'delivered' || order.status === 'collected') {
+            setAlreadyServedOrderId(order.id);
+            setScannedOrder(null);
+            setScanStatus(null);
+          } else {
+            setScannedOrder(order);
+            setAlreadyServedOrderId(null);
+            setScanStatus(null);
+          }
+          return;
+        }
+      } catch (err) {
+        console.error('Walkin bill lookup failed:', err);
+      }
+
+      // Fallback 2: local in-memory lookup
       const cleanQuery = orderId.trim().toLowerCase();
       const found = orders.find(o => 
         o.id.toLowerCase() === cleanQuery || 

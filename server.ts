@@ -1827,40 +1827,7 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
     // --- Walk-in bill lookup (Firestore) ---
     if (isWalkin && billNumber && db) {
       try {
-        // Search by billNumber field
-        const snap = await db.collection('walkin_bills').where('billNumber', '==', billNumber).limit(1).get();
-        console.log('--- QR VERIFY --- walkin_bills by billNumber:', snap.size, 'docs');
-        if (!snap.empty) {
-          const doc = snap.docs[0];
-          const bill = doc.data();
-          targetOrder = {
-            id: doc.id,
-            userId: bill.customerRegNo || 'walkin',
-            userName: bill.customerName || 'Walk-in Customer',
-            items: bill.items || [],
-            totalPrice: bill.grandTotal || 0,
-            paymentStatus: bill.paymentStatus || 'pending',
-            paymentMethod: bill.paymentMethod || 'cash',
-            qrCode: bill.billNumber,
-            status: bill.paymentStatus === 'paid' ? 'collected' : 'pending',
-            timestamp: bill.timestamp,
-            createdAt: bill.createdAt,
-            canteenId: bill.canteenId,
-            type: 'walkin',
-            billNumber: bill.billNumber,
-            customerName: bill.customerName,
-            customerPhone: bill.customerPhone,
-            customerRegNo: bill.customerRegNo,
-          };
-        }
-      } catch (err) {
-        console.error('QR verify walkin Firestore error:', err);
-      }
-    }
-
-    // --- Try as document ID in walkin_bills ---
-    if (!targetOrder && billNumber && db) {
-      try {
+        // 1. Direct doc ID lookup (fastest — billNumber IS the doc ID)
         const doc = await db.collection('walkin_bills').doc(billNumber).get();
         console.log('--- QR VERIFY --- walkin_bills by doc ID:', doc.exists);
         if (doc.exists) {
@@ -1887,6 +1854,39 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
         }
       } catch (err) {
         console.error('QR verify walkin doc ID lookup error:', err);
+      }
+
+      // 2. Fallback: query by billNumber field (for bills saved before doc ID change)
+      if (!targetOrder) {
+        try {
+          const snap = await db.collection('walkin_bills').where('billNumber', '==', billNumber).limit(1).get();
+          console.log('--- QR VERIFY --- walkin_bills by billNumber field:', snap.size, 'docs');
+          if (!snap.empty) {
+            const doc = snap.docs[0];
+            const bill = doc.data();
+            targetOrder = {
+              id: doc.id,
+              userId: bill.customerRegNo || 'walkin',
+              userName: bill.customerName || 'Walk-in Customer',
+              items: bill.items || [],
+              totalPrice: bill.grandTotal || 0,
+              paymentStatus: bill.paymentStatus || 'pending',
+              paymentMethod: bill.paymentMethod || 'cash',
+              qrCode: bill.billNumber,
+              status: bill.paymentStatus === 'paid' ? 'collected' : 'pending',
+              timestamp: bill.timestamp,
+              createdAt: bill.createdAt,
+              canteenId: bill.canteenId,
+              type: 'walkin',
+              billNumber: bill.billNumber,
+              customerName: bill.customerName,
+              customerPhone: bill.customerPhone,
+              customerRegNo: bill.customerRegNo,
+            };
+          }
+        } catch (err) {
+          console.error('QR verify walkin field query error:', err);
+        }
       }
     }
 
@@ -2312,8 +2312,11 @@ app.post('/api/canteen/walkin-bill', async (req, res) => {
     bill.synced = true;
 
     if (db) {
-      const docRef = await db.collection('walkin_bills').add(bill);
-      bill.id = docRef.id;
+      // Use billNumber as document ID for instant QR lookup
+      const docId = bill.billNumber || `walkin_${Date.now()}`;
+      await db.collection('walkin_bills').doc(docId).set(bill);
+      bill.id = docId;
+      console.log('--- WALKIN BILL SAVED --- docId:', docId, 'billNumber:', bill.billNumber);
 
       // Update inventory: reduce stock for each item
       for (const item of bill.items) {
@@ -2356,6 +2359,78 @@ app.post('/api/canteen/walkin-bill', async (req, res) => {
   } catch (error) {
     console.error('Walk-in bill error:', error);
     res.status(500).json({ success: false, error: 'Failed to create walk-in bill' });
+  }
+});
+
+// Lookup walk-in bill by bill number (for QR scan)
+app.get('/api/canteen/walkin-bill/lookup', async (req, res) => {
+  try {
+    const { billNumber } = req.query;
+    if (!billNumber) {
+      return res.status(400).json({ success: false, error: 'billNumber is required' });
+    }
+    console.log('--- WALKIN LOOKUP --- billNumber:', billNumber);
+    if (db) {
+      // 1. Direct doc ID lookup
+      const doc = await db.collection('walkin_bills').doc(String(billNumber)).get();
+      if (doc.exists) {
+        const bill = doc.data()!;
+        return res.json({
+          success: true,
+          order: {
+            id: doc.id,
+            userId: bill.customerRegNo || 'walkin',
+            userName: bill.customerName || 'Walk-in Customer',
+            items: bill.items || [],
+            totalPrice: bill.grandTotal || 0,
+            paymentStatus: bill.paymentStatus || 'pending',
+            paymentMethod: bill.paymentMethod || 'cash',
+            qrCode: bill.billNumber,
+            status: bill.paymentStatus === 'paid' ? 'collected' : 'pending',
+            timestamp: bill.timestamp,
+            createdAt: bill.createdAt,
+            canteenId: bill.canteenId,
+            type: 'walkin',
+            billNumber: bill.billNumber,
+            customerName: bill.customerName,
+            customerPhone: bill.customerPhone,
+            customerRegNo: bill.customerRegNo,
+          }
+        });
+      }
+      // 2. Field query fallback
+      const snap = await db.collection('walkin_bills').where('billNumber', '==', String(billNumber)).limit(1).get();
+      if (!snap.empty) {
+        const doc = snap.docs[0];
+        const bill = doc.data();
+        return res.json({
+          success: true,
+          order: {
+            id: doc.id,
+            userId: bill.customerRegNo || 'walkin',
+            userName: bill.customerName || 'Walk-in Customer',
+            items: bill.items || [],
+            totalPrice: bill.grandTotal || 0,
+            paymentStatus: bill.paymentStatus || 'pending',
+            paymentMethod: bill.paymentMethod || 'cash',
+            qrCode: bill.billNumber,
+            status: bill.paymentStatus === 'paid' ? 'collected' : 'pending',
+            timestamp: bill.timestamp,
+            createdAt: bill.createdAt,
+            canteenId: bill.canteenId,
+            type: 'walkin',
+            billNumber: bill.billNumber,
+            customerName: bill.customerName,
+            customerPhone: bill.customerPhone,
+            customerRegNo: bill.customerRegNo,
+          }
+        });
+      }
+    }
+    return res.status(404).json({ success: false, error: `Walk-in bill ${billNumber} not found` });
+  } catch (error) {
+    console.error('Walkin bill lookup error:', error);
+    res.status(500).json({ success: false, error: 'Failed to lookup walk-in bill' });
   }
 });
 
