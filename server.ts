@@ -1488,21 +1488,26 @@ app.post('/api/canteen/order', async (req, res) => {
       const totalPrice = Number((subtotal / 0.9764).toFixed(2));
       const totalAmountPaise = Math.round(totalPrice * 100);
       let rzpOrder: any = null;
-      try {
-        rzpOrder = await razorpay.orders.create({
-          amount: totalAmountPaise,
-          currency: 'INR',
-          transfers: [
-            {
-              account: canteenState.razorpayAccountId || 'acc_GX82jso291jS',
-              amount: foodAmount * 100,
-              currency: 'INR',
-              on_hold: false
-            }
-          ]
-        });
-      } catch (transferErr) {
-        console.warn('Razorpay split transfer failed, trying standard:', transferErr);
+      const canteenAccountId = canteenState.razorpayAccountId;
+      if (canteenAccountId && canteenAccountId.startsWith('acc_')) {
+        try {
+          rzpOrder = await razorpay.orders.create({
+            amount: totalAmountPaise,
+            currency: 'INR',
+            transfers: [
+              {
+                account: canteenAccountId,
+                amount: Math.round(foodAmount * 100),
+                currency: 'INR',
+                on_hold: false
+              }
+            ]
+          });
+        } catch (transferErr: any) {
+          console.warn('Razorpay split transfer failed, falling back to standard order:', transferErr?.message || transferErr);
+        }
+      }
+      if (!rzpOrder) {
         rzpOrder = await razorpay.orders.create({
           amount: totalAmountPaise,
           currency: 'INR'
@@ -1545,8 +1550,8 @@ app.post('/api/canteen/order', async (req, res) => {
         qrPayload: generateSignedQR(orderId)
       });
     } catch (err: any) {
-      console.error('Razorpay order creation error:', err);
-      return res.status(500).json({ success: false, error: 'Payment gateway order initialization failed.' });
+      console.error('Razorpay order creation error:', err?.message || err, err?.statusCode, err?.error);
+      return res.status(500).json({ success: false, error: `Payment gateway error: ${err?.message || 'Unknown error'}` });
     }
   }
 
