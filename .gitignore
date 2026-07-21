@@ -8,3 +8,4 @@ canteen2-0-firebase-adminsdk-*.json
 .env
 .env.*
 ~$*
+vercel-env-value.txt

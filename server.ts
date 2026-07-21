@@ -1863,35 +1863,50 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
     let targetOrder: any = null;
 
     // --- Walk-in bill lookup (Firestore) ---
+    // Check orders collection first (has correct 'ready' status), then walkin_bills
     if (isWalkin && billNumber && db) {
+      // 0. Check orders collection first (walkin bills now saved here with correct status)
       try {
-        // 1. Direct doc ID lookup (fastest — billNumber IS the doc ID)
-        const doc = await db.collection('walkin_bills').doc(billNumber).get();
-        console.log('--- QR VERIFY --- walkin_bills by doc ID:', doc.exists);
-        if (doc.exists) {
-          const bill = doc.data()!;
-          targetOrder = {
-            id: doc.id,
-            userId: bill.customerRegNo || 'walkin',
-            userName: bill.customerName || 'Walk-in Customer',
-            items: bill.items || [],
-            totalPrice: bill.grandTotal || 0,
-            paymentStatus: bill.paymentStatus || 'pending',
-            paymentMethod: bill.paymentMethod || 'cash',
-            qrCode: bill.billNumber,
-            status: bill.paymentStatus === 'paid' ? 'collected' : 'pending',
-            timestamp: bill.timestamp,
-            createdAt: bill.createdAt,
-            canteenId: bill.canteenId,
-            type: 'walkin',
-            billNumber: bill.billNumber,
-            customerName: bill.customerName,
-            customerPhone: bill.customerPhone,
-            customerRegNo: bill.customerRegNo,
-          };
+        const orderDoc = await db.collection('orders').doc(billNumber).get();
+        console.log('--- QR VERIFY --- orders by doc ID:', orderDoc.exists);
+        if (orderDoc.exists) {
+          const order = orderDoc.data()!;
+          targetOrder = { id: orderDoc.id, ...order };
         }
       } catch (err) {
-        console.error('QR verify walkin doc ID lookup error:', err);
+        console.error('QR verify orders doc ID lookup error:', err);
+      }
+
+      // 1. Direct doc ID lookup in walkin_bills (fallback)
+      if (!targetOrder) {
+        try {
+          const doc = await db.collection('walkin_bills').doc(billNumber).get();
+          console.log('--- QR VERIFY --- walkin_bills by doc ID:', doc.exists);
+          if (doc.exists) {
+            const bill = doc.data()!;
+            targetOrder = {
+              id: doc.id,
+              userId: bill.customerRegNo || 'walkin',
+              userName: bill.customerName || 'Walk-in Customer',
+              items: bill.items || [],
+              totalPrice: bill.grandTotal || 0,
+              paymentStatus: bill.paymentStatus || 'pending',
+              paymentMethod: bill.paymentMethod || 'cash',
+              qrCode: bill.billNumber,
+              status: bill.status || (bill.paymentStatus === 'paid' ? 'ready' : 'pending'),
+              timestamp: bill.timestamp,
+              createdAt: bill.createdAt,
+              canteenId: bill.canteenId,
+              type: 'walkin',
+              billNumber: bill.billNumber,
+              customerName: bill.customerName,
+              customerPhone: bill.customerPhone,
+              customerRegNo: bill.customerRegNo,
+            };
+          }
+        } catch (err) {
+          console.error('QR verify walkin doc ID lookup error:', err);
+        }
       }
 
       // 2. Fallback: query by billNumber field (for bills saved before doc ID change)
@@ -1911,7 +1926,7 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
               paymentStatus: bill.paymentStatus || 'pending',
               paymentMethod: bill.paymentMethod || 'cash',
               qrCode: bill.billNumber,
-              status: bill.paymentStatus === 'paid' ? 'collected' : 'pending',
+              status: bill.status || (bill.paymentStatus === 'paid' ? 'ready' : 'pending'),
               timestamp: bill.timestamp,
               createdAt: bill.createdAt,
               canteenId: bill.canteenId,
@@ -2361,7 +2376,7 @@ app.post('/api/canteen/walkin-bill', async (req, res) => {
       paymentStatus: bill.paymentStatus === 'paid' ? 'paid' : 'pending',
       paymentMethod: bill.paymentMethod || 'cash',
       qrCode: bill.billNumber,
-      status: bill.paymentStatus === 'paid' ? 'delivered' : 'pending',
+      status: 'ready',
       timestamp: bill.timestamp || new Date().toISOString(),
       createdAt: bill.createdAt || Date.now(),
       canteenId: bill.canteenId || 'canteen_001',
