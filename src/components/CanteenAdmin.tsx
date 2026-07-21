@@ -589,193 +589,163 @@ export default function CanteenAdmin({
   const totalCollectedCount = orders.filter(o => o.status === 'collected' || o.status === 'delivered').length;
   const totalRemainingCount = orders.filter(o => o.status === 'scheduled' || o.status === 'preparing' || o.status === 'ready').length;
 
-  if (userRole === 'staff') {
-    const handleOrderLoadedStaff = async (orderId: string) => {
-      try {
-        // Verify against live database via server endpoint
-        const resp = await fetch(`${API_BASE}/api/canteen/qr/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: orderId })
-        });
-        const data = await resp.json();
-        if (data.success && data.verified && data.order) {
-          if (data.order.status === 'delivered' || data.order.status === 'collected') {
-            setAlreadyServedOrderId(data.order.id);
-            setScannedOrder(null);
-            setScanStatus(null);
-          } else {
-            setScannedOrder(data.order);
-            setAlreadyServedOrderId(null);
-            setScanStatus(null);
-          }
-          return;
-        }
-      } catch (err) {
-        console.error('QR verify API failed:', err);
-      }
-
-      // Fallback 1: Direct walkin bill lookup
-      try {
-        const lookupResp = await fetch(`${API_BASE}/api/canteen/walkin-bill/lookup?billNumber=${encodeURIComponent(orderId.trim())}`);
-        const lookupData = await lookupResp.json();
-        if (lookupData.success && lookupData.order) {
-          const order = lookupData.order;
-          if (order.status === 'delivered' || order.status === 'collected') {
-            setAlreadyServedOrderId(order.id);
-            setScannedOrder(null);
-            setScanStatus(null);
-          } else {
-            setScannedOrder(order);
-            setAlreadyServedOrderId(null);
-            setScanStatus(null);
-          }
-          return;
-        }
-      } catch (err) {
-        console.error('Walkin bill lookup failed:', err);
-      }
-
-      // Fallback 2: local in-memory lookup
-      const cleanQuery = orderId.trim().toLowerCase();
-      const found = orders.find(o => 
-        o.id.toLowerCase() === cleanQuery || 
-        o.qrCode.toLowerCase() === cleanQuery ||
-        o.qrCode.toLowerCase().includes(cleanQuery) ||
-        cleanQuery.includes(o.id.toLowerCase())
-      );
-
-      if (found) {
-        if (found.status === 'delivered') {
-          setAlreadyServedOrderId(found.id);
+  // ===== SHARED SCANNER FUNCTIONS (staff + counter) =====
+  const handleOrderLoadedStaff = async (orderId: string) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteen/qr/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: orderId })
+      });
+      const data = await resp.json();
+      if (data.success && data.verified && data.order) {
+        if (data.order.status === 'delivered' || data.order.status === 'collected') {
+          setAlreadyServedOrderId(data.order.id);
           setScannedOrder(null);
           setScanStatus(null);
         } else {
-          setScannedOrder(found);
+          setScannedOrder(data.order);
           setAlreadyServedOrderId(null);
           setScanStatus(null);
         }
-      } else {
-        setScannedOrder(null);
-        setAlreadyServedOrderId(null);
-        setScanStatus({
-          success: false,
-          text: `NOT FOUND: Ticket ID #${orderId} was not found in the canteen database.`
-        });
+        return;
       }
-    };
+    } catch (err) {
+      console.error('QR verify API failed:', err);
+    }
 
-    const handleSimulateQRScanStaff = async (orderId: string) => {
-      setIsScanningActive(true);
-      setScanStatus(null);
-      setScannedOrder(null);
-      setAlreadyServedOrderId(null);
-      
-      playBeep(950, 150);
-
-      try {
-        await handleOrderLoadedStaff(orderId);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsScanningActive(false);
-      }
-    };
-
-    const startCameraScannerStaff = () => {
-      setIsCameraActive(true);
-      setScanStatus(null);
-      setAlreadyServedOrderId(null);
-      setScannedOrder(null);
-
-      setTimeout(() => {
-        const html5QrCode = new Html5Qrcode("reader-staff");
-        const qrCodeSuccessCallback = (decodedText: string) => {
-          playBeep(950, 150);
-
-          html5QrCode.stop().then(async () => {
-            setIsCameraActive(false);
-            await handleOrderLoadedStaff(decodedText);
-          }).catch(async err => {
-            console.error("Failed to stop scanner", err);
-            setIsCameraActive(false);
-            await handleOrderLoadedStaff(decodedText);
-          });
-        };
-        
-        const qrboxFunction = (viewfinderWidth: number, viewfinderHeight: number) => {
-          const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
-          const qrboxSize = Math.floor(minEdgeSize * 0.7);
-          return {
-            width: qrboxSize,
-            height: qrboxSize
-          };
-        };
-        
-        const config = { 
-          fps: 20, 
-          qrbox: qrboxFunction,
-          aspectRatio: 1.0
-        };
-
-        html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback, () => {})
-          .then(() => {
-            (window as any).activeQrCodeScannerStaff = html5QrCode;
-          })
-          .catch(err => {
-            console.error("Error starting camera qr scanner", err);
-            alert("Could not start camera. Make sure camera permission is granted.");
-            setIsCameraActive(false);
-          });
-      }, 300);
-    };
-
-    const stopCameraScannerStaff = () => {
-      const scanner = (window as any).activeQrCodeScannerStaff;
-      if (scanner) {
-        scanner.stop().then(() => {
-          setIsCameraActive(false);
-          (window as any).activeQrCodeScannerStaff = null;
-        }).catch(err => {
-          console.error(err);
-          setIsCameraActive(false);
-        });
-      } else {
-        setIsCameraActive(false);
-      }
-    };
-
-    const handleMarkAsServedStaff = async (orderId: string) => {
-      try {
-        const res = await onUpdateOrderStatus(orderId, 'delivered');
-        if (res.success) {
-          setScanStatus({
-            success: true,
-            text: `SUCCESS: Order #${orderId} successfully marked as Served!`
-          });
-          setScannedOrder(prev => prev && prev.id === orderId ? { ...prev, status: 'delivered' } : prev);
-          onFetchCanteen();
+    // Fallback 1: Direct walkin bill lookup
+    try {
+      const lookupResp = await fetch(`${API_BASE}/api/canteen/walkin-bill/lookup?billNumber=${encodeURIComponent(orderId.trim())}`);
+      const lookupData = await lookupResp.json();
+      if (lookupData.success && lookupData.order) {
+        const order = lookupData.order;
+        if (order.status === 'delivered' || order.status === 'collected') {
+          setAlreadyServedOrderId(order.id);
+          setScannedOrder(null);
+          setScanStatus(null);
         } else {
-          setScanStatus({
-            success: false,
-            text: `FAILED: Could not update status for order #${orderId}.`
-          });
+          setScannedOrder(order);
+          setAlreadyServedOrderId(null);
+          setScanStatus(null);
         }
-      } catch (err) {
-        console.error(err);
-        setScanStatus({
-          success: false,
-          text: `FAILED: Network error setting served status.`
-        });
+        return;
       }
-    };
+    } catch (err) {
+      console.error('Walkin bill lookup failed:', err);
+    }
 
-    const handleManualCodeLookupStaff = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!searchCode.trim()) return;
-      handleOrderLoadedStaff(searchCode.trim());
-    };
+    // Fallback 2: local in-memory lookup
+    const cleanQuery = orderId.trim().toLowerCase();
+    const found = orders.find(o =>
+      o.id.toLowerCase() === cleanQuery ||
+      o.qrCode.toLowerCase() === cleanQuery ||
+      o.qrCode.toLowerCase().includes(cleanQuery) ||
+      cleanQuery.includes(o.id.toLowerCase())
+    );
 
+    if (found) {
+      if (found.status === 'delivered') {
+        setAlreadyServedOrderId(found.id);
+        setScannedOrder(null);
+        setScanStatus(null);
+      } else {
+        setScannedOrder(found);
+        setAlreadyServedOrderId(null);
+        setScanStatus(null);
+      }
+    } else {
+      setScannedOrder(null);
+      setAlreadyServedOrderId(null);
+      setScanStatus({
+        success: false,
+        text: `NOT FOUND: Ticket ID #${orderId} was not found in the canteen database.`
+      });
+    }
+  };
+
+  const handleSimulateQRScanStaff = async (orderId: string) => {
+    setIsScanningActive(true);
+    setScanStatus(null);
+    setScannedOrder(null);
+    setAlreadyServedOrderId(null);
+    playBeep(950, 150);
+    try {
+      await handleOrderLoadedStaff(orderId);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsScanningActive(false);
+    }
+  };
+
+  const startCameraScannerStaff = () => {
+    setIsCameraActive(true);
+    setScanStatus(null);
+    setAlreadyServedOrderId(null);
+    setScannedOrder(null);
+    setTimeout(() => {
+      const html5QrCode = new Html5Qrcode("reader-staff");
+      const qrCodeSuccessCallback = (decodedText: string) => {
+        playBeep(950, 150);
+        html5QrCode.stop().then(async () => {
+          setIsCameraActive(false);
+          await handleOrderLoadedStaff(decodedText);
+        }).catch(async () => {
+          setIsCameraActive(false);
+          await handleOrderLoadedStaff(decodedText);
+        });
+      };
+      const qrboxFunction = (viewfinderWidth: number, viewfinderHeight: number) => {
+        const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+        const qrboxSize = Math.floor(minEdgeSize * 0.7);
+        return { width: qrboxSize, height: qrboxSize };
+      };
+      html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: qrboxFunction, aspectRatio: 1.0 }, qrCodeSuccessCallback, () => {})
+        .then(() => { (window as any).activeQrCodeScannerStaff = html5QrCode; })
+        .catch(err => {
+          console.error("Error starting camera qr scanner", err);
+          alert("Could not start camera. Make sure camera permission is granted.");
+          setIsCameraActive(false);
+        });
+    }, 300);
+  };
+
+  const stopCameraScannerStaff = () => {
+    const scanner = (window as any).activeQrCodeScannerStaff;
+    if (scanner) {
+      scanner.stop().then(() => {
+        setIsCameraActive(false);
+        (window as any).activeQrCodeScannerStaff = null;
+      }).catch(() => { setIsCameraActive(false); });
+    } else {
+      setIsCameraActive(false);
+    }
+  };
+
+  const handleMarkAsServedStaff = async (orderId: string) => {
+    try {
+      const res = await onUpdateOrderStatus(orderId, 'delivered');
+      if (res.success) {
+        setScanStatus({ success: true, text: `SUCCESS: Order #${orderId} successfully marked as Served!` });
+        setScannedOrder(prev => prev && prev.id === orderId ? { ...prev, status: 'delivered' } : prev);
+        onFetchCanteen();
+      } else {
+        setScanStatus({ success: false, text: `FAILED: Could not update status for order #${orderId}.` });
+      }
+    } catch (err) {
+      console.error(err);
+      setScanStatus({ success: false, text: `FAILED: Network error setting served status.` });
+    }
+  };
+
+  const handleManualCodeLookupStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchCode.trim()) return;
+    handleOrderLoadedStaff(searchCode.trim());
+  };
+
+  if (userRole === 'staff') {
     return (
       <div className="max-w-7xl mx-auto space-y-6 py-6 text-left px-4">
         {/* ALREADY SERVED RED BANNER */}
@@ -1446,6 +1416,81 @@ export default function CanteenAdmin({
       {/* ======================= PORTAL: COUNTER STAFF VIEW ======================= */}
       {activeTab === 'counter' && (
         <div className="space-y-6 text-left">
+
+          {/* SCAN & SERVE FOR COUNTER */}
+          {scanStatus && !scanStatus.success && (
+            <div className="p-4 rounded-2xl text-xs font-sans flex items-start space-x-2.5 border bg-rose-50/80 border-rose-200/60 text-rose-800 text-left shadow-xs">
+              <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-rose-500" />
+              <div>
+                <span className="font-bold block tracking-wide uppercase text-[10px] mb-0.5">Verification Error</span>
+                <p>{scanStatus.text}</p>
+              </div>
+            </div>
+          )}
+          {scanStatus && scanStatus.success && (
+            <div className="p-4 rounded-2xl text-xs font-sans flex items-start space-x-2.5 border bg-emerald-50/80 border-emerald-200/60 text-emerald-800 text-left shadow-xs">
+              <CheckCircle className="h-4.5 w-4.5 shrink-0 text-emerald-500" />
+              <div>
+                <span className="font-bold block tracking-wide uppercase text-[10px] mb-0.5">Verification Success</span>
+                <p>{scanStatus.text}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white p-6 md:p-8 rounded-3xl border border-violet-100/70 shadow-sm text-center space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-left gap-4">
+              <div>
+                <h2 className="font-display font-black text-xl text-gray-900 tracking-tight">Token Scan & Verify</h2>
+                <p className="text-xs text-gray-400 mt-1 font-sans">
+                  Scan a student's QR code or walk-in bill to verify and serve.
+                </p>
+              </div>
+              <button
+                onClick={startCameraScannerStaff}
+                className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-750 hover:to-fuchsia-750 active:scale-98 text-white font-semibold py-3 px-5 rounded-2xl text-xs tracking-wide transition-all shadow-md flex items-center space-x-2 cursor-pointer font-display self-start sm:self-auto"
+              >
+                <QrCode className="h-4.5 w-4.5" />
+                <span>Open Camera Scanner</span>
+              </button>
+            </div>
+            <div className="border-t border-violet-50 pt-4 text-left">
+              <form onSubmit={handleManualCodeLookupStaff} className="flex gap-2 max-w-xl">
+                <input
+                  type="text"
+                  placeholder="Paste/Type Order ID or Bill Number"
+                  value={searchCode}
+                  onChange={(e) => setSearchCode(e.target.value)}
+                  className="flex-1 bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-4 py-3.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 font-mono transition-all"
+                />
+                <button
+                  type="submit"
+                  className="bg-violet-600 hover:bg-violet-750 text-white rounded-xl text-xs px-6 font-semibold transition-all shadow-md shrink-0 flex items-center space-x-1.5 cursor-pointer font-display"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                  <span>Verify Ticket</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {alreadyServedOrderId && (
+            <div className="bg-rose-500 text-white p-4 rounded-2xl shadow-lg shadow-rose-500/10 flex items-start space-x-3 relative animate-fade-in text-left">
+              <ShieldAlert className="h-5 w-5 text-white shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-bold text-sm">Order Already Served</h4>
+                <p className="text-xs text-rose-100 mt-1 font-sans">
+                  This order ({alreadyServedOrderId}) has already been marked as completed/delivered.
+                </p>
+              </div>
+              <button 
+                onClick={() => setAlreadyServedOrderId(null)} 
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 shrink-0 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-display font-bold text-lg text-gray-900">Live Counter Queue</h2>
