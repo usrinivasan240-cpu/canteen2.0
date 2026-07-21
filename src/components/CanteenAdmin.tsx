@@ -83,7 +83,7 @@ export default function CanteenAdmin({
 
   // Auto clean-up camera stream on unmount or tab switch
   React.useEffect(() => {
-    if (activeTab !== 'orders' && useRealCamera) {
+    if (activeTab !== 'counter' && useRealCamera) {
       stopRealCamera();
     }
   }, [activeTab]);
@@ -353,9 +353,9 @@ export default function CanteenAdmin({
         const cleanQuery = queryText.trim().toLowerCase();
         const found = orders.find(o => 
           o.id.toLowerCase() === cleanQuery ||
-          o.qrCode.toLowerCase() === cleanQuery ||
+          (o.qrCode || '').toLowerCase() === cleanQuery ||
           cleanQuery.includes(o.id.toLowerCase()) ||
-          o.qrCode.toLowerCase().includes(cleanQuery)
+          (o.qrCode || '').toLowerCase().includes(cleanQuery)
         );
         if (found) {
           setMatchedOrderId(found.id);
@@ -371,9 +371,9 @@ export default function CanteenAdmin({
       const cleanQuery = queryText.trim().toLowerCase();
       const found = orders.find(o => 
         o.id.toLowerCase() === cleanQuery ||
-        o.qrCode.toLowerCase() === cleanQuery ||
+        (o.qrCode || '').toLowerCase() === cleanQuery ||
         cleanQuery.includes(o.id.toLowerCase()) ||
-        o.qrCode.toLowerCase().includes(cleanQuery)
+        (o.qrCode || '').toLowerCase().includes(cleanQuery)
       );
       setIsScanning(false);
       if (found) {
@@ -639,8 +639,8 @@ export default function CanteenAdmin({
     const cleanQuery = orderId.trim().toLowerCase();
     const found = orders.find(o =>
       o.id.toLowerCase() === cleanQuery ||
-      o.qrCode.toLowerCase() === cleanQuery ||
-      o.qrCode.toLowerCase().includes(cleanQuery) ||
+      (o.qrCode || '').toLowerCase() === cleanQuery ||
+      (o.qrCode || '').toLowerCase().includes(cleanQuery) ||
       cleanQuery.includes(o.id.toLowerCase())
     );
 

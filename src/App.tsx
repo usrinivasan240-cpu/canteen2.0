@@ -300,9 +300,9 @@ export default function App() {
         {role === 'customer' ? (
           <CustomerApp
             canteenName={canteen ? canteen.name : 'Violet Bites'}
-            menuItems={canteen ? canteen.items : []}
-            orders={canteen ? canteen.orders : []}
-            reviews={canteen ? canteen.reviews : []}
+            menuItems={canteen?.items || []}
+            orders={canteen?.orders || []}
+            reviews={canteen?.reviews || []}
             onOrderPlaced={handleOrderPlaced}
             onAddReview={handleAddReview}
             onResetCanteen={handleResetCanteen}
@@ -312,11 +312,11 @@ export default function App() {
           />
         ) : (role === 'owner' || role === 'chef' || role === 'staff') ? (
           <CanteenAdmin
-            menuItems={canteen ? canteen.items : []}
-            orders={canteen ? canteen.orders : []}
-            reviews={canteen ? canteen.reviews : []}
-            ingredients={canteen ? (canteen.ingredients || []) : []}
-            settings={canteen ? canteen.settings : undefined}
+            menuItems={canteen?.items || []}
+            orders={canteen?.orders || []}
+            reviews={canteen?.reviews || []}
+            ingredients={canteen?.ingredients || []}
+            settings={canteen?.settings}
             onAddMenuItem={handleAddMenuItem}
             onDeleteMenuItem={handleDeleteMenuItem}
             onUpdateOrderStatus={handleUpdateOrderStatus}
@@ -327,8 +327,8 @@ export default function App() {
           />
         ) : (
           <ServicePanel
-            orders={canteen ? canteen.orders : []}
-            menuItems={canteen ? canteen.items : []}
+            orders={canteen?.orders || []}
+            menuItems={canteen?.items || []}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             onFetchCanteen={fetchCanteenData}
             onLogout={handleLogout}

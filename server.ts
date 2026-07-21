@@ -468,9 +468,9 @@ const INITIAL_ORDERS: Order[] = [
     userId: 'user_0yq23cEG6ZNs1Dkkm3MtHSYyAjy1',
     userName: 'Raju Watson',
     items: [
-      { itemId: 'item_001', name: 'poori 1 pecs', price: 10, quantity: 2 }
+      { itemId: 'item_001', name: 'poori 1 pcs', price: 10, quantity: 2 }
     ],
-    totalPrice: 21,
+    totalPrice: 20,
     paymentStatus: 'paid',
     paymentMethod: 'Google Pay',
     status: 'preparing',
@@ -998,7 +998,7 @@ app.post('/api/users', async (req, res) => {
 
   // Create Firebase Auth account so the user can actually log in
   let firebaseUid: string | undefined;
-  if (admin) {
+  if (db) {
     try {
       const authUser = await admin.auth().createUser({
         email: emailKey,
@@ -1066,7 +1066,7 @@ app.delete('/api/users/:email', async (req, res) => {
   const emailKey = email.trim().toLowerCase();
 
   // Delete from Firebase Auth
-  if (admin) {
+  if (db) {
     try {
       const authUser = await admin.auth().getUserByEmail(emailKey);
       await admin.auth().deleteUser(authUser.uid);
@@ -1119,7 +1119,7 @@ app.put('/api/users/:email/role', async (req, res) => {
   }
 
   // Update Firebase Auth custom claims so the user's token reflects the new role
-  if (admin) {
+  if (db) {
     try {
       const authUser = await admin.auth().getUserByEmail(emailKey);
       const claims: Record<string, string> = { role };
@@ -1380,11 +1380,11 @@ app.post('/api/canteen/order', async (req, res) => {
   let currentSlotBookingsCount = 0;
   if (db) {
     try {
-      const settingsDoc = await db.collection('settings').doc('canteen_settings').get();
+      const settingsDoc = await db.collection('settings').doc(`settings_${canteenId || 'canteen_001'}`).get();
       if (settingsDoc.exists) {
         capacityLimit = (settingsDoc.data() as CanteenSettings).defaultSlotCapacity;
       }
-      const ordersInSlot = await db.collection('orders').where('pickupSlot', '==', selectedSlot).get();
+      const ordersInSlot = await db.collection('orders').where('pickupSlot', '==', selectedSlot).where('canteenId', '==', canteenId || 'canteen_001').get();
       currentSlotBookingsCount = ordersInSlot.docs.filter(doc => {
         const o = doc.data() as Order;
         return o.status !== 'cancelled' && o.status !== 'expired';
@@ -1499,7 +1499,7 @@ app.post('/api/canteen/order', async (req, res) => {
   const pickupTimestamp = parseSlotToTimestamp(selectedSlot);
   const prepStartTime = pickupTimestamp - (maxPrepTime * 60 * 1000) - (5 * 60 * 1000); // 5 mins buffer
   const noShowMinutes = db 
-    ? (await db.collection('settings').doc('canteen_settings').get()).data()?.noShowMinutes || 30
+    ? (await db.collection('settings').doc(`settings_${canteenId || 'canteen_001'}`).get()).data()?.noShowMinutes || 30
     : canteenState.settings?.noShowMinutes || 30;
   const expiryTime = pickupTimestamp + (noShowMinutes * 60 * 1000);
 
@@ -2303,7 +2303,7 @@ app.post('/api/canteen/settings', async (req, res) => {
 
   if (db) {
     try {
-      await db.collection('settings').doc('canteen_settings').set(canteenSettings);
+      await db.collection('settings').doc('settings_canteen_001').set(canteenSettings);
     } catch (e) {
       console.error(e);
     }
@@ -2408,25 +2408,31 @@ app.post('/api/canteen/walkin-bill', async (req, res) => {
 
       bill.id = docId;
       bill.synced = true;
+    }
 
-      // Update inventory: reduce stock for each item
+    // Always update in-memory inventory (works with or without Firestore)
+    for (const item of orderData.items) {
+      const menuItem = canteenState.items.find(m => m.id === item.itemId);
+      if (menuItem) {
+        menuItem.bookedToday += item.quantity;
+        menuItem.stock = Math.max(0, menuItem.stock - item.quantity);
+      }
+    }
+
+    // Update Firestore inventory if available
+    if (db) {
       for (const item of bill.items) {
-        const menuItem = canteenState.items.find(m => m.id === item.itemId);
-        if (menuItem) {
-          menuItem.bookedToday += item.quantity;
-          menuItem.stock = Math.max(0, menuItem.stock - item.quantity);
-          try {
-            const menuDoc = await db.collection('menu_items').where('id', '==', item.itemId).get();
-            if (!menuDoc.empty) {
-              const doc = menuDoc.docs[0];
-              await doc.ref.update({
-                bookedToday: admin.firestore.FieldValue.increment(item.quantity),
-                stock: admin.firestore.FieldValue.increment(-item.quantity),
-              });
-            }
-          } catch (e: any) {
-            console.error('--- WALKIN BILL inventory update FAILED ---', e?.message);
+        try {
+          const menuDoc = await db.collection('items').where('id', '==', item.itemId).get();
+          if (!menuDoc.empty) {
+            const doc = menuDoc.docs[0];
+            await doc.ref.update({
+              bookedToday: admin.firestore.FieldValue.increment(item.quantity),
+              stock: admin.firestore.FieldValue.increment(-item.quantity),
+            });
           }
+        } catch (e: any) {
+          console.error('--- WALKIN BILL inventory update FAILED ---', e?.message);
         }
       }
     }

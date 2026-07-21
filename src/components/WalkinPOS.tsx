@@ -157,7 +157,7 @@ export default function WalkinPOS({
         const q = searchQuery.toLowerCase();
         return item.name.toLowerCase().includes(q) ||
           item.category.toLowerCase().includes(q) ||
-          item.description.toLowerCase().includes(q);
+          (item.description || '').toLowerCase().includes(q);
       }
       return true;
     });

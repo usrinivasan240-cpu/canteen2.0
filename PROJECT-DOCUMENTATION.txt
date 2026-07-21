@@ -1,0 +1,353 @@
+===============================================================
+  SKIPQ / VIOLET BITES - COMPLETE PROJECT DOCUMENTATION
+  (Canteen Management System)
+  Generated: 21 July 2026
+===============================================================
+
+1. PROJECT OVERVIEW
+===============================================================
+A smart AI-powered campus canteen management system with 3 separate
+repositories sharing a single Firebase backend. Supports online
+ordering, walk-in POS billing, QR-code-based food token scanning,
+real-time order tracking, Razorpay payments, and AI recommendations.
+
+===============================================================
+
+2. REPOSITORIES (3 repos, same Firebase project)
+===============================================================
+
+REPO 1: canteen2.0 (Owner/Admin Website)
+  - GitHub: https://github.com/usrinivasan240-cpu/canteen2.0
+  - Local:  C:\Users\Srinivasan\Downloads\sri projects\canteen2.0-main\canteen2.0-main
+  - Hosted: https://canteen20.vercel.app
+  - Tech:   React 19 + Express 4 + Vite 6 + Tailwind CSS v4 + Firebase Admin
+  - Roles:  Owner, Chef, Staff (Counter), Customer, Colg Admin
+  - Content: Full canteen management, POS walk-in billing, QR scanner,
+             menu management, inventory, analytics, reviews, AI features
+
+REPO 2: Canteen-App (Student/Chef/Server Mobile App)
+  - GitHub: https://github.com/usrinivasan240-cpu/Canteen-App
+  - Tech:   React Native + Expo 52
+  - Roles:  Student, Chef, Server
+  - Content: Mobile ordering, QR scanning, order tracking, role-based screens
+
+REPO 3: canteen-web3.0 (Super Admin Dashboard)
+  - GitHub: https://github.com/usrinivasan240-cpu/canteen-web3.0
+  - Tech:   React + Vite + TypeScript + Tailwind CSS v4
+  - Roles:  Super Admin only
+  - Content: Global analytics, college management, canteen management,
+             user CRUD, college detail dashboards
+
+===============================================================
+
+3. FIREBASE PROJECT (Shared across all 3 repos)
+===============================================================
+
+  Project ID:           canteen2-0
+  Project Number:       632341582941
+  Auth Domain:          canteen2-0.firebaseapp.com
+  Storage Bucket:       canteen2-0.firebasestorage.app
+  API Key:              AIzaSyBghKsD84qXfDtmnVj75deoc_xG7j2ApXw
+  App ID:               1:632341582941:web:02596f8cf2f3cd80f869b4
+  Measurement ID:       G-RT6XB3E5XX
+
+  Service Account Email: firebase-adminsdk-fbsvc@canteen2-0.iam.gserviceaccount.com
+  Client ID:            114993861211756843019
+
+  Firebase Services Used:
+    - Cloud Firestore (primary database)
+    - Firebase Authentication (user accounts)
+    - Firebase Admin SDK v13.10.0 (server-side)
+
+===============================================================
+
+4. FIRESTORE DATABASE COLLECTIONS
+===============================================================
+
+  Collection        Document ID        Purpose
+  ─────────────     ─────────────      ──────────────────────────────
+  items             item.id            Menu items with stock, recipes
+  orders            orderId            Online + walk-in orders
+  reviews           reviewId           Customer reviews + AI sentiment
+  users             email (normalized) User accounts, roles, Firebase Auth
+  colleges          college.id         Top-level tenants/institutions
+  canteens          canteen.id         Canteen entities with settings
+  subcanteens       sub.id             Sub-counters within canteens
+  ingredients       ingredient.id      Raw ingredient inventory
+  settings          settings_{id}      Per-canteen operational settings
+  walkin_bills      billNumber         Walk-in POS bills (legacy collection)
+  menu_items        item.id            Alternate collection for menu items
+
+===============================================================
+
+5. DEPLOYMENT & HOSTING
+===============================================================
+
+  OWNER/ADMIN WEBSITE (canteen2.0):
+    - Hosted on: Vercel
+    - URL: https://canteen20.vercel.app
+    - Also: https://canteen20-owner-admin-web.vercel.app
+    - Build: Vite build (frontend) + esbuild (server -> dist/server.cjs)
+    - Serverless: api/index.ts imports dist/server.cjs
+    - SPA routing: vercel.json rewrites all non-API routes to index.html
+
+  MOBILE APP (Canteen-App):
+    - Framework: React Native + Expo 52
+    - Platform: Android (Capacitor 8 or Expo Go)
+    - App ID: com.skipq.canteen (Capacitor) / Expo managed
+
+  SUPER ADMIN (canteen-web3.0):
+    - Hosted on: Vercel
+    - Build: Vite + TypeScript + TailwindCSS v4
+    - SPA routing: vercel.json catch-all rewrite
+
+===============================================================
+
+6. VERCEL ENVIRONMENT VARIABLES (canteen20 project)
+===============================================================
+
+  Variable Name              Value / Purpose
+  ───────────────────────    ──────────────────────────────────────
+  FIREBASE_SERVICE_ACCOUNT   Full Firebase Admin SDK JSON (service account)
+  QR_SECRET                  AAE2FBE0CA7C3F12C6DB96FE8F368DFB (HMAC signing)
+  RAZORPAY_KEY_ID            (if set) Razorpay API key
+  RAZORPAY_KEY_SECRET        (if set) Razorpay API secret
+  GEMINI_API_KEY             (if set) Google Gemini AI key
+
+  NOTE: token.json is used for LOCAL development only.
+  Vercel uses FIREBASE_SERVICE_ACCOUNT env var instead.
+
+===============================================================
+
+7. TECHNOLOGY STACK
+===============================================================
+
+  LAYER           TECHNOLOGY                  VERSION
+  ────────────    ─────────────────────────   ───────
+  Frontend        React                       19.0.1
+  UI Styling      Tailwind CSS                4.1.14
+  Animations      Motion (Framer Motion)      12.23.24
+  Icons           Lucide React                0.546.0
+  Build Tool      Vite                        6.2.3
+  Backend         Express                     4.21.2
+  Database        Cloud Firestore             (Firebase Admin 13.10.0)
+  Auth            Firebase Auth               (server-side)
+  AI              Google Gemini               gemini-3.5-flash
+  Payments        Razorpay                    2.9.6
+  QR Generation   qrcode                      1.5.4
+  QR Scanning     html5-qrcode                2.3.8
+  TypeScript      TypeScript                  5.8.2
+  Mobile          React Native + Expo         52
+  Native Wrap     Capacitor                   8.4.0
+  Server Bundle   esbuild                    0.25.0
+  Dev Runner      tsx                         4.21.0
+
+===============================================================
+
+8. USER ROLES (6 RBAC roles)
+===============================================================
+
+  Role          Access Level
+  ─────────     ────────────────────────────────────────────
+  superadmin    Global access (canteen-web3.0 only)
+  admin         College-level management
+  owner         Full canteen management + POS + analytics
+  chef          Kitchen orders + menu management
+  staff         Counter operations + QR scanning + serving
+  customer      Online ordering + reviews + browsing
+
+  Multi-tenant hierarchy: College > Canteen > SubCanteen
+
+===============================================================
+
+9. API ENDPOINTS (server.ts - 30+ routes)
+===============================================================
+
+  HEALTH & AUTH:
+    GET  /api/test                    Health check + DB status
+    POST /api/auth/register           User registration
+    POST /api/auth/login              User login
+
+  TENANT MANAGEMENT:
+    GET/POST/DELETE  /api/colleges        College CRUD
+    GET/POST/PUT/DELETE /api/canteens     Canteen CRUD
+    GET/POST/DELETE  /api/subcanteens     Sub-canteen CRUD
+    GET/POST/DELETE  /api/users           User CRUD (Firebase Auth sync)
+    PUT  /api/users/:email/role          Update user role + Auth claims
+
+  Canteen OPERATIONS:
+    GET  /api/canteen                Full canteen data (items, orders, etc.)
+    POST /api/canteen/update-name    Update canteen name
+    POST/DELETE /api/canteen/menu    Menu item CRUD
+    POST/DELETE /api/canteen/ingredients  Ingredient CRUD
+    POST /api/canteen/ingredients/batch   Batch ingredient update
+    POST /api/canteen/settings       Update canteen settings
+
+  ORDERING & PAYMENTS:
+    POST /api/canteen/order          Place order (slot, stock, recipe validation)
+    POST /api/canteen/payment/verify Razorpay signature verification
+    POST /api/canteen/order/status   Update order status
+    POST /api/canteen/order/update-slot   Update pickup slot
+    POST /api/canteen/order/batch-status  Batch status (smart batch cooking)
+
+  QR CODE SYSTEM:
+    GET  /api/canteen/qr/generate    Generate signed QR code image
+    POST /api/canteen/qr/verify      Verify QR code (orders + walk-in bills)
+
+  WALK-IN POS BILLING:
+    POST /api/canteen/walkin-bill         Create walk-in bill
+    GET  /api/canteen/walkin-bill/lookup  Lookup bill by number
+    GET  /api/canteen/walkin-bills        List all walk-in bills
+    POST /api/canteen/walkin-bill/mark-paid  Mark bill as paid
+
+  REVIEWS & AI:
+    POST /api/canteen/review         Add review + AI sentiment analysis
+    POST /api/ai/recommend           AI food recommendations
+
+  OTHER:
+    POST /api/canteen/reset          Reset demo data
+
+===============================================================
+
+10. ORDER STATUS LIFECYCLE
+===============================================================
+
+  pending -> scheduled -> preparing -> ready -> collected -> delivered
+                                \                  /
+                                 -> cancelled / expired
+
+  Walk-in bills: always start as 'ready' (paid at counter)
+  Online orders: start as 'pending', advance through pipeline
+
+===============================================================
+
+11. QR CODE SYSTEM
+===============================================================
+
+  ONLINE ORDERS:
+    - HMAC-SHA256 signed payload: { o: orderId, s: signature, t: timestamp }
+    - Generated with 'qrcode' npm package
+    - QR_SECRET env var for signing
+
+  WALK-IN BILLS:
+    - Plain bill number string (e.g. "VB-20260721-7555")
+    - Bill number is also the Firestore document ID
+    - Saved to BOTH 'orders' and 'walkin_bills' collections
+
+  VERIFICATION (POST /api/canteen/qr/verify):
+    1. Parse input (JSON or plain text)
+    2. Check 'orders' collection (walk-in bills saved here)
+    3. Check 'walkin_bills' collection (legacy fallback)
+    4. Check in-memory state (same Vercel instance)
+    5. Return order details or NOT FOUND
+
+===============================================================
+
+12. PAYMENT FLOW
+===============================================================
+
+  ONLINE:
+    1. Frontend sends order -> Backend creates Razorpay order
+    2. Razorpay checkout opens -> Customer pays
+    3. Frontend sends payment ID + order ID -> Backend verifies signature
+    4. Order saved to Firestore with paymentStatus: 'paid'
+
+  WALK-IN POS:
+    1. Cashier adds items in WalkinPOS component
+    2. Bill generated locally (subtotal, tax 5%, grand total)
+    3. Payment: Cash / UPI / Pending
+    4. Bill saved to Firestore (orders + walkin_bills collections)
+    5. QR code generated for the bill number
+    6. Receipt printable with QR code
+
+  CONVENIENCE FEE: ceil(foodAmount / 100) added to online orders
+
+===============================================================
+
+13. LOCAL DEVELOPMENT
+===============================================================
+
+  Prerequisites: Node.js, npm
+
+  Setup:
+    1. npm install
+    2. Create .env with GEMINI_API_KEY (and optionally RAZORPAY keys)
+    3. Place token.json in root (Firebase Admin SDK service account)
+    4. npm run dev    (starts Express on port 3000 + Vite dev server)
+
+  Build for production:
+    npm run build    (Vite frontend -> dist/, esbuild server -> dist/server.cjs)
+
+  Start production:
+    npm start        (node dist/server.cjs)
+
+  Lint/TypeScript check:
+    npm run lint     (tsc --noEmit)
+
+===============================================================
+
+14. IMPORTANT FILE LOCATIONS
+===============================================================
+
+  server.ts                  Express backend (all API routes, 2600+ lines)
+  src/App.tsx                Main SPA router (role-based screens)
+  src/config.ts              API_BASE URL configuration
+  src/types.ts               All TypeScript interfaces
+  src/components/
+    CustomerApp.tsx           Customer ordering + cart + food tokens
+    CanteenAdmin.tsx          Owner/Chef/Staff dashboard (2000+ lines)
+    WalkinPOS.tsx             Walk-in POS billing (offline + online)
+    LoginScreen.tsx           5-tab role-based login
+    QRScannerSim.tsx          QR scanner simulation
+    ServicePanel.tsx          Service status panel
+  api/index.ts               Vercel serverless entry point
+  vercel.json                Vercel routing config
+  capacitor.config.ts        Android native config
+  token.json                 Firebase Admin SDK (LOCAL ONLY, gitignored)
+  .env.example               Environment variable template
+
+===============================================================
+
+15. GIT IGNORED FILES (security-sensitive)
+===============================================================
+
+  token.json                           Firebase Admin SDK credentials
+  token.rtf                            Backup credentials
+  canteen2-0-firebase-adminsdk-*.json  Firebase Admin SDK JSON files
+  .env / .env.*                        Environment variables
+  vercel-env-value.txt                 Vercel env var backup
+  node_modules/                        Dependencies
+  dist/                                Build output
+  local_db.json                        Local fallback database
+
+===============================================================
+
+16. CURRENT STATE (as of 21 July 2026)
+===============================================================
+
+  COMPLETED:
+    - Full canteen management (menu, orders, reviews, ingredients)
+    - Razorpay payment integration
+    - QR code generation + verification
+    - Walk-in POS billing with offline support (IndexedDB)
+    - Firebase Auth user management (6 roles)
+    - Multi-tenant hierarchy (College > Canteen > SubCanteen)
+    - AI recommendations + sentiment analysis (Gemini)
+    - Canteen-App (React Native mobile, 3 role screens)
+    - canteen-web3.0 (Super Admin dashboard)
+    - Vercel deployment with SPA routing
+    - CORS configured for all domains
+    - Firebase connected via FIREBASE_SERVICE_ACCOUNT env var
+
+  KNOWN ISSUES:
+    - Walk-in bills saved to 'orders' collection for cross-instance lookup
+    - Old walk-in bills (pre-fix) may not be found by QR scanner
+    - Mobile app end-to-end testing pending
+
+  ENV VARS ON VERCEL:
+    FIREBASE_SERVICE_ACCOUNT  = Full service account JSON
+    QR_SECRET                 = AAE2FBE0CA7C3F12C6DB96FE8F368DFB
+
+===============================================================
+  END OF DOCUMENTATION
+===============================================================

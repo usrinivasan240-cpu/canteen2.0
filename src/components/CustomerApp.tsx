@@ -860,7 +860,7 @@ export default function CustomerApp({
                   const myOrders = orders
                     .filter(o => 
                       o.userId === 'user_guest' || 
-                      o.userName.toLowerCase() === userEmail.split('@')[0].toLowerCase() ||
+                      (o.userName || '').toLowerCase() === userEmail.split('@')[0].toLowerCase() ||
                       o.userName === 'Raju Watson' ||
                       (o.userId && o.userId.includes('watson'))
                     )
