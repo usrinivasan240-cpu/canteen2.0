@@ -252,10 +252,9 @@ export default function WalkinPOS({
     setLastBill(bill);
     setShowReceipt(true);
 
-    // Generate receipt QR code
+    // Generate receipt QR code — plain bill number for reliable scanning
     try {
-      const qrPayload = JSON.stringify({ bill: bill.billNumber, total: bill.grandTotal, date: bill.createdAt, verify: `${API_BASE}/api/canteen/qr/verify` });
-      const url = await QRCode.toDataURL(qrPayload, { width: 150, margin: 1, color: { dark: '#000000', light: '#ffffff' } });
+      const url = await QRCode.toDataURL(bill.billNumber, { width: 150, margin: 1, color: { dark: '#000000', light: '#ffffff' } });
       setReceiptQrUrl(url);
     } catch { setReceiptQrUrl(''); }
 
