@@ -70,17 +70,28 @@ if (process.env.VERCEL) {
 }
 
 app.get('/api/test', (req, res) => {
-  res.json({ success: true, message: "Server is working!" });
+  res.json({ success: true, message: "Server is working!", dbConnected: !!db, envVar: !!process.env.FIREBASE_SERVICE_ACCOUNT });
 });
 
 // Initialize Firebase Admin using token.json or env variable fallback
 let db: admin.firestore.Firestore | null = null;
 try {
-  const envCreds = process.env.FIREBASE_SERVICE_ACCOUNT;
+  let envCreds = process.env.FIREBASE_SERVICE_ACCOUNT;
   const tokenPath = path.join(process.cwd(), 'token.json');
 
   if (envCreds) {
-    const serviceAccount = JSON.parse(envCreds);
+    console.log('FIREBASE_SERVICE_ACCOUNT found, length:', envCreds.length);
+    // Fix private key: replace literal newlines with \n for valid JSON
+    let cleaned = envCreds.trim();
+    // If the private key has actual newlines instead of \n, fix them
+    const pkMatch = cleaned.match(/"private_key"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+    if (pkMatch) {
+      const rawPk = pkMatch[1];
+      const fixedPk = rawPk.replace(/\n/g, '\\n').replace(/\r/g, '');
+      cleaned = cleaned.replace(rawPk, fixedPk);
+    }
+    const serviceAccount = JSON.parse(cleaned);
+    console.log('Parsed service account for project:', serviceAccount.project_id);
     if (admin.apps.length === 0) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
@@ -88,7 +99,7 @@ try {
     }
     db = admin.firestore();
     db.settings({ ignoreUndefinedProperties: true });
-    console.log('Firebase Admin SDK initialized successfully via FIREBASE_SERVICE_ACCOUNT environment variable!');
+    console.log('Firebase Admin SDK initialized successfully via FIREBASE_SERVICE_ACCOUNT!');
   } else if (fs.existsSync(tokenPath)) {
     const serviceAccount = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
     if (admin.apps.length === 0) {
@@ -102,8 +113,8 @@ try {
   } else {
     console.warn('token.json not found and FIREBASE_SERVICE_ACCOUNT not set. Operating with fallback in-memory state.');
   }
-} catch (error) {
-  console.error('Failed to initialize Firebase Admin:', error);
+} catch (error: any) {
+  console.error('Failed to initialize Firebase Admin:', error?.message || error);
 }
 
 // Initialize Google Gen AI only when needed or gracefully check its existence
@@ -2309,14 +2320,52 @@ function classifyRuleBasedSentiment(text: string): 'positive' | 'neutral' | 'neg
 app.post('/api/canteen/walkin-bill', async (req, res) => {
   try {
     const bill = req.body;
-    bill.synced = true;
+    const docId = bill.billNumber || `walkin_${Date.now()}`;
+    bill.id = docId;
+    bill.synced = !!db;
+
+    // Build the order object (same structure as online orders)
+    const orderData: any = {
+      id: docId,
+      userId: bill.customerRegNo || 'walkin',
+      userName: bill.customerName || 'Walk-in Customer',
+      items: bill.items.map((it: any) => ({ itemId: it.itemId, name: it.name, price: it.price, quantity: it.quantity })),
+      totalPrice: bill.grandTotal,
+      paymentStatus: bill.paymentStatus === 'paid' ? 'paid' : 'pending',
+      paymentMethod: bill.paymentMethod || 'cash',
+      qrCode: bill.billNumber,
+      status: bill.paymentStatus === 'paid' ? 'delivered' : 'pending',
+      timestamp: bill.timestamp || new Date().toISOString(),
+      createdAt: bill.createdAt || Date.now(),
+      canteenId: bill.canteenId || 'canteen_001',
+      subCanteenId: bill.subCanteenId || 'sub_001',
+      type: 'walkin',
+      billNumber: bill.billNumber,
+      customerName: bill.customerName,
+      customerPhone: bill.customerPhone,
+      customerRegNo: bill.customerRegNo,
+      grandTotal: bill.grandTotal,
+    };
+
+    console.log('--- WALKIN BILL --- docId:', docId, 'db:', !!db);
 
     if (db) {
-      // Use billNumber as document ID for instant QR lookup
-      const docId = bill.billNumber || `walkin_${Date.now()}`;
-      await db.collection('walkin_bills').doc(docId).set(bill);
+      // Save to BOTH collections for maximum reliability
+      try {
+        await db.collection('walkin_bills').doc(docId).set({ ...bill, id: docId });
+        console.log('--- WALKIN BILL SAVED to walkin_bills ---');
+      } catch (e: any) {
+        console.error('--- WALKIN BILL walkin_bills save FAILED ---', e?.message);
+      }
+      try {
+        await db.collection('orders').doc(docId).set(orderData);
+        console.log('--- WALKIN BILL SAVED to orders ---');
+      } catch (e: any) {
+        console.error('--- WALKIN BILL orders save FAILED ---', e?.message);
+      }
+
       bill.id = docId;
-      console.log('--- WALKIN BILL SAVED --- docId:', docId, 'billNumber:', bill.billNumber);
+      bill.synced = true;
 
       // Update inventory: reduce stock for each item
       for (const item of bill.items) {
@@ -2324,40 +2373,28 @@ app.post('/api/canteen/walkin-bill', async (req, res) => {
         if (menuItem) {
           menuItem.bookedToday += item.quantity;
           menuItem.stock = Math.max(0, menuItem.stock - item.quantity);
-          // Update Firestore
-          const menuDoc = await db.collection('menu_items').where('id', '==', item.itemId).get();
-          if (!menuDoc.empty) {
-            const doc = menuDoc.docs[0];
-            await doc.ref.update({
-              bookedToday: admin.firestore.FieldValue.increment(item.quantity),
-              stock: admin.firestore.FieldValue.increment(-item.quantity),
-            });
+          try {
+            const menuDoc = await db.collection('menu_items').where('id', '==', item.itemId).get();
+            if (!menuDoc.empty) {
+              const doc = menuDoc.docs[0];
+              await doc.ref.update({
+                bookedToday: admin.firestore.FieldValue.increment(item.quantity),
+                stock: admin.firestore.FieldValue.increment(-item.quantity),
+              });
+            }
+          } catch (e: any) {
+            console.error('--- WALKIN BILL inventory update FAILED ---', e?.message);
           }
         }
       }
-
-      // Store in in-memory state too
-      canteenState.orders.push({
-        id: bill.id,
-        userId: bill.customerRegNo || 'walkin',
-        userName: bill.customerName || 'Walk-in Customer',
-        items: bill.items.map((it: any) => ({ itemId: it.itemId, name: it.name, price: it.price, quantity: it.quantity })),
-        totalPrice: bill.grandTotal,
-        paymentStatus: bill.paymentStatus === 'paid' ? 'paid' : 'pending',
-        paymentMethod: bill.paymentMethod || 'cash',
-        qrCode: bill.billNumber,
-        status: bill.paymentStatus === 'paid' ? 'delivered' : 'pending',
-        timestamp: bill.timestamp,
-        createdAt: bill.createdAt,
-        canteenId: bill.canteenId,
-        subCanteenId: bill.subCanteenId,
-        type: 'walkin',
-      } as any);
     }
 
-    res.json({ success: true, bill });
-  } catch (error) {
-    console.error('Walk-in bill error:', error);
+    // Always store in in-memory state (works for same-instance scanning)
+    canteenState.orders.push(orderData);
+
+    res.json({ success: true, bill, order: orderData });
+  } catch (error: any) {
+    console.error('Walk-in bill error:', error?.message || error);
     res.status(500).json({ success: false, error: 'Failed to create walk-in bill' });
   }
 });
