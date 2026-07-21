@@ -1479,9 +1479,14 @@ app.post('/api/canteen/order', async (req, res) => {
 
   const pickupTimestamp = parseSlotToTimestamp(selectedSlot);
   const prepStartTime = pickupTimestamp - (maxPrepTime * 60 * 1000) - (5 * 60 * 1000); // 5 mins buffer
-  const noShowMinutes = db 
-    ? (await db.collection('settings').doc(`settings_${canteenId || 'canteen_001'}`).get()).data()?.noShowMinutes || 30
-    : canteenState.settings?.noShowMinutes || 30;
+  let noShowMinutes = 30;
+  try {
+    noShowMinutes = db
+      ? ((await db.collection('settings').doc(`settings_${canteenId || 'canteen_001'}`).get()).data()?.noShowMinutes || 30)
+      : canteenState.settings?.noShowMinutes || 30;
+  } catch (settingsErr) {
+    console.warn('Settings query failed, using default noShowMinutes:', settingsErr);
+  }
   const expiryTime = pickupTimestamp + (noShowMinutes * 60 * 1000);
 
   if (razorpay) {
@@ -1551,8 +1556,10 @@ app.post('/api/canteen/order', async (req, res) => {
         qrPayload: generateSignedQR(orderId)
       });
     } catch (err: any) {
-      const errDetail = typeof err === 'string' ? err : err?.message || err?.error?.description || JSON.stringify(err);
-      console.error('Razorpay order creation error:', errDetail);
+      const errDetail = typeof err === 'string'
+        ? err
+        : err?.message || err?.error?.description || err?.statusText || err?.stack?.split('\n')[0] || JSON.stringify(err, Object.getOwnPropertyNames(err));
+      console.error('Razorpay order creation error:', errDetail, '| raw:', err);
       return res.status(500).json({ success: false, error: `Payment gateway error: ${errDetail}` });
     }
   }
