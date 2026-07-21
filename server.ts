@@ -1347,6 +1347,7 @@ function parseSlotToTimestamp(slot: string): number {
 
 // 4. Place an Order (Customer)
 app.post('/api/canteen/order', async (req, res) => {
+  try {
   const { userId, userName, items, paymentMethod, pickupSlot, canteenId, subCanteenId } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -1550,8 +1551,9 @@ app.post('/api/canteen/order', async (req, res) => {
         qrPayload: generateSignedQR(orderId)
       });
     } catch (err: any) {
-      console.error('Razorpay order creation error:', err?.message || err, err?.statusCode, err?.error);
-      return res.status(500).json({ success: false, error: `Payment gateway error: ${err?.message || 'Unknown error'}` });
+      const errDetail = typeof err === 'string' ? err : err?.message || err?.error?.description || JSON.stringify(err);
+      console.error('Razorpay order creation error:', errDetail);
+      return res.status(500).json({ success: false, error: `Payment gateway error: ${errDetail}` });
     }
   }
 
@@ -1619,6 +1621,12 @@ app.post('/api/canteen/order', async (req, res) => {
 
   canteenState.orders.unshift(newOrder);
   res.json({ success: true, useRazorpay: false, order: newOrder, qrPayload: generateSignedQR(orderId), message: 'Order placed & payment verified!' });
+  } catch (topErr: any) {
+    console.error('Order endpoint unhandled error:', typeof topErr === 'string' ? topErr : topErr?.message || JSON.stringify(topErr));
+    if (!res.headersSent) {
+      return res.status(500).json({ success: false, error: `Order processing error: ${typeof topErr === 'string' ? topErr : topErr?.message || 'Unexpected server error'}` });
+    }
+  }
 });
 
 // 4b. Verify Razorpay Payment Signature (Customer Checkout completion)
