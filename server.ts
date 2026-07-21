@@ -70,36 +70,61 @@ if (process.env.VERCEL) {
 }
 
 app.get('/api/test', (req, res) => {
-  res.json({ success: true, message: "Server is working!", dbConnected: !!db, envVar: !!process.env.FIREBASE_SERVICE_ACCOUNT });
+  res.json({ success: true, message: "Server is working!", dbConnected: !!db, envVar: !!process.env.FIREBASE_SERVICE_ACCOUNT, initError: firebaseInitError, envLength: (process.env.FIREBASE_SERVICE_ACCOUNT || '').length });
 });
 
 // Initialize Firebase Admin using token.json or env variable fallback
 let db: admin.firestore.Firestore | null = null;
+let firebaseInitError: string | null = null;
 try {
   let envCreds = process.env.FIREBASE_SERVICE_ACCOUNT;
   const tokenPath = path.join(process.cwd(), 'token.json');
 
   if (envCreds) {
     console.log('FIREBASE_SERVICE_ACCOUNT found, length:', envCreds.length);
-    // Fix private key: replace literal newlines with \n for valid JSON
-    let cleaned = envCreds.trim();
-    // If the private key has actual newlines instead of \n, fix them
-    const pkMatch = cleaned.match(/"private_key"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
-    if (pkMatch) {
-      const rawPk = pkMatch[1];
-      const fixedPk = rawPk.replace(/\n/g, '\\n').replace(/\r/g, '');
-      cleaned = cleaned.replace(rawPk, fixedPk);
+    // Attempt 1: direct parse
+    let serviceAccount: any = null;
+    try {
+      serviceAccount = JSON.parse(envCreds);
+    } catch (e: any) {
+      console.log('Direct JSON.parse failed, attempting newline fix...');
+      // Attempt 2: fix literal newlines in private_key
+      try {
+        let fixed = envCreds.replace(/\r/g, '');
+        // Find private_key value and escape any bare newlines inside it
+        const pkStart = fixed.indexOf('"private_key"');
+        if (pkStart !== -1) {
+          // Find the opening quote of the value
+          const afterPk = fixed.indexOf(':"', pkStart) + 2;
+          // Find the closing quote (accounting for escaped quotes)
+          let i = afterPk;
+          let inEscape = false;
+          while (i < fixed.length) {
+            if (inEscape) { inEscape = false; i++; continue; }
+            if (fixed[i] === '\\') { inEscape = true; i++; continue; }
+            if (fixed[i] === '"') break;
+            if (fixed[i] === '\n') { fixed = fixed.substring(0, i) + '\\n' + fixed.substring(i + 1); i += 2; continue; }
+            i++;
+          }
+        }
+        serviceAccount = JSON.parse(fixed);
+      } catch (e2: any) {
+        firebaseInitError = `JSON parse failed: ${e2.message}. Env var length: ${envCreds.length}. First 100 chars: ${envCreds.substring(0, 100)}`;
+        console.error(firebaseInitError);
+      }
     }
-    const serviceAccount = JSON.parse(cleaned);
-    console.log('Parsed service account for project:', serviceAccount.project_id);
-    if (admin.apps.length === 0) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
+
+    if (serviceAccount) {
+      console.log('Parsed service account for project:', serviceAccount.project_id);
+      if (admin.apps.length === 0) {
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount)
+        });
+      }
+      db = admin.firestore();
+      db.settings({ ignoreUndefinedProperties: true });
+      console.log('Firebase Admin SDK initialized successfully via FIREBASE_SERVICE_ACCOUNT!');
     }
-    db = admin.firestore();
-    db.settings({ ignoreUndefinedProperties: true });
-    console.log('Firebase Admin SDK initialized successfully via FIREBASE_SERVICE_ACCOUNT!');
   } else if (fs.existsSync(tokenPath)) {
     const serviceAccount = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
     if (admin.apps.length === 0) {
@@ -111,9 +136,11 @@ try {
     db.settings({ ignoreUndefinedProperties: true });
     console.log('Firebase Admin SDK initialized successfully with token.json!');
   } else {
+    firebaseInitError = 'No FIREBASE_SERVICE_ACCOUNT env var and no token.json file';
     console.warn('token.json not found and FIREBASE_SERVICE_ACCOUNT not set. Operating with fallback in-memory state.');
   }
 } catch (error: any) {
+  firebaseInitError = `Init error: ${error?.message || error}`;
   console.error('Failed to initialize Firebase Admin:', error?.message || error);
 }
 
