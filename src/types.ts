@@ -128,12 +128,15 @@ export interface User {
   name: string;
   email: string;
   role: 'superadmin' | 'admin' | 'owner' | 'chef' | 'staff' | 'customer';
-  collegeId?: string; // assigned college for Admins/Chefs/Staff
-  canteenId?: string; // assigned canteen for Owners/Chefs/Staff
-  subCanteenId?: string; // assigned sub-canteen for Chefs/Staff
+  phone?: string;
+  registerNumber?: string;
+  collegeId?: string;
+  canteenId?: string;
+  subCanteenId?: string;
   status: 'active' | 'suspended';
   password?: string;
   posting?: string;
+  createdAt?: number;
 }
 
 export interface AIRecommendation {

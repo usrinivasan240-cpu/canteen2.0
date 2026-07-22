@@ -585,7 +585,7 @@ function getCanteenState(canteenId: string): Canteen {
 
 // 0. User Authentication (Register & Login)
 app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, phone, registerNumber, collegeId } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ success: false, error: 'Name, email, and password are required.' });
   }
@@ -600,10 +600,21 @@ app.post('/api/auth/register', async (req, res) => {
       if (userDoc.exists) {
         return res.status(400).json({ success: false, error: 'User with this email already exists.' });
       }
-      const newUser = { id: userId, name, email: normalizedEmail, password, role: selectedRole };
+      const newUser: any = {
+        id: userId,
+        name,
+        email: normalizedEmail,
+        password,
+        role: selectedRole,
+        phone: phone || '',
+        registerNumber: registerNumber || '',
+        collegeId: collegeId || '',
+        status: 'active',
+        createdAt: Date.now()
+      };
       await db.collection('users').doc(normalizedEmail).set(newUser);
       const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-      return res.json({ success: true, token, user: { id: userId, name, email: normalizedEmail, role: selectedRole } });
+      return res.json({ success: true, token, user: { id: userId, name, email: normalizedEmail, role: selectedRole, phone: newUser.phone, registerNumber: newUser.registerNumber, collegeId: newUser.collegeId } });
     } catch (err) {
       console.error(err);
       return res.status(500).json({ success: false, error: 'Server authentication database error.' });
@@ -632,7 +643,7 @@ app.post('/api/auth/login', async (req, res) => {
           const finalRole = user.role;
           console.log('--- LOGIN SUCCESS (DB) ---', { email: user.email, resolvedRole: finalRole });
           const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-          return res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId } });
+          return res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId, phone: user.phone, registerNumber: user.registerNumber } });
         } else {
           return res.status(400).json({ success: false, error: 'Incorrect password.' });
         }

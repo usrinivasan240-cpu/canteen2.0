@@ -1,25 +1,50 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState } from 'react';
-import { ChefHat, Eye, EyeOff, LogIn, UserPlus, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChefHat, Eye, EyeOff, LogIn, UserPlus, AlertCircle, GraduationCap, Phone, Hash, Mail, Lock, User } from 'lucide-react';
 import { API_BASE } from '../config';
+import { College } from '../types';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: { id: string; email: string; name: string; role: 'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'; collegeId?: string; canteenId?: string; subCanteenId?: string }) => void;
 }
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
-  const [activeTab, setActiveTab] = useState<'customer' | 'owner' | 'chef' | 'staff' | 'admin'>('customer');
   const [isSignUp, setIsSignUp] = useState(false);
-  const [nameInput, setNameInput] = useState('');
-  const [emailInput, setEmailInput] = useState('watson777@gmail.com');
-  const [passwordInput, setPasswordInput] = useState('password123');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [colleges, setColleges] = useState<College[]>([]);
+
+  const [nameInput, setNameInput] = useState('');
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
+  const [registerNumberInput, setRegisterNumberInput] = useState('');
+  const [selectedCollegeId, setSelectedCollegeId] = useState('');
+
+  useEffect(() => {
+    const fetchColleges = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/colleges`);
+        const data = await resp.json();
+        if (data.success && data.colleges) {
+          setColleges(data.colleges.filter((c: College) => c.status === 'active'));
+        }
+      } catch (e) {
+        console.error('Failed to fetch colleges', e);
+      }
+    };
+    fetchColleges();
+  }, []);
+
+  const resetForm = () => {
+    setNameInput('');
+    setEmailInput('');
+    setPasswordInput('');
+    setPhoneInput('');
+    setRegisterNumberInput('');
+    setSelectedCollegeId('');
+    setError('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,37 +53,42 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
     try {
       if (isSignUp) {
-        // Register new user
+        if (!nameInput.trim() || !emailInput.trim() || !passwordInput.trim() || !phoneInput.trim() || !registerNumberInput.trim() || !selectedCollegeId) {
+          setError('All fields are required for registration.');
+          setLoading(false);
+          return;
+        }
         const resp = await fetch(`${API_BASE}/api/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: nameInput,
-            email: emailInput,
+            name: nameInput.trim(),
+            email: emailInput.trim(),
             password: passwordInput,
-            role: activeTab
+            role: 'customer',
+            phone: phoneInput.trim(),
+            registerNumber: registerNumberInput.trim(),
+            collegeId: selectedCollegeId
           })
         });
         const data = await resp.json();
         if (data.success && data.user) {
-          onLoginSuccess({ ...data.user, role: activeTab });
+          onLoginSuccess({ ...data.user, role: 'customer' });
         } else {
           setError(data.error || 'Failed to create account.');
         }
       } else {
-        // Authenticate existing user
         const resp = await fetch(`${API_BASE}/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            email: emailInput,
-            password: passwordInput,
-            role: activeTab
+            email: emailInput.trim(),
+            password: passwordInput
           })
         });
         const data = await resp.json();
         if (data.success && data.user) {
-          onLoginSuccess({ ...data.user, role: activeTab });
+          onLoginSuccess({ ...data.user, role: data.user.role });
         } else {
           setError(data.error || 'Invalid email or password.');
         }
@@ -74,7 +104,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   return (
     <div className="min-h-screen bg-[#e8e4f5] flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden p-8 border border-violet-100 transition-all">
-        {/* BRAND BADGE */}
         <div className="flex flex-col items-center text-center space-y-2 mb-6">
           <div className="h-14 w-14 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20">
             <ChefHat className="h-8 w-8" />
@@ -85,64 +114,40 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           </div>
         </div>
 
-        {/* ROLE BAR PILLS */}
-        <div className="grid grid-cols-3 gap-2 bg-violet-50 p-2 rounded-2xl border border-violet-100/50 mb-6">
-          {(['customer', 'chef', 'staff', 'owner', 'admin'] as const).map((role) => (
-            <button
-              key={role}
-              type="button"
-              onClick={() => {
-                setActiveTab(role);
-                setError('');
-                if (role === 'owner') {
-                  setEmailInput('canteen_owner@gmail.com');
-                } else if (role === 'admin') {
-                  setEmailInput('college_admin@gmail.com');
-                } else if (role === 'chef') {
-                  setEmailInput('chef@gmail.com');
-                } else if (role === 'staff') {
-                  setEmailInput('staff@gmail.com');
-                } else {
-                  setEmailInput('watson777@gmail.com');
-                }
-                if (role !== 'customer') {
-                  setIsSignUp(false); // Sign up is only for customers
-                }
-              }}
-              className={`text-center py-2 rounded-xl text-[10px] font-bold transition-all capitalize cursor-pointer ${
-                activeTab === role
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-gray-500 hover:text-gray-950'
-              }`}
-            >
-              {role === 'owner' ? 'Owner' : role === 'admin' ? 'Colg Admin' : role === 'staff' ? 'Staff' : role}
-            </button>
-          ))}
+        <div className="flex bg-violet-50 p-1.5 rounded-2xl border border-violet-100/50 mb-6">
+          <button
+            type="button"
+            onClick={() => { setIsSignUp(false); resetForm(); }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              !isSignUp ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-950'
+            }`}
+          >
+            <LogIn className="h-3.5 w-3.5 inline mr-1.5" />
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => { setIsSignUp(true); resetForm(); }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              isSignUp ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-950'
+            }`}
+          >
+            <UserPlus className="h-3.5 w-3.5 inline mr-1.5" />
+            Sign Up
+          </button>
         </div>
 
-        {/* DETAILS SECTION */}
-        <div className="space-y-1 mb-6">
+        <div className="space-y-1 mb-5">
           <h2 className="text-lg font-display font-semibold text-gray-900">
-            {isSignUp ? 'Create Account' : activeTab === 'customer' ? 'Customer Login' : activeTab === 'owner' ? 'Canteen Owner Login' : activeTab === 'chef' ? 'Chef Login' : activeTab === 'staff' ? 'Counter Staff Login' : 'College Admin Login'}
+            {isSignUp ? 'Create Account' : 'Welcome Back'}
           </h2>
           <p className="text-xs text-gray-500 font-sans">
-            {isSignUp 
-              ? 'Join Violet Bites today to order meals instantly.' 
-              : activeTab === 'customer' 
-              ? 'Enter your credentials to order your meal.' 
-              : activeTab === 'owner' 
-              ? 'Access the canteen owner management dashboard.' 
-              : activeTab === 'chef'
-              ? 'Access the kitchen order status queue.'
-              : activeTab === 'staff'
-              ? 'Verify live customer ticket pickups.'
-              : activeTab === 'admin'
-              ? 'Manage college-level canteen allocations.'
-              : 'Access the global multi-canteen platform console.'}
+            {isSignUp
+              ? 'Register as a student to start ordering meals.'
+              : 'Enter your credentials to access your account.'}
           </p>
         </div>
 
-        {/* ERROR BOX */}
         {error && (
           <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 mb-4 flex items-center space-x-2 text-rose-800 text-xs font-sans">
             <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
@@ -150,45 +155,97 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           </div>
         )}
 
-        {/* AUTH FORM */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           {isSignUp && (
-            <div className="space-y-1.5 animate-fade-in">
-              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Full Name</label>
-              <input
-                type="text"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                required
-                className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-medium text-gray-800"
-                placeholder="e.g. Raju Srinivasan"
-              />
-            </div>
+            <>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <User className="h-3 w-3" /> Full Name
+                </label>
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  required
+                  className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-medium text-gray-800"
+                  placeholder="e.g. Raju Srinivasan"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Hash className="h-3 w-3" /> Register Number
+                </label>
+                <input
+                  type="text"
+                  value={registerNumberInput}
+                  onChange={(e) => setRegisterNumberInput(e.target.value)}
+                  required
+                  className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-medium text-gray-800"
+                  placeholder="e.g. 21CS001"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Phone className="h-3 w-3" /> Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  required
+                  pattern="[0-9]{10}"
+                  className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-medium text-gray-800"
+                  placeholder="e.g. 9940918442"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <GraduationCap className="h-3 w-3" /> Select College
+                </label>
+                <select
+                  value={selectedCollegeId}
+                  onChange={(e) => setSelectedCollegeId(e.target.value)}
+                  required
+                  className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-semibold text-gray-800 cursor-pointer"
+                >
+                  <option value="">-- Choose your college --</option>
+                  {colleges.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Email Address</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Mail className="h-3 w-3" /> Email Address
+            </label>
             <input
               type="email"
               value={emailInput}
               onChange={(e) => setEmailInput(e.target.value)}
               required
-              className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-medium text-gray-800"
-              placeholder="e.g. watson777@gmail.com"
+              className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-medium text-gray-800"
+              placeholder="e.g. rajus@gmail.com"
             />
           </div>
 
           <div className="space-y-1.5 relative">
-            <div className="flex justify-between items-center">
-              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Password</label>
-            </div>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Lock className="h-3 w-3" /> Password
+            </label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 required
-                className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-mono text-gray-800 pr-10"
+                className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-mono text-gray-800 pr-10"
+                placeholder={isSignUp ? "Create a password" : "Enter your password"}
               />
               <button
                 type="button"
@@ -203,7 +260,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-6 bg-violet-600 hover:bg-violet-750 active:bg-violet-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md flex items-center justify-center space-x-2 disabled:bg-violet-400/80 cursor-pointer font-display"
+            className="w-full mt-5 bg-violet-600 hover:bg-violet-750 active:bg-violet-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md flex items-center justify-center space-x-2 disabled:bg-violet-400/80 cursor-pointer font-display"
           >
             {loading ? (
               <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -215,33 +272,16 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             ) : (
               <>
                 <LogIn className="h-4 w-4" />
-                <span>Login</span>
+                <span>Sign In</span>
               </>
             )}
           </button>
         </form>
 
-        {/* TOGGLE SIGN IN / SIGN UP */}
-        {activeTab === 'customer' && (
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError('');
-                setNameInput('');
-              }}
-              className="text-xs text-violet-700 hover:text-violet-900 font-bold hover:underline cursor-pointer font-sans"
-            >
-              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-            </button>
-          </div>
-        )}
-
-        {/* DEMO ACCOUNTS HELPER */}
         {!isSignUp && (
-          <div className="mt-6 border-t border-violet-50 pt-5 text-center">
+          <div className="mt-5 border-t border-violet-50 pt-4 text-center">
             <span className="text-[10px] text-gray-450 font-medium">
-              Demo credentials are fully pre-filled. Press Login to explore.
+              Demo: watson777@gmail.com / password123
             </span>
           </div>
         )}
