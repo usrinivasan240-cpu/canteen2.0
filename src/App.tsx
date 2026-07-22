@@ -79,11 +79,11 @@ export default function App() {
 
       if (data.useRazorpay) {
         return new Promise((resolve) => {
-          const options = {
+          const options: any = {
             key: data.key,
             amount: data.amount,
             currency: 'INR',
-            name: 'SkipQ',
+            name: 'Violet Bites',
             description: 'Campus Canteen Food Order',
             order_id: data.razorpayOrderId,
             handler: async function (response: any) {
@@ -112,6 +112,33 @@ export default function App() {
             prefill: {
               name: currentUser ? currentUser.name : 'Raju Watson',
               email: currentUser ? currentUser.email : 'watson777@gmail.com',
+              contact: '',
+              method: 'upi',
+            },
+            config: {
+              display: {
+                preferences: {
+                  default_method: 'upi',
+                },
+                blocks: {
+                  upi: {
+                    name: 'Pay via UPI',
+                    instruments: [
+                      { method: 'upi' }
+                    ]
+                  },
+                  card: { name: 'Cards', instruments: [{ method: 'card' }] },
+                  netbanking: { name: 'Netbanking', instruments: [{ method: 'netbanking' }] },
+                  wallet: { name: 'Wallets', instruments: [{ method: 'wallet' }] }
+                },
+                sequence: ['block.upi'],
+                compact: false,
+                hide: [
+                  { method: 'card' },
+                  { method: 'netbanking' },
+                  { method: 'wallet' }
+                ]
+              }
             },
             theme: {
               color: '#7c3aed',
