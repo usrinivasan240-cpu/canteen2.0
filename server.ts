@@ -41,8 +41,8 @@ app.use((req, res, next) => {
   next();
 });
 
-const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
-const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
+const razorpayKeyId = (process.env.RAZORPAY_KEY_ID || '').trim();
+const razorpayKeySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
 let razorpay: any = null;
 
 if (razorpayKeyId && razorpayKeySecret) {
@@ -70,7 +70,11 @@ if (process.env.VERCEL) {
 }
 
 app.get('/api/test', (req, res) => {
-  res.json({ success: true, message: "Server is working!", dbConnected: !!db, envVar: !!process.env.FIREBASE_SERVICE_ACCOUNT, initError: firebaseInitError, envLength: (process.env.FIREBASE_SERVICE_ACCOUNT || '').length });
+  const rpKeyId = process.env.RAZORPAY_KEY_ID || '';
+  const rpKeyLen = rpKeyId.length;
+  const rpKeyPrefix = rpKeyId.substring(0, 12);
+  const rpSecretLen = (process.env.RAZORPAY_KEY_SECRET || '').length;
+  res.json({ success: true, message: "Server is working!", dbConnected: !!db, envVar: !!process.env.FIREBASE_SERVICE_ACCOUNT, initError: firebaseInitError, envLength: (process.env.FIREBASE_SERVICE_ACCOUNT || '').length, razorpay: { initialized: !!razorpay, keyPrefix: rpKeyPrefix, keyLen: rpKeyLen, secretLen: rpSecretLen } });
 });
 
 // Initialize Firebase Admin using token.json or env variable fallback
@@ -1139,17 +1143,25 @@ app.get('/api/canteen', async (req, res) => {
     try {
       const itemsSnap = await db.collection('items').where('canteenId', '==', canteenId).get();
       let items = itemsSnap.docs.map(doc => doc.data() as MenuItem);
-      if (items.length === 0 && canteenId === 'canteen_001') {
+      if (items.length === 0) {
         const allItemsSnap = await db.collection('items').get();
-        items = allItemsSnap.docs.map(doc => doc.data() as MenuItem);
+        items = allItemsSnap.docs.map(doc => ({ ...doc.data(), canteenId } as MenuItem));
       }
       
       const ordersSnap = await db.collection('orders').where('canteenId', '==', canteenId).get();
       let orders = ordersSnap.docs.map(doc => doc.data() as Order);
+      if (orders.length === 0) {
+        const allOrdersSnap = await db.collection('orders').get();
+        orders = allOrdersSnap.docs.map(doc => ({ ...doc.data(), canteenId } as Order));
+      }
       orders.sort((a, b) => b.createdAt - a.createdAt);
 
       const reviewsSnap = await db.collection('reviews').where('canteenId', '==', canteenId).get();
       let reviews = reviewsSnap.docs.map(doc => doc.data() as Review);
+      if (reviews.length === 0) {
+        const allReviewsSnap = await db.collection('reviews').get();
+        reviews = allReviewsSnap.docs.map(doc => ({ ...doc.data(), canteenId } as Review));
+      }
       reviews.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
       const ingSnap = await db.collection('ingredients').where('canteenId', '==', canteenId).get();
