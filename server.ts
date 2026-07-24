@@ -726,8 +726,8 @@ app.get('/api/colleges', async (req, res) => {
   if (db) {
     try {
       const snap = await db.collection('colleges').get();
-      const list = snap.docs.map(doc => doc.data() as College);
-      return res.json({ success: true, colleges: list });
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as College);
+      if (list.length > 0) return res.json({ success: true, colleges: list });
     } catch (e) {
       console.error(e);
     }
@@ -2678,7 +2678,24 @@ Your output must be structured exactly in JSON matching this schema:
 // -------------------------------------------------------------
 // VITE DEV SERVER OR STATIC PROD PRODUCTION MIDDLEWARE Setup
 // -------------------------------------------------------------
+async function seedCollegesToFirestore() {
+  if (!db) return;
+  try {
+    const snap = await db.collection('colleges').get();
+    if (snap.empty) {
+      console.log('Seeding default colleges to Firestore...');
+      for (const c of collegesState) {
+        await db.collection('colleges').doc(c.id).set(c);
+      }
+      console.log('Seeded', collegesState.length, 'colleges.');
+    }
+  } catch (e) {
+    console.error('Failed to seed colleges:', e);
+  }
+}
+
 async function startServer() {
+  await seedCollegesToFirestore();
   if (process.env.NODE_ENV !== 'production') {
     const { createServer } = await import('vite');
     const vite = await createServer({
