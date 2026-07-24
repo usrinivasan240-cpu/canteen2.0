@@ -21,6 +21,8 @@ interface CustomerAppProps {
   onAddReview: (rating: number, comment: string, menuItemId?: string, menuItemName?: string) => Promise<any>;
   onResetCanteen: () => void;
   userEmail: string;
+  userCollegeId?: string;
+  userCanteenId?: string;
   onLogout: () => void;
   onCanteenChange: (canteenId: string) => void;
 }
@@ -34,6 +36,8 @@ export default function CustomerApp({
   onAddReview,
   onResetCanteen,
   userEmail,
+  userCollegeId,
+  userCanteenId,
   onLogout,
   onCanteenChange
 }: CustomerAppProps) {
@@ -86,9 +90,9 @@ export default function CustomerApp({
   const [canteens, setCanteens] = useState<Canteen[]>([]);
   const [subCanteens, setSubCanteens] = useState<SubCanteen[]>([]);
   
-  const [selectedCollegeId, setSelectedCollegeId] = useState<string>('college_001');
-  const [selectedCanteenId, setSelectedCanteenId] = useState<string>('canteen_001');
-  const [selectedSubCanteenId, setSelectedSubCanteenId] = useState<string>('sub_001');
+  const [selectedCollegeId, setSelectedCollegeId] = useState<string>(userCollegeId || 'college_001');
+  const [selectedCanteenId, setSelectedCanteenId] = useState<string>(userCanteenId || 'canteen_001');
+  const [selectedSubCanteenId, setSelectedSubCanteenId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   useEffect(() => {
@@ -105,6 +109,25 @@ export default function CustomerApp({
         if (colData.success) setColleges(colData.colleges);
         if (cantData.success) setCanteens(cantData.canteens);
         if (subData.success) setSubCanteens(subData.subCanteens);
+
+        // Auto-select canteen from user profile
+        const userCantId = userCanteenId || 'canteen_001';
+        setSelectedCanteenId(userCantId);
+        onCanteenChange(userCantId);
+
+        // Auto-select college from user profile or derived from canteen
+        if (userCollegeId) {
+          setSelectedCollegeId(userCollegeId);
+        } else if (cantData.success && cantData.canteens) {
+          const cant = cantData.canteens.find((c: any) => c.id === userCantId);
+          if (cant) setSelectedCollegeId(cant.collegeId);
+        }
+
+        // Auto-select first sub-canteen for user's canteen
+        if (subData.success && subData.subCanteens) {
+          const userSub = subData.subCanteens.find((s: any) => s.canteenId === userCantId);
+          if (userSub) setSelectedSubCanteenId(userSub.id);
+        }
       } catch (e) {
         console.error("Failed to fetch hierarchy lists", e);
       }
@@ -325,69 +348,25 @@ export default function CustomerApp({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
-      {/* HIERARCHICAL COLLEGES & CANTEENS SELECTOR */}
-      <div className="bg-white border border-violet-100 rounded-3xl p-6 shadow-xs mb-8 space-y-4 text-left">
+      {/* SUB-CANTEEN SELECTOR + SEARCH */}
+      <div className="bg-white border border-violet-100 rounded-3xl p-5 shadow-xs mb-8 space-y-4 text-left">
         <div className="flex items-center justify-between border-b border-violet-50 pb-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700">Select Canteen Outlet</h3>
-          <span className="text-[10px] text-gray-400 font-medium font-mono">Dynamic Multi-Tier Campus Dining</span>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700">Your Canteen</h3>
+          <span className="text-[10px] text-gray-400 font-medium font-mono">Select Counter to Order</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* College Select */}
+        <div className="grid grid-cols-1 gap-4">
+          {/* Sub-Canteen Select only */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">College / Campus</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Sub-Canteen / Counter</label>
             <select
-              value={selectedCollegeId}
-              onChange={(e) => {
-                const colId = e.target.value;
-                setSelectedCollegeId(colId);
-                // Auto-select first canteen in this college
-                const firstCanteen = canteens.find(c => c.collegeId === colId);
-                if (firstCanteen) {
-                  setSelectedCanteenId(firstCanteen.id);
-                  onCanteenChange(firstCanteen.id);
-                  // Auto-select first sub-canteen of that canteen
-                  const firstSub = subCanteens.find(s => s.canteenId === firstCanteen.id);
-                  if (firstSub) {
-                    setSelectedSubCanteenId(firstSub.id);
-                  }
-                }
-              }}
+              value={selectedSubCanteenId}
+              onChange={(e) => setSelectedSubCanteenId(e.target.value)}
               className="w-full bg-violet-50/55 hover:bg-violet-50 focus:bg-white text-xs px-3 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-semibold text-gray-800"
             >
-              {colleges.length === 0 ? (
-                <option value="college_001">Engineering College East</option>
-              ) : (
-                colleges.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))
-              )}
-            </select>
-          </div>
-
-          {/* Canteen Select */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Main Canteen</label>
-            <select
-              value={selectedCanteenId}
-              onChange={(e) => {
-                const cantId = e.target.value;
-                setSelectedCanteenId(cantId);
-                onCanteenChange(cantId);
-                // Auto-select first sub-canteen
-                const firstSub = subCanteens.find(s => s.canteenId === cantId);
-                if (firstSub) {
-                  setSelectedSubCanteenId(firstSub.id);
-                }
-              }}
-              className="w-full bg-violet-50/55 hover:bg-violet-50 focus:bg-white text-xs px-3 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-semibold text-gray-800"
-            >
-              {canteens.length === 0 ? (
-                <option value="canteen_001">Violet Bites</option>
-              ) : (
-                canteens.filter(c => c.collegeId === selectedCollegeId).map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))
-              )}
+              <option value="">All Counters</option>
+              {subCanteens.filter(s => s.canteenId === selectedCanteenId).map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -396,7 +375,7 @@ export default function CustomerApp({
         <div className="pt-2">
           <input
             type="text"
-            placeholder="🔍 Search menus, food items, categories..."
+            placeholder="Search menus, food items, categories..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-violet-50/30 hover:bg-violet-50/50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-medium"

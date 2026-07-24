@@ -68,8 +68,8 @@ export default function App() {
           items: cartItems,
           paymentMethod: 'Razorpay Online Gateway',
           pickupSlot,
-          canteenId,
-          subCanteenId
+          canteenId: canteenId || currentUser?.canteenId || selectedCanteenId,
+          subCanteenId: subCanteenId || currentUser?.subCanteenId
         })
       });
       const data = await resp.json();
@@ -263,9 +263,9 @@ export default function App() {
   const handleLoginSuccess = (user: any) => {
     setCurrentUser(user);
     setRole(user.role);
-    if (user.canteenId) {
-      setSelectedCanteenId(user.canteenId);
-    }
+    // Auto-assign canteen from user's profile
+    const userCanteenId = user.canteenId || 'canteen_001';
+    setSelectedCanteenId(userCanteenId);
     setIsLoggedIn(true);
   };
 
@@ -334,6 +334,8 @@ export default function App() {
             onAddReview={handleAddReview}
             onResetCanteen={handleResetCanteen}
             userEmail={userEmail}
+            userCollegeId={currentUser?.collegeId}
+            userCanteenId={currentUser?.canteenId || selectedCanteenId}
             onLogout={handleLogout}
             onCanteenChange={setSelectedCanteenId}
           />

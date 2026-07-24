@@ -23,14 +23,21 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   useEffect(() => {
     const fetchColleges = async () => {
+      const fallbackColleges: College[] = [
+        { id: 'college_001', name: 'Engineering College East', location: 'Main Campus', status: 'active' },
+        { id: 'college_002', name: 'Science University West', location: 'Tech Campus', status: 'active' }
+      ];
       try {
         const resp = await fetch(`${API_BASE}/api/colleges`);
         const data = await resp.json();
-        if (data.success && data.colleges) {
+        if (data.success && data.colleges && data.colleges.length > 0) {
           setColleges(data.colleges.filter((c: College) => c.status === 'active'));
+        } else {
+          setColleges(fallbackColleges);
         }
       } catch (e) {
-        console.error('Failed to fetch colleges', e);
+        console.error('Failed to fetch colleges, using defaults', e);
+        setColleges(fallbackColleges);
       }
     };
     fetchColleges();

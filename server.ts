@@ -24,17 +24,13 @@ app.use(express.json());
 // Enable CORS for mobile Capacitor WebView clients (http://localhost and capacitor://)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const allowedPatterns = [/^https?:\/\/(localhost:\d+|canteen20.*\.vercel\.app|canteen-superadmin\.vercel\.app|capacitor:\/\/localhost)$/];
-  
-  if (origin && allowedPatterns.some(p => p.test(origin))) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else if (origin && (origin.startsWith('http://localhost') || origin.startsWith('capacitor://'))) {
+  if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  
+
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -609,12 +605,33 @@ app.post('/api/auth/register', async (req, res) => {
         phone: phone || '',
         registerNumber: registerNumber || '',
         collegeId: collegeId || '',
+        canteenId: '',
+        subCanteenId: '',
         status: 'active',
         createdAt: Date.now()
       };
+
+      // Auto-assign first canteen in the user's college
+      if (collegeId && db) {
+        try {
+          const canteensSnap = await db.collection('canteens').where('collegeId', '==', collegeId).where('status', '==', 'active').limit(1).get();
+          if (!canteensSnap.empty) {
+            const assignedCanteen = canteensSnap.docs[0];
+            newUser.canteenId = assignedCanteen.id;
+            // Auto-assign first sub-canteen of that canteen
+            const subsSnap = await db.collection('subcanteens').where('canteenId', '==', assignedCanteen.id).where('status', '==', 'active').limit(1).get();
+            if (!subsSnap.empty) {
+              newUser.subCanteenId = subsSnap.docs[0].id;
+            }
+          }
+        } catch (e) {
+          console.error('Failed to auto-assign canteen:', e);
+        }
+      }
+
       await db.collection('users').doc(normalizedEmail).set(newUser);
       const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-      return res.json({ success: true, token, user: { id: userId, name, email: normalizedEmail, role: selectedRole, phone: newUser.phone, registerNumber: newUser.registerNumber, collegeId: newUser.collegeId } });
+      return res.json({ success: true, token, user: { id: userId, name, email: normalizedEmail, role: selectedRole, phone: newUser.phone, registerNumber: newUser.registerNumber, collegeId: newUser.collegeId, canteenId: newUser.canteenId, subCanteenId: newUser.subCanteenId } });
     } catch (err) {
       console.error(err);
       return res.status(500).json({ success: false, error: 'Server authentication database error.' });
