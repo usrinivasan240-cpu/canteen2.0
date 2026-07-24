@@ -1,0 +1,37 @@
+================================================================================
+SERVER.TS KEY SECTIONS REFERENCE
+================================================================================
+File: canteen2.0-main/server.ts (2700+ lines)
+
+LINE    SECTION
+----    -------
+1-60    Imports (express, firebase-admin, razorpay, qrcode, etc.)
+62-70   Vercel path rewriting middleware
+72-78   /api/test diagnostic endpoint
+80-150  Firebase Admin SDK initialization (2-pass JSON parse)
+151-170 Google GenAI initialization
+175-250 Razorpay SDK initialization
+250-490 INITIAL_MENU_ITEMS, INITIAL_ORDERS, INITIAL_REVIEWS, INITIAL_INGREDIENTS
+491-527 Default state arrays (collegesState, usersState, subCanteensState, canteensState)
+529-570 loadLocalDB() / saveLocalDB() functions
+575-620 CORS configuration (allows canteen20.vercel.app, canteen-superadmin.vercel.app)
+620-700 Auth endpoints (/api/auth/login, /api/auth/register)
+725-775 Colleges CRUD (/api/colleges) with Firestore fallback
+776-850 Canteens CRUD (/api/canteens)
+850-900 SubCanteens CRUD (/api/subcanteens)
+900-1000 Users CRUD (/api/users)
+1000-1200 Canteen data endpoints (menu, items with fallback for all canteens)
+1200-1400 Order endpoints (create, status update, batch status)
+1400-1600 Razorpay payment endpoints (create-order, verify-payment, transfer)
+1600-1700 QR code endpoints (generate, verify with HMAC)
+1700-1800 Review endpoints
+1800-1900 Walk-in billing endpoints
+1900-2000 Settings endpoints
+2681-2715 startServer() function + seedCollegesToFirestore()
+
+CRITICAL ENV VARS:
+  FIREBASE_SERVICE_ACCOUNT   (JSON string)
+  RAZORPAY_KEY_ID            (rzp_live_...)
+  RAZORPAY_KEY_SECRET        (string)
+  QR_SECRET                  (AAE2FBE0CA7C3F12C6DB96FE8F368DFB)
+  GEMINI_API_KEY             (optional)

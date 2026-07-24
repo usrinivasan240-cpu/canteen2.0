@@ -97,7 +97,6 @@ export interface College {
   id: string;
   name: string;
   location: string;
-  logoUrl?: string;
   status: 'active' | 'inactive';
 }
 
@@ -105,11 +104,10 @@ export interface Canteen {
   id: string;
   name: string;
   collegeId: string;
-  ownerId: string;
+  ownerId: string; // matches owner User.id or email
   ownerName?: string;
   status: 'active' | 'inactive';
   location?: string;
-  logoUrl?: string;
   razorpayAccountId?: string;
   items?: MenuItem[];
   orders?: Order[];

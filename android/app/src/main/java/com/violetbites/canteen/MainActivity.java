@@ -1,4 +1,4 @@
-package com.skipq.canteen;
+package com.violetbites.canteen;
 
 import com.getcapacitor.BridgeActivity;
 

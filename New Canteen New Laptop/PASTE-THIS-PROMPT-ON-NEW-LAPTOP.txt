@@ -1,0 +1,77 @@
+================================================================================
+COMPLETE PROMPT - PASTE THIS INTO OPENCODE ON THE NEW LAPTOP
+================================================================================
+
+I need to set up and run the Violet Bites canteen management system on this
+new laptop. Read the documentation in this folder first.
+
+There are 3 GitHub repos (account: usrinivasan240-cpu):
+
+1. canteen2.0 - Owner/Admin web app + Express backend API
+2. Canteen-App - React Native mobile app (Expo 52) for Android APK
+3. canteen-superadmin - Super admin dashboard (React + Vite + TailwindCSS)
+
+All share ONE Firebase project: canteen2-0
+All deploy to Vercel.
+
+STEPS TO COMPLETE:
+
+STEP 1: Clone and install all repos
+  git clone https://github.com/usrinivasan240-cpu/canteen2.0
+  git clone https://github.com/usrinivasan240-cpu/Canteen-App
+  git clone https://github.com/usrinivasan240-cpu/canteen-superadmin
+  cd canteen2.0 && npm install && cd ..
+  cd Canteen-App && npm install && cd ..
+  cd canteen-superadmin && npm install && cd ..
+
+STEP 2: Verify local dev works
+  cd canteen2.0 && npm run dev
+  (should start on http://localhost:5173)
+
+STEP 3: Set up Android Studio for APK build
+  - Install Android Studio if not present
+  - Set environment variables:
+    JAVA_HOME = (path to Android Studio JBR, e.g. C:\Program Files\Android\Android Studio\jbr)
+    ANDROID_HOME = (path to SDK, e.g. C:\Users\<user>\AppData\Local\Android\Sdk)
+    Add to PATH: %JAVA_HOME%\bin and %ANDROID_HOME%\platform-tools
+  - Install SDK components via sdkmanager:
+    platform-tools
+    platforms;android-36
+    build-tools;36.0.0
+
+STEP 4: Build the Android APK
+  cd Canteen-App
+  npx expo prebuild --platform android
+
+  # CRITICAL: Pre-bundle JS (debug APKs don't work without this)
+  npx expo export:embed --platform android --dev false \
+    --entry-file node_modules/expo/AppEntry.js \
+    --bundle-output android/app/src/main/assets/index.android.bundle \
+    --assets-dest android/app/src/main/res \
+    --reset-cache
+
+  cd android
+  ./gradlew assembleRelease
+
+  # APK output:
+  # android/app/build/outputs/apk/release/app-release.apk
+
+STEP 5: Deploy to Vercel
+  - Connect repos to Vercel
+  - Set environment variables in Vercel dashboard:
+    FIREBASE_SERVICE_ACCOUNT = (full JSON)
+    RAZORPAY_KEY_ID = (your key)
+    RAZORPAY_KEY_SECRET = (your secret)
+    QR_SECRET = AAE2FBE0CA7C3F12C6DB96FE8F368DFB
+
+IMPORTANT NOTES:
+- NEVER commit token.json or firebase-adminsdk JSON to git
+- The server seeds default colleges to Firestore on startup
+- College dropdown falls back to defaults when Firestore is empty
+- Mobile login auto-detects role from server - no role selector
+- Release APK has JS bundle embedded - works without Metro
+- Debug APK does NOT work standalone - always build release
+- Razorpay keys may need regeneration (old ones were compromised)
+- All 3 apps use the same Firebase project canteen2-0
+
+Read FULL-PROJECT-DOCUMENTATION.txt for complete API, database, and config details.

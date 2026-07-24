@@ -16,7 +16,7 @@ import CanteenAdmin from './components/CanteenAdmin';
 import ServicePanel from './components/ServicePanel';
 import LoginScreen from './components/LoginScreen';
 import UpdatePopup from './components/UpdatePopup';
-import { MenuItem, Order, Review, Canteen } from './types';
+import { MenuItem, Order, Review, Canteen, College } from './types';
 import { API_BASE } from './config';
 
 export default function App() {
@@ -27,6 +27,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name: string; role: 'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'; collegeId?: string; canteenId?: string; subCanteenId?: string } | null>(null);
   const [selectedCanteenId, setSelectedCanteenId] = useState<string>('canteen_001');
+  const [colleges, setColleges] = useState<College[]>([]);
 
   const userEmail = currentUser ? currentUser.email : '';
 
@@ -55,6 +56,18 @@ export default function App() {
     const interval = setInterval(() => fetchCanteenData(selectedCanteenId), 15000);
     return () => clearInterval(interval);
   }, [selectedCanteenId]);
+
+  // Fetch colleges for header display
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetch(`${API_BASE}/api/colleges`).then(r => r.json()).then(d => {
+        if (d.success && d.colleges) setColleges(d.colleges);
+      }).catch(() => {});
+    }
+  }, [isLoggedIn]);
+
+  // Derive user's college info
+  const userCollege = colleges.find(c => c.id === currentUser?.collegeId);
 
   const handleOrderPlaced = async (cartItems: { itemId: string; name: string; quantity: number }[], pickupSlot?: string, canteenId?: string, subCanteenId?: string): Promise<any> => {
     try {
@@ -324,6 +337,8 @@ export default function App() {
           onChangeRole={(newRole) => setRole(newRole as any)}
           userEmail={userEmail}
           onLogout={handleLogout}
+          collegeName={userCollege?.name}
+          collegeLogo={userCollege?.logoUrl}
         />
       )}
 

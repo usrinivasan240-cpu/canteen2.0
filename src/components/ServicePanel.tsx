@@ -74,6 +74,7 @@ export default function ServicePanel({
   // Form states for College
   const [colName, setColName] = useState('');
   const [colLoc, setColLoc] = useState('');
+  const [colLogo, setColLogo] = useState('');
 
   // Form states for Canteen
   const [cantName, setCantName] = useState('');
@@ -81,6 +82,7 @@ export default function ServicePanel({
   const [cantOwnName, setCantOwnName] = useState('');
   const [cantOwnEmail, setCantOwnEmail] = useState('');
   const [cantLoc, setCantLoc] = useState('');
+  const [cantLogo, setCantLogo] = useState('');
 
   // Form states for Sub-Canteen
   const [subName, setSubName] = useState('');
@@ -118,12 +120,13 @@ export default function ServicePanel({
       const resp = await fetch(`${API_BASE}/api/colleges`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: colName, location: colLoc })
+        body: JSON.stringify({ name: colName, location: colLoc, logoUrl: colLogo })
       });
       const d = await resp.json();
       if (d.success) {
         setColName('');
         setColLoc('');
+        setColLogo('');
         setScanStatus({ success: true, text: `Successfully registered college: ${colName}` });
         await syncAdminData();
       } else {
@@ -147,7 +150,8 @@ export default function ServicePanel({
           collegeId: cantCol,
           ownerName: cantOwnName,
           ownerEmail: cantOwnEmail,
-          location: cantLoc
+          location: cantLoc,
+          logoUrl: cantLogo
         })
       });
       const d = await resp.json();
@@ -169,6 +173,7 @@ export default function ServicePanel({
         setCantOwnName('');
         setCantOwnEmail('');
         setCantLoc('');
+        setCantLogo('');
         setScanStatus({ success: true, text: `Successfully registered canteen: ${cantName}` });
         await syncAdminData();
       } else {
@@ -512,6 +517,23 @@ export default function ServicePanel({
                     className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
                   />
                 </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">College Logo</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => setColLogo(reader.result as string);
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="w-full text-xs text-gray-600 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-violet-100 file:text-violet-700 hover:file:bg-violet-200 cursor-pointer"
+                  />
+                  {colLogo && <img src={colLogo} alt="Logo preview" className="h-10 w-10 rounded-lg object-cover border border-violet-100 mt-1" />}
+                </div>
                 <button
                   type="submit"
                   className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-750 hover:to-fuchsia-750 text-white rounded-xl text-xs py-3 font-bold transition-all shadow-md cursor-pointer flex items-center justify-center space-x-1.5 font-display"
@@ -550,7 +572,12 @@ export default function ServicePanel({
                       colleges.map(c => (
                         <tr key={c.id}>
                           <td className="px-6 py-4 font-mono font-bold text-gray-500">{c.id}</td>
-                          <td className="px-6 py-4 font-bold text-gray-950">{c.name}</td>
+                          <td className="px-6 py-4 font-bold text-gray-950">
+                            <div className="flex items-center gap-2">
+                              {c.logoUrl ? <img src={c.logoUrl} alt="" className="h-7 w-7 rounded-lg object-cover border border-violet-100" /> : <div className="h-7 w-7 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600 text-[10px] font-bold">{c.name.charAt(0)}</div>}
+                              {c.name}
+                            </div>
+                          </td>
                           <td className="px-6 py-4 text-gray-500">{c.location}</td>
                           <td className="px-6 py-4 text-right">
                             <button
@@ -642,6 +669,23 @@ export default function ServicePanel({
                       placeholder="e.g. Ground Floor, Food Court"
                       className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-semibold"
                     />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Canteen Logo</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setCantLogo(reader.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="w-full text-xs text-gray-600 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-violet-100 file:text-violet-700 hover:file:bg-violet-200 cursor-pointer"
+                    />
+                    {cantLogo && <img src={cantLogo} alt="Logo preview" className="h-10 w-10 rounded-lg object-cover border border-violet-100 mt-1" />}
                   </div>
                   <button
                     type="submit"

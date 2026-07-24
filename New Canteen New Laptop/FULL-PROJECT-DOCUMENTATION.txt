@@ -1,0 +1,563 @@
+================================================================================
+VIOLET BITES - CANTEEN MANAGEMENT SYSTEM - COMPLETE PROJECT DOCUMENTATION
+================================================================================
+Last Updated: July 24, 2026
+Author: Srinivasan (usrinivasan240-cpu)
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+Violet Bites is a campus canteen management system with 3 separate apps:
+
+  REPO 1: canteen2.0         (Owner/Admin Web + Backend API)
+  REPO 2: Canteen-App        (React Native Mobile App for Students/Chefs/Servers)
+  REPO 3: canteen-superadmin (Super Admin Dashboard - React + Vite + TailwindCSS)
+
+All 3 apps share ONE Firebase backend: project "canteen2-0"
+Deployed at: https://canteen20.vercel.app
+
+================================================================================
+2. GITHUB ACCOUNT & REPOS
+================================================================================
+
+GitHub Username: usrinivasan240-cpu
+GitHub Password: (you know it)
+
+Repos:
+  - https://github.com/usrinivasan240-cpu/canteen2.0
+  - https://github.com/usrinivasan240-cpu/Canteen-App
+  - https://github.com/usrinivasan240-cpu/canteen-superadmin
+
+================================================================================
+3. FIREBASE PROJECT DETAILS
+================================================================================
+
+Project Name: canteen2-0
+Project Number: 632341582941
+Project ID: canteen2-0
+Web API Key: AIzaSyBghKsD84qXfDtmnVj75deoc_xG7j2ApXw
+Auth Domain: canteen2-0.firebaseapp.com
+Storage Bucket: canteen2-0.firebasestorage.app
+App ID: 1:114993861211756843019:web:e0f9c0c2c0e704b0544a4d
+Messaging Sender ID: 114993861211756843019
+
+Service Account Email: firebase-adminsdk-fbsvc@canteen2-0.iam.gserviceaccount.com
+
+FIREBASE ADMIN SDK (for server-side):
+  - The server.ts uses FIREBASE_SERVICE_ACCOUNT env var (JSON string of service account)
+  - On Vercel, this is set as an environment variable
+  - The service account JSON is stored in Vercel env vars (NOT in git)
+  - NEVER commit token.json or canteen2-0-firebase-adminsdk-*.json to git
+
+FIRESTORE COLLECTIONS:
+  - colleges      (id, name, location, status)
+  - canteens      (id, name, collegeId, ownerId, ownerName, status, location, razorpayAccountId)
+  - subcanteens   (id, name, canteenId, status)
+  - users         (id, name, email, role, canteenId, subCanteenId, collegeId, phone, registerNumber, status)
+  - items         (id, name, price, category, canteenId, subCanteenId, available)
+  - orders        (id, userId, userName, items, total, paymentMethod, status, canteenId, pickupSlot, createdAt)
+  - reviews       (id, userId, userName, rating, comment, canteenId, createdAt)
+  - ingredients   (id, name, quantity, unit, canteenId)
+  - settings      (id - format: settings_${canteenId}, canteenId, ...)
+  - walkin_bills  (billNumber as doc ID, items, total, tax, grandTotal, paymentMethod, customerName, ...)
+
+DEFAULT DATA (hardcoded in server.ts, seeded to Firestore on startup):
+  Colleges:
+    - college_001: "Engineering College East" (Main Campus)
+    - college_002: "Science University West" (Tech Campus)
+
+  Users:
+    - superadmin@gmail.com (role: superadmin)
+    - canteen_owner@gmail.com (role: owner, canteenId: canteen_001)
+    - chef@gmail.com (role: chef, canteenId: canteen_001, subCanteenId: sub_001)
+    - staff@gmail.com (role: staff, canteenId: canteen_001, subCanteenId: sub_001)
+    - college_admin@gmail.com (role: admin, collegeId: college_001)
+
+  Canteen:
+    - canteen_001: "Violet Bites" (collegeId: college_001, Campus Plaza)
+    - razorpayAccountId: acc_GX82jso291jS
+
+  SubCanteens:
+    - sub_001: "North Wing Counter" (canteenId: canteen_001)
+    - sub_002: "South Wing Counter" (canteenId: canteen_001)
+
+================================================================================
+4. RAZORPAY PAYMENT INTEGRATION
+================================================================================
+
+CURRENT LIVE KEYS (COMPROMISED - regenerate before production):
+  Key ID:     rzp_live_TGSrQuGSaCRhwe
+  Key Secret: GEPc0nbJw3fag7qR7X3StFhB
+
+Test Keys (for development - will NOT work for real payments):
+  Key ID:     rzp_test_TGGnym72OZVnSb
+  Key Secret: 2lU46OlPS3JYAN6qCeXRUfn1
+
+Test Card: 4111 1111 1111 1111, CVV: 123, Expiry: 12/26
+
+Razorpay Connected Account: acc_GX82jso291jS (for bank transfers)
+
+ENV VARS ON VERCEL:
+  RAZORPAY_KEY_ID=rzp_live_TGSrQuGSaCRhwe
+  RAZORPAY_KEY_SECRET=GEPc0nbJw3fag7qR7X3StFhB
+
+IMPORTANT: The app uses UPI-only checkout by default:
+  - Hides cards, netbanking, wallet options
+  - Opens GPay/PhonePe directly on mobile via UPI intent
+  - Falls back to Razorpay checkout sheet if UPI not available
+
+================================================================================
+5. QR CODE SYSTEM
+================================================================================
+
+QR Secret (for HMAC signing): AAE2FBE0CA7C3F12C6DB96FE8F368DFB
+(Set as QR_SECRET env var on Vercel)
+
+How it works:
+  1. Owner generates QR for a canteen (GET /api/canteen/qr?canteenId=...)
+  2. QR contains HMAC-signed bill number
+  3. Server/Staff scans QR with mobile app camera
+  4. Mobile calls POST /api/canteen/qr/verify with scanned code
+  5. Server verifies HMAC signature + checks bill exists in Firestore
+  6. Returns bill details if valid
+
+================================================================================
+6. DEPLOYMENT - VERCEL
+================================================================================
+
+WEBSITE (Owner/Admin + Backend):
+  Repo: canteen2.0
+  URL: https://canteen20.vercel.app
+  Build Command: npm run build
+  Output Directory: dist
+  Node.js Version: 22.x
+
+SUPER ADMIN:
+  Repo: canteen-superadmin
+  URL: needs redeployment (was canteen-web3-0.vercel.app or similar)
+  Build Command: npm run build
+  Output Directory: dist
+  Framework: Vite
+
+ENVIRONMENT VARIABLES ON VERCEL (for canteen2.0):
+  FIREBASE_SERVICE_ACCOUNT = (full JSON string of service account)
+  RAZORPAY_KEY_ID = rzp_live_TGSrQuGSaCRhwe
+  RAZORPAY_KEY_SECRET = GEPc0nbJw3fag7qR7X3StFhB
+  QR_SECRET = AAE2FBE0CA7C3F12C6DB96FE8F368DFB
+  GEMINI_API_KEY = (optional, for AI features)
+
+CORS:
+  The server allows these origins:
+    - https://canteen20.vercel.app
+    - https://canteen-superadmin.vercel.app
+    - http://localhost:5173 (local dev)
+
+================================================================================
+7. MOBILE APP (Canteen-App)
+================================================================================
+
+Tech Stack:
+  - React Native (Expo 52)
+  - React Native 0.76.9
+  - React 18.3.1
+  - TypeScript
+  - React Navigation (bottom tabs + stack)
+  - AsyncStorage for persistent login
+  - expo-camera for QR scanning
+
+App Config:
+  Name: "Canteen App"
+  Package: com.canteen.app
+  Slug: canteen-app
+  Splash Color: #7c3aed (violet)
+  Icon: ./assets/icon.png
+
+User Roles & Screens:
+  - student: Browse, Menu, Cart, Orders, OrderDetail, Review
+  - chef: ChefDashboard
+  - staff: ServerDashboard, QRScanner
+  - owner/admin/superadmin: handled by web app, not mobile
+
+Login Flow:
+  1. No role selector - server determines role from stored user document
+  2. Single login page with Sign In / Sign Up toggle
+  3. Registration: name, register number, phone, college (dropdown), email, password
+  4. Persistent login via AsyncStorage (like Instagram)
+  5. Logout via button in header
+
+API Config:
+  API_BASE = "https://canteen20.vercel.app"
+
+To Build APK (on a working laptop with Android Studio):
+  1. Install: Node.js 18+, Java 17+ (Android Studio JBR), Android SDK
+  2. Clone repo: git clone https://github.com/usrinivasan240-cpu/Canteen-App
+  3. cd Canteen-App && npm install
+  4. npx expo prebuild --platform android
+  5. Pre-bundle JS: npx expo export:embed --platform android --dev false --entry-file node_modules/expo/AppEntry.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res --reset-cache
+  6. cd android && ./gradlew assembleRelease
+  7. APK at: android/app/build/outputs/apk/release/app-release.apk
+
+IMPORTANT: Debug APKs don't work without Metro bundler running.
+  You MUST build a release APK for standalone use.
+
+================================================================================
+8. OWNER/ADMIN WEB APP (canteen2.0)
+================================================================================
+
+Tech Stack:
+  - React 19
+  - Vite 6
+  - TailwindCSS 4
+  - Express.js backend (server.ts)
+  - Firebase Admin SDK
+  - Razorpay SDK
+  - QRCode library (local QR generation, NOT api.qrserver.com)
+
+Key Components:
+  - LoginScreen: Sign In / Sign Up with college dropdown
+  - CustomerApp: Student browsing, ordering, payment
+  - CanteenAdmin: Owner/Staff management panel
+  - WalkinPOS: Walk-in billing (POS) module with offline IndexedDB
+  - ServicePanel: Super admin CRUD for colleges/canteens/users
+  - QRScanner: Camera-based QR code scanning
+
+Scripts:
+  npm run dev    - Local development (Vite + tsx server)
+  npm run build  - Production build (Vite + esbuild)
+  npm run lint   - TypeScript check
+
+Walk-in POS Features:
+  - Search by name/phone
+  - Category filter
+  - Food grid with images
+  - Cart management
+  - Customer details (name, phone)
+  - Payment: Cash, UPI, Card
+  - Receipt generation + print
+  - Offline billing via IndexedDB (auto-sync on reconnect)
+  - Tax: 5%
+
+================================================================================
+9. SUPER ADMIN DASHBOARD (canteen-superadmin)
+================================================================================
+
+Tech Stack:
+  - React 18
+  - Vite 6
+  - TailwindCSS 4
+  - React Router DOM 7
+  - lucide-react icons
+
+Pages:
+  - LoginPage: superadmin@gmail.com / any password
+  - DashboardPage: Overview stats
+  - CollegesPage: CRUD colleges
+  - CollegeDetailPage: View college details
+  - CanteensPage: CRUD canteens per college
+  - UsersPage: CRUD users (create with Firebase Auth + Firestore)
+  - AnalyticsPage: Usage analytics
+
+API Base: https://canteen20.vercel.app
+
+================================================================================
+10. DATABASE STRUCTURE
+================================================================================
+
+All collections are FLAT top-level (not nested subcollections).
+Each document has a canteenId foreign key where applicable.
+
+COLLEGES:
+  {
+    id: "college_001",
+    name: "Engineering College East",
+    location: "Main Campus",
+    status: "active" | "inactive"
+  }
+
+CANTEENS:
+  {
+    id: "canteen_001",
+    name: "Violet Bites",
+    collegeId: "college_001",
+    ownerId: "user_owner_default",
+    ownerName: "Chef Watson",
+    status: "active",
+    location: "Campus Plaza",
+    razorpayAccountId: "acc_GX82jso291jS"
+  }
+
+SUBCANTEENS:
+  {
+    id: "sub_001",
+    name: "North Wing Counter",
+    canteenId: "canteen_001",
+    status: "active"
+  }
+
+USERS:
+  {
+    id: "user_xxx",
+    name: "Sri",
+    email: "usrinivasan240@gmail.com",
+    role: "customer" | "owner" | "superadmin" | "admin" | "chef" | "staff",
+    canteenId: "canteen_001",      // for owner/chef/staff
+    subCanteenId: "sub_001",       // for chef/staff
+    collegeId: "college_001",      // for customer/admin
+    phone: "9940918442",
+    registerNumber: "25IT101",
+    status: "active"
+  }
+
+ITEMS:
+  {
+    id: "item_001",
+    name: "Masala Dosa",
+    price: 45,
+    category: "South Indian",
+    canteenId: "canteen_001",
+    subCanteenId: "sub_001",
+    available: true,
+    image: "https://..." (optional)
+  }
+
+ORDERS:
+  {
+    id: "ORD-XXXXX",
+    userId: "user_xxx",
+    userName: "Sri",
+    items: [{ itemId, name, price, quantity, subTotal }],
+    total: 180,
+    tax: 9,           // 5%
+    grandTotal: 189,
+    paymentMethod: "upi" | "cash" | "card" | "razorpay",
+    status: "pending" | "preparing" | "ready" | "collected" | "delivered",
+    canteenId: "canteen_001",
+    subCanteenId: "sub_001",
+    pickupSlot: "12:30 PM",
+    createdAt: "2026-07-22T..."
+  }
+
+WALKIN_BILLS (doc ID = billNumber):
+  {
+    billNumber: "WB-20260722-XXXXX",
+    items: [...],
+    subtotal: 180,
+    tax: 9,
+    grandTotal: 189,
+    paymentMethod: "cash" | "upi" | "card",
+    customerName: "Walk-in",
+    customerPhone: "",
+    canteenId: "canteen_001",
+    createdAt: "...",
+    synced: true
+  }
+
+REVIEWS:
+  {
+    id: "rev_xxx",
+    userId: "user_xxx",
+    userName: "Sri",
+    rating: 5,
+    comment: "Great food!",
+    canteenId: "canteen_001",
+    createdAt: "..."
+  }
+
+SETTINGS:
+  Document ID: settings_canteen_001
+  Contains canteen-specific settings (tax rate, operating hours, etc.)
+
+================================================================================
+11. API ENDPOINTS
+================================================================================
+
+All endpoints are on the canteen2.0 server (server.ts):
+
+AUTH:
+  POST /api/auth/login        { email, password }
+  POST /api/auth/register     { name, email, password, role, phone, registerNumber, collegeId }
+
+COLLEGES:
+  GET    /api/colleges              (returns colleges from Firestore or defaults)
+  POST   /api/colleges              (create college)
+  DELETE /api/colleges/:id          (delete college)
+
+CANTEENS:
+  GET    /api/canteens              (list all canteens)
+  POST   /api/canteens              (create canteen)
+  DELETE /api/canteens/:id          (delete canteen)
+
+SUBCANTEENS:
+  GET    /api/subcanteens           (list all)
+  POST   /api/subcanteens           (create)
+  DELETE /api/subcanteens/:id       (delete)
+
+CANTEEN DATA:
+  GET    /api/canteen?canteenId=    (get canteen with items, orders, reviews)
+  GET    /api/canteen/menu?canteenId=
+  POST   /api/canteen/menu          (add menu item)
+  DELETE /api/canteen/menu/:id      (delete menu item)
+
+ORDERS:
+  POST   /api/canteen/order         (place order)
+  POST   /api/canteen/order/status  (update order status)
+  POST   /api/canteen/order/batch-status (batch update)
+
+PAYMENTS:
+  POST   /api/canteen/create-order  (create Razorpay order)
+  POST   /api/canteen/verify-payment (verify Razorpay payment)
+
+QR CODE:
+  GET    /api/canteen/qr?canteenId= (generate QR code)
+  POST   /api/canteen/qr/verify     (verify scanned QR)
+
+REVIEWS:
+  POST   /api/canteen/review        (submit review)
+
+WALK-IN:
+  POST   /api/canteen/walkin-bill   (save walk-in bill)
+  GET    /api/canteen/walkin-bills?canteenId= (list walk-in bills)
+
+USERS:
+  GET    /api/users                 (list users)
+  POST   /api/users                 (create user)
+  PUT    /api/users/:id             (update user)
+  DELETE /api/users/:id             (delete user)
+
+TEST:
+  GET    /api/test                  (diagnostic: dbConnected, razorpay status)
+
+================================================================================
+12. KNOWN ISSUES & FIXES APPLIED
+================================================================================
+
+1. QR CODE: External api.qrserver.com replaced with local 'qrcode' npm package
+2. QR PAYLOAD: Simplified to plain bill number string for reliable mobile scanning
+3. POS OFFLINE: Uses IndexedDB (VioletBitesPOS DB, pending_bills store) for offline billing
+4. FIREBASE INIT: 2-pass JSON parse for malformed service account env vars
+5. COLLEGE DROPDOWN: Falls back to hardcoded colleges when Firestore collection is empty
+6. MOBILE LOGIN: Single login page, auto-detect role, persistent login like Instagram
+7. SERVER LOGIN: Simplified - no role selector
+8. RAZORPAY: UPI-only checkout, hides cards/netbanking/wallet
+9. MENU ITEMS: Falls back to canteen_001 items when a canteen has no items in DB
+10. CORS: Includes canteen-superadmin.vercel.app
+11. ANDROID APK: Must build RELEASE APK (not debug) - debug doesn't bundle JS
+
+================================================================================
+13. LOCAL DEVELOPMENT SETUP
+================================================================================
+
+PREREQUISITES:
+  - Node.js 18+ (recommend 22.x)
+  - npm or yarn
+  - Git
+  - Android Studio (for mobile APK build)
+  - Java 17+ (Android Studio JBR works)
+
+SETUP:
+  1. Clone repos:
+     git clone https://github.com/usrinivasan240-cpu/canteen2.0
+     git clone https://github.com/usrinivasan240-cpu/Canteen-App
+     git clone https://github.com/usrinivasan240-cpu/canteen-superadmin
+
+  2. Install dependencies for each:
+     cd canteen2.0 && npm install
+     cd Canteen-App && npm install
+     cd canteen-superadmin && npm install
+
+  3. Run locally:
+     cd canteen2.0 && npm run dev    (runs on http://localhost:5173)
+     cd Canteen-App && npm start     (Expo dev server)
+     cd canteen-superadmin && npm run dev (runs on http://localhost:5173)
+
+  4. For mobile APK:
+     cd Canteen-App
+     npx expo prebuild --platform android
+     cd android && ./gradlew assembleRelease
+
+================================================================================
+14. ANDROID SDK SETUP (for building APK)
+================================================================================
+
+Required:
+  - Android Studio (latest)
+  - Java: OpenJDK 17+ (Android Studio JBR)
+  - Android SDK 36
+  - Build Tools 36.0.0
+  - NDK 26.1.10909125
+
+Environment Variables (Windows):
+  JAVA_HOME = C:\Program Files\Android\Android Studio\jbr
+  ANDROID_HOME = C:\Users\<user>\AppData\Local\Android\Sdk
+  PATH += %JAVA_HOME%\bin;%ANDROID_HOME%\platform-tools
+
+SDK Components to Install (via sdkmanager):
+  - platform-tools (adb, fastboot)
+  - platforms;android-36
+  - build-tools;36.0.0
+  - NDK (installed automatically by Gradle)
+
+Build Commands:
+  # Pre-bundle JS (REQUIRED for release APK)
+  npx expo export:embed --platform android --dev false \
+    --entry-file node_modules/expo/AppEntry.js \
+    --bundle-output android/app/src/main/assets/index.android.bundle \
+    --assets-dest android/app/src/main/res \
+    --reset-cache
+
+  # Build release APK
+  cd android && ./gradlew assembleRelease
+
+  # Output APK location:
+  android/app/build/outputs/apk/release/app-release.apk
+
+  # Debug APK (DOES NOT WORK without Metro - needs JS bundle embedded)
+  # cd android && ./gradlew assembleDebug
+
+================================================================================
+15. COMPLETE PROMPT FOR NEW LAPTOP SETUP
+================================================================================
+
+Copy-paste this entire section into opencode on the new laptop:
+
+---
+
+I need to set up the Violet Bites canteen management system on this new laptop.
+There are 3 repos on GitHub (account: usrinivasan240-cpu):
+
+1. canteen2.0 - Owner/Admin web app + backend (Express + React + Vite)
+2. Canteen-App - React Native mobile app (Expo 52)
+3. canteen-superadmin - Super admin dashboard (React + Vite + TailwindCSS)
+
+All share Firebase project "canteen2-0" and deploy to Vercel.
+
+STEPS:
+1. Clone all 3 repos from GitHub
+2. Install Node.js 18+ if not present
+3. Run npm install in each repo
+4. For Canteen-App Android APK build:
+   - Install Android Studio
+   - Set JAVA_HOME to Android Studio JBR
+   - Set ANDROID_HOME to SDK path
+   - Install platform-tools, platforms;android-36, build-tools;36.0.0
+   - Run: npx expo prebuild --platform android
+   - Pre-bundle JS: npx expo export:embed --platform android --dev false --entry-file node_modules/expo/AppEntry.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res --reset-cache
+   - Build: cd android && ./gradlew assembleRelease
+   - APK at: android/app/build/outputs/apk/release/app-release.apk
+
+Key Config:
+- Firebase Project: canteen2-0
+- API Base URL: https://canteen20.vercel.app
+- Web API Key: AIzaSyBghKsD84qXfDtmnVj75deoc_xG7j2ApXw
+- Razorpay Live Keys: (compromised - need regeneration)
+- QR Secret: AAE2FBE0CA7C3F12C6DB96FE8F368DFB
+- Super Admin: superadmin@gmail.com
+- Default Users: canteen_owner@gmail.com, chef@gmail.com, staff@gmail.com
+
+Never commit to git: token.json, canteen2-0-firebase-adminsdk-*.json
+
+---
+
+END OF DOCUMENTATION
+================================================================================
