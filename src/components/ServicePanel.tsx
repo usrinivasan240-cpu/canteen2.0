@@ -88,6 +88,17 @@ export default function ServicePanel({
   const [subName, setSubName] = useState('');
   const [subCantId, setSubCantId] = useState('');
 
+  // Edit user modal state
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [editColId, setEditColId] = useState('');
+  const [editCantId, setEditCantId] = useState('');
+  const [editSubId, setEditSubId] = useState('');
+  const [editPosting, setEditPosting] = useState('');
+
   const syncAdminData = async () => {
     try {
       const [colResp, cantResp, subResp, usrResp] = await Promise.all([
@@ -320,6 +331,48 @@ export default function ServicePanel({
   };
 
   // Filter canteens list
+  const handleUpdateUser = async () => {
+    if (!editingUser || !editName || !editRole) return;
+    try {
+      const body: any = {
+        name: editName,
+        role: editRole,
+        collegeId: editColId,
+        canteenId: editCantId || undefined,
+        subCanteenId: editSubId || undefined,
+        posting: editPosting || undefined
+      };
+      if (editPassword) body.password = editPassword;
+      const resp = await fetch(`${API_BASE}/api/users/${editingUser.email}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const d = await resp.json();
+      if (d.success) {
+        setEditingUser(null);
+        setScanStatus({ success: true, text: `Successfully updated user: ${editName}` });
+        await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || 'Failed to update user' });
+      }
+    } catch (e) {
+      setScanStatus({ success: false, text: 'Network failure updating user.' });
+    }
+  };
+
+  const openEditUser = (usr: any) => {
+    setEditingUser(usr);
+    setEditName(usr.name || '');
+    setEditEmail(usr.email || '');
+    setEditPassword('');
+    setEditRole(usr.role || 'customer');
+    setEditColId(usr.collegeId || '');
+    setEditCantId(usr.canteenId || '');
+    setEditSubId(usr.subCanteenId || '');
+    setEditPosting(usr.posting || '');
+  };
+
   const filteredCanteens = canteens.filter(c => {
     if (isSuperAdmin && selectedCollegeFilter === 'all') return true;
     const targetColId = isSuperAdmin ? selectedCollegeFilter : activeCollegeId;
@@ -1069,7 +1122,14 @@ export default function ServicePanel({
                               />
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-6 py-4 text-right flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => openEditUser(usr)}
+                              className="text-violet-600 hover:text-violet-800 hover:bg-violet-50 p-2 rounded-xl transition cursor-pointer border border-violet-100/25"
+                              title="Edit User"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
                             <button
                               onClick={() => handleDeleteUser(usr.email)}
                               className="text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 p-2 rounded-xl transition cursor-pointer flex items-center justify-center ml-auto border border-rose-100/25"
@@ -1177,6 +1237,77 @@ export default function ServicePanel({
         )}
 
       </main>
+
+      {/* EDIT USER MODAL */}
+      {editingUser && (
+        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-violet-50">
+              <div>
+                <h3 className="font-display font-black text-sm text-gray-900 uppercase">Edit User Account</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">Update profile for {editingUser.email}</p>
+              </div>
+              <button onClick={() => setEditingUser(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition cursor-pointer"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Full Name</label>
+                  <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-violet-50/30 text-xs px-3 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Email Address</label>
+                  <input type="email" value={editEmail} disabled className="w-full bg-gray-50 text-xs px-3 py-2.5 border border-gray-200 rounded-xl text-gray-500 font-semibold cursor-not-allowed" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">New Password (leave blank to keep)</label>
+                  <input type="text" value={editPassword} onChange={e => setEditPassword(e.target.value)} placeholder="Enter new password" className="w-full bg-violet-50/30 text-xs px-3 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Access Role</label>
+                  <select value={editRole} onChange={e => setEditRole(e.target.value)} className="w-full bg-violet-50/30 text-xs px-3 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold cursor-pointer">
+                    <option value="customer">Customer</option>
+                    <option value="chef">Chef</option>
+                    <option value="staff">Counter Staff</option>
+                    <option value="owner">Canteen Owner</option>
+                    <option value="admin">College Admin</option>
+                    <option value="superadmin">Super Admin</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">College</label>
+                  <select value={editColId} onChange={e => setEditColId(e.target.value)} className="w-full bg-violet-50/30 text-xs px-3 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold cursor-pointer">
+                    <option value="">Select College</option>
+                    {colleges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Canteen</label>
+                  <select value={editCantId} onChange={e => setEditCantId(e.target.value)} className="w-full bg-violet-50/30 text-xs px-3 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold cursor-pointer">
+                    <option value="">Select Canteen</option>
+                    {canteens.filter(c => !editColId || c.collegeId === editColId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Sub-Canteen / Counter</label>
+                  <select value={editSubId} onChange={e => setEditSubId(e.target.value)} className="w-full bg-violet-50/30 text-xs px-3 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold cursor-pointer">
+                    <option value="">Select Counter</option>
+                    {subCanteens.filter(s => !editCantId || s.canteenId === editCantId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Posting / Designation</label>
+                  <input type="text" value={editPosting} onChange={e => setEditPosting(e.target.value)} placeholder="e.g. Counter 1 Manager" className="w-full bg-violet-50/30 text-xs px-3 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 font-semibold" />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditingUser(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer">Cancel</button>
+                <button onClick={handleUpdateUser} className="flex-1 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white rounded-xl py-2.5 text-xs font-bold transition-all shadow-md cursor-pointer">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

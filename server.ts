@@ -743,6 +743,59 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ============================================================================
+// OTP VERIFICATION FOR SUPERADMIN LOGIN
+// ============================================================================
+
+const SUPERADMIN_PHONE = '9940918442';
+const otpStore = new Map<string, { code: string; expiresAt: number; email: string }>();
+
+app.post('/api/auth/generate-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ success: false, error: 'Email required' });
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Verify user is superadmin
+  if (normalizedEmail !== 'superadmin@gmail.com') {
+    return res.status(403).json({ success: false, error: 'OTP verification only required for superadmin accounts.' });
+  }
+
+  // Generate 6-digit OTP
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  otpStore.set(normalizedEmail, { code, expiresAt: Date.now() + 5 * 60 * 1000, email: normalizedEmail });
+
+  console.log(`\n========================================`);
+  console.log(`OTP for superadmin login: ${code}`);
+  console.log(`Phone: ${SUPERADMIN_PHONE}`);
+  console.log(`Expires in 5 minutes`);
+  console.log(`========================================\n`);
+
+  // In production, send SMS here via Twilio/textlocal API
+  // For now, return OTP in response for testing (remove in production!)
+  res.json({ success: true, message: `OTP sent to ${SUPERADMIN_PHONE}`, otp: code });
+});
+
+app.post('/api/auth/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ success: false, error: 'Email and OTP required' });
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const stored = otpStore.get(normalizedEmail);
+  if (!stored) {
+    return res.status(400).json({ success: false, error: 'No OTP generated. Please request a new one.' });
+  }
+  if (Date.now() > stored.expiresAt) {
+    otpStore.delete(normalizedEmail);
+    return res.status(400).json({ success: false, error: 'OTP expired. Please request a new one.' });
+  }
+  if (stored.code !== otp.trim()) {
+    return res.status(400).json({ success: false, error: 'Invalid OTP. Please try again.' });
+  }
+
+  otpStore.delete(normalizedEmail);
+  res.json({ success: true, message: 'OTP verified successfully.' });
+});
+
+// ============================================================================
 // SUPER ADMIN ENDPOINTS
 // ============================================================================
 
@@ -1114,9 +1167,9 @@ app.delete('/api/users/:email', async (req, res) => {
 
 app.put('/api/users/:email/role', async (req, res) => {
   const { email } = req.params;
-  const { role, posting, name, collegeId, canteenId, subCanteenId, status } = req.body;
+  const { role, posting, name, collegeId, canteenId, subCanteenId, status, password } = req.body;
   const emailKey = email.trim().toLowerCase();
-  
+
   if (!role) {
     return res.status(400).json({ success: false, error: 'Role is required' });
   }
@@ -1128,6 +1181,7 @@ app.put('/api/users/:email/role', async (req, res) => {
   if (canteenId !== undefined) updates.canteenId = canteenId;
   if (subCanteenId !== undefined) updates.subCanteenId = subCanteenId;
   if (status) updates.status = status;
+  if (password) updates.password = password;
 
   if (db) {
     try {

@@ -14,6 +14,14 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [error, setError] = useState('');
   const [colleges, setColleges] = useState<College[]>([]);
 
+  // OTP verification state for superadmin
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [pendingSuperadminUser, setPendingSuperadminUser] = useState<any>(null);
+
   const [nameInput, setNameInput] = useState('');
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
@@ -51,6 +59,55 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setRegisterNumberInput('');
     setSelectedCollegeId('');
     setError('');
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpInput.trim() || otpInput.trim().length !== 6) {
+      setOtpError('Please enter a valid 6-digit OTP.');
+      return;
+    }
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      const resp = await fetch(`${API_BASE}/api/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailInput.trim(), otp: otpInput.trim() })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        setShowOtpModal(false);
+        setPendingSuperadminUser(null);
+        setOtpInput('');
+        onLoginSuccess({ ...pendingSuperadminUser, role: pendingSuperadminUser.role });
+      } else {
+        setOtpError(data.error || 'Invalid OTP. Please try again.');
+      }
+    } catch {
+      setOtpError('Network error verifying OTP.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setOtpError('');
+    setOtpSent(false);
+    try {
+      const resp = await fetch(`${API_BASE}/api/auth/generate-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailInput.trim() })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        setOtpSent(true);
+      } else {
+        setOtpError(data.error || 'Failed to resend OTP');
+      }
+    } catch {
+      setOtpError('Network error sending OTP.');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -95,7 +152,29 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         });
         const data = await resp.json();
         if (data.success && data.user) {
-          onLoginSuccess({ ...data.user, role: data.user.role });
+          // Check if superadmin — require OTP verification
+          if (data.user.role === 'superadmin') {
+            setPendingSuperadminUser(data.user);
+            setShowOtpModal(true);
+            // Auto-generate OTP
+            try {
+              const otpResp = await fetch(`${API_BASE}/api/auth/generate-otp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: emailInput.trim() })
+              });
+              const otpData = await otpResp.json();
+              if (otpData.success) {
+                setOtpSent(true);
+              } else {
+                setOtpError(otpData.error || 'Failed to send OTP');
+              }
+            } catch {
+              setOtpError('Failed to send OTP. Please try again.');
+            }
+          } else {
+            onLoginSuccess({ ...data.user, role: data.user.role });
+          }
         } else {
           setError(data.error || 'Invalid email or password.');
         }
@@ -109,6 +188,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   };
 
   return (
+    <>
     <div className="min-h-screen bg-[#e8e4f5] flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden p-8 border border-violet-100 transition-all">
         <div className="flex flex-col items-center text-center space-y-2 mb-6">
@@ -294,5 +374,66 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         )}
       </div>
     </div>
+
+    {/* SUPERADMIN OTP VERIFICATION MODAL */}
+    {showOtpModal && (
+      <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden">
+          <div className="bg-gradient-to-br from-violet-600 to-purple-700 p-6 text-center text-white">
+            <div className="h-16 w-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h2 className="font-display font-bold text-xl">Superadmin Verification</h2>
+            <p className="text-white/80 text-xs mt-1">OTP sent to 9940918442</p>
+          </div>
+          <div className="p-6 space-y-4">
+            {otpError && (
+              <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 text-rose-800 text-xs font-sans">{otpError}</div>
+            )}
+            {otpSent && (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-emerald-800 text-xs font-sans">
+                OTP sent successfully. Check your phone.
+              </div>
+            )}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Enter 6-Digit OTP</label>
+              <input
+                type="text"
+                maxLength={6}
+                value={otpInput}
+                onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                className="w-full bg-violet-50/30 text-center text-2xl font-mono font-bold tracking-[0.3em] px-4 py-4 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all"
+                autoFocus
+              />
+            </div>
+            <button
+              onClick={handleVerifyOtp}
+              disabled={otpLoading || otpInput.length !== 6}
+              className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400/60 text-white rounded-xl py-3 text-sm font-semibold transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer font-display"
+            >
+              {otpLoading ? (
+                <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <span>Verify OTP</span>
+              )}
+            </button>
+            <button
+              onClick={handleResendOtp}
+              className="w-full text-violet-600 hover:text-violet-800 text-xs font-semibold py-2 transition cursor-pointer"
+            >
+              Resend OTP
+            </button>
+            <button
+              onClick={() => { setShowOtpModal(false); setPendingSuperadminUser(null); setOtpInput(''); setOtpError(''); }}
+              className="w-full text-gray-400 hover:text-gray-600 text-xs py-2 transition cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
