@@ -73,6 +73,14 @@ app.get('/api/test', (req, res) => {
   res.json({ success: true, message: "Server is working!", dbConnected: !!db, envVar: !!process.env.FIREBASE_SERVICE_ACCOUNT, initError: firebaseInitError, envLength: (process.env.FIREBASE_SERVICE_ACCOUNT || '').length, razorpay: { initialized: !!razorpay, keyPrefix: rpKeyPrefix, keyLen: rpKeyLen, secretLen: rpSecretLen } });
 });
 
+// App version endpoint - bump this to force update popup on all devices
+const APP_VERSION = '1.1.0';
+const APP_UPDATE_URL = 'https://canteen20.vercel.app';
+
+app.get('/api/app-version', (req, res) => {
+  res.json({ version: APP_VERSION, updateUrl: APP_UPDATE_URL });
+});
+
 // Initialize Firebase Admin using token.json or env variable fallback
 let db: admin.firestore.Firestore | null = null;
 let firebaseInitError: string | null = null;

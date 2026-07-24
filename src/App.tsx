@@ -15,6 +15,7 @@ import CustomerApp from './components/CustomerApp';
 import CanteenAdmin from './components/CanteenAdmin';
 import ServicePanel from './components/ServicePanel';
 import LoginScreen from './components/LoginScreen';
+import UpdatePopup from './components/UpdatePopup';
 import { MenuItem, Order, Review, Canteen } from './types';
 import { API_BASE } from './config';
 
@@ -294,15 +295,19 @@ export default function App() {
   // 1. GATED ENTRY FOR LOGIN
   if (!isLoggedIn) {
     return (
-      <LoginScreen
-        onLoginSuccess={handleLoginSuccess}
-      />
+      <>
+        <UpdatePopup />
+        <LoginScreen
+          onLoginSuccess={handleLoginSuccess}
+        />
+      </>
     );
   }
 
   // 2. MAIN LOGGED-IN VIEWPORT
   return (
     <div className="min-h-screen flex flex-col bg-[#fbfcff] text-slate-800 antialiased font-sans transition-colors duration-150">
+      <UpdatePopup />
       
       {/* Dynamic server warning offline bar */}
       {errorMessage && (
