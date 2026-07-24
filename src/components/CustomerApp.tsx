@@ -21,6 +21,7 @@ interface CustomerAppProps {
   onAddReview: (rating: number, comment: string, menuItemId?: string, menuItemName?: string) => Promise<any>;
   onResetCanteen: () => void;
   userEmail: string;
+  userId: string;
   userCollegeId?: string;
   userCanteenId?: string;
   onLogout: () => void;
@@ -36,6 +37,7 @@ export default function CustomerApp({
   onAddReview,
   onResetCanteen,
   userEmail,
+  userId,
   userCollegeId,
   userCanteenId,
   onLogout,
@@ -837,11 +839,9 @@ export default function CustomerApp({
 
                 {(() => {
                   const myOrders = orders
-                    .filter(o => 
-                      o.userId === 'user_guest' || 
-                      (o.userName || '').toLowerCase() === userEmail.split('@')[0].toLowerCase() ||
-                      o.userName === 'Raju Watson' ||
-                      (o.userId && o.userId.includes('watson'))
+                    .filter(o =>
+                      o.userId === userId ||
+                      o.userId === 'user_guest'
                     )
                     .sort((a, b) => b.createdAt - a.createdAt);
 

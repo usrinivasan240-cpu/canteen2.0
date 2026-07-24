@@ -354,6 +354,7 @@ export default function App() {
             onAddReview={handleAddReview}
             onResetCanteen={handleResetCanteen}
             userEmail={userEmail}
+            userId={currentUser?.id || ''}
             userCollegeId={currentUser?.collegeId}
             userCanteenId={currentUser?.canteenId || selectedCanteenId}
             onLogout={handleLogout}
