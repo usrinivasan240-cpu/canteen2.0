@@ -747,7 +747,7 @@ export default function CanteenAdmin({
 
   if (userRole === 'staff') {
     return (
-      <div className="max-w-7xl mx-auto space-y-6 py-6 text-left px-4">
+      <div className="max-w-7xl mx-auto space-y-6 py-6 text-left px-4 overflow-x-hidden">
         {/* ALREADY SERVED RED BANNER */}
         {alreadyServedOrderId && (
           <div className="bg-rose-500 text-white p-4 rounded-2xl shadow-lg shadow-rose-500/10 flex items-start space-x-3 relative animate-fade-in text-left">
@@ -809,7 +809,7 @@ export default function CanteenAdmin({
 
           {/* Manual code lookup form */}
           <div className="border-t border-violet-50 pt-4 text-left">
-            <form onSubmit={handleManualCodeLookupStaff} className="flex gap-2 max-w-xl">
+            <form onSubmit={handleManualCodeLookupStaff} className="flex flex-wrap gap-2">
               <input
                 type="text"
                 placeholder="Paste/Type Order ID (e.g. 4bZHdu1ca9qs...)"
@@ -983,7 +983,7 @@ export default function CanteenAdmin({
         <div className="space-y-6 pt-6 border-t border-violet-150">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-display font-bold text-lg text-gray-900">Live Counter Queue</h2>
+              <h2 className="font-display font-bold text-base sm:text-lg text-gray-900 truncate">Live Counter Queue</h2>
               <p className="text-xs text-gray-400 font-sans">Real-time status of student kitchen tickets and handovers.</p>
             </div>
             <button
@@ -1454,7 +1454,7 @@ export default function CanteenAdmin({
               </button>
             </div>
             <div className="border-t border-violet-50 pt-4 text-left">
-              <form onSubmit={handleManualCodeLookupStaff} className="flex gap-2 max-w-xl">
+              <form onSubmit={handleManualCodeLookupStaff} className="flex flex-wrap gap-2">
                 <input
                   type="text"
                   placeholder="Paste/Type Order ID or Bill Number"
@@ -1493,7 +1493,7 @@ export default function CanteenAdmin({
 
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-display font-bold text-lg text-gray-900">Live Counter Queue</h2>
+              <h2 className="font-display font-bold text-base sm:text-lg text-gray-900 truncate">Live Counter Queue</h2>
               <p className="text-xs text-gray-400 font-sans">Real-time status of student kitchen tickets and handovers.</p>
             </div>
             <button
