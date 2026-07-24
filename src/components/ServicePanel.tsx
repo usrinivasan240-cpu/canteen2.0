@@ -627,8 +627,37 @@ export default function ServicePanel({
                           <td className="px-6 py-4 font-mono font-bold text-gray-500">{c.id}</td>
                           <td className="px-6 py-4 font-bold text-gray-950">
                             <div className="flex items-center gap-2">
-                              {c.logoUrl ? <img src={c.logoUrl} alt="" className="h-7 w-7 rounded-lg object-cover border border-violet-100" /> : <div className="h-7 w-7 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600 text-[10px] font-bold">{c.name.charAt(0)}</div>}
-                              {c.name}
+                              <label className="relative cursor-pointer group">
+                                {c.logoUrl ? <img src={c.logoUrl} alt="" className="h-7 w-7 rounded-lg object-cover border border-violet-100 group-hover:opacity-70 transition" /> : <div className="h-7 w-7 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600 text-[10px] font-bold group-hover:bg-violet-200 transition">{c.name.charAt(0)}</div>}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onloadend = async () => {
+                                      const logoData = reader.result as string;
+                                      try {
+                                        const resp = await fetch(`${API_BASE}/api/colleges/${c.id}/logo`, {
+                                          method: 'PUT',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ logoUrl: logoData })
+                                        });
+                                        const d = await resp.json();
+                                        if (d.success) {
+                                          await syncAdminData();
+                                        }
+                                      } catch (err) {
+                                        console.error('Failed to upload logo', err);
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }}
+                                />
+                              </label>
+                              <span>{c.name}</span>
                             </div>
                           </td>
                           <td className="px-6 py-4 text-gray-500">{c.location}</td>

@@ -856,6 +856,23 @@ app.post('/api/colleges', async (req, res) => {
   res.json({ success: true, college });
 });
 
+app.put('/api/colleges/:id/logo', async (req, res) => {
+  const { id } = req.params;
+  const { logoUrl } = req.body;
+  if (!logoUrl) return res.status(400).json({ success: false, error: 'logoUrl is required' });
+  if (db) {
+    try {
+      await db.collection('colleges').doc(id).set({ logoUrl }, { merge: true });
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ success: false, error: 'DB update failed' });
+    }
+  }
+  const idx = collegesState.findIndex(c => c.id === id);
+  if (idx !== -1) collegesState[idx] = { ...collegesState[idx], logoUrl };
+  res.json({ success: true });
+});
+
 app.delete('/api/colleges/:id', async (req, res) => {
   const { id } = req.params;
   if (db) {
