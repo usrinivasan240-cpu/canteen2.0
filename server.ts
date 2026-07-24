@@ -770,22 +770,32 @@ app.post('/api/auth/generate-otp', async (req, res) => {
   console.log(`Expires in 5 minutes`);
   console.log(`========================================\n`);
 
-  // Send OTP via email
+  // Send OTP via email using Resend API (fast, works on serverless)
   try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.SMTP_EMAIL || 'usrinivasan240@gmail.com',
-        pass: process.env.SMTP_PASSWORD || ''
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (resendApiKey) {
+      const emailResp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: 'Violet Bites <onboarding@resend.dev>',
+          to: [SUPERADMIN_EMAIL],
+          subject: 'Violet Bites - Superadmin Login OTP',
+          html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">Violet Bites</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
+        })
+      });
+      if (emailResp.ok) {
+        console.log('OTP email sent to', SUPERADMIN_EMAIL);
+      } else {
+        const errText = await emailResp.text();
+        console.error('Resend API error:', emailResp.status, errText);
       }
-    });
-    await transporter.sendMail({
-      from: `"Violet Bites" <${process.env.SMTP_EMAIL || 'usrinivasan240@gmail.com'}>`,
-      to: SUPERADMIN_EMAIL,
-      subject: 'Violet Bites - Superadmin Login OTP',
-      html: `<div style="font-family:sans-serif;text-align:center;padding:20px"><h2 style="color:#7c3aed">Violet Bites</h2><p>Your superadmin login OTP is:</p><h1 style="font-size:32px;letter-spacing:8px;color:#7c3aed;background:#f3f0ff;padding:15px;border-radius:12px">${code}</h1><p style="color:#888;font-size:12px">Valid for 5 minutes. Do not share this OTP.</p></div>`
-    });
-    console.log('OTP email sent to', SUPERADMIN_EMAIL);
+    } else {
+      console.log('RESEND_API_KEY not set. OTP:', code, 'for', SUPERADMIN_EMAIL);
+    }
   } catch (emailErr) {
     console.error('Email send failed, OTP:', code, emailErr);
   }
