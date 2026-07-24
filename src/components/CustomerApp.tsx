@@ -347,59 +347,57 @@ export default function CustomerApp({
     return categoryMatch && subCanteenMatch && searchMatch;
   });
 
+  // Derive college info
+  const userCollege = colleges.find(c => c.id === userCollegeId);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      
-      {/* SUB-CANTEEN SELECTOR + SEARCH */}
-      <div className="bg-white border border-violet-100 rounded-3xl p-5 shadow-xs mb-8 space-y-4 text-left">
-        <div className="flex items-center justify-between border-b border-violet-50 pb-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700">Your Canteen</h3>
-          <span className="text-[10px] text-gray-400 font-medium font-mono">Select Counter to Order</span>
-        </div>
-        <div className="grid grid-cols-1 gap-4">
-          {/* Sub-Canteen Select only */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Sub-Canteen / Counter</label>
-            <select
-              value={selectedSubCanteenId}
-              onChange={(e) => setSelectedSubCanteenId(e.target.value)}
-              className="w-full bg-violet-50/55 hover:bg-violet-50 focus:bg-white text-xs px-3 py-2.5 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-semibold text-gray-800"
-            >
-              <option value="">All Counters</option>
-              {subCanteens.filter(s => s.canteenId === selectedCanteenId).map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
 
-        {/* Canteen Search Option */}
-        <div className="pt-2">
-          <input
-            type="text"
-            placeholder="Search menus, food items, categories..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-violet-50/30 hover:bg-violet-50/50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all text-gray-800 font-medium"
-          />
-        </div>
-      </div>
-      
-      {/* 1. CANTEEN HEADER BAR */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between bg-violet-50 border border-violet-100 p-4 rounded-2xl mb-8 space-y-3 md:space-y-0">
-        <div className="flex items-center space-x-3 text-left">
-          <div className="h-10 w-10 rounded-full bg-violet-200 text-violet-800 flex items-center justify-center font-bold">
-            <ShoppingCart className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-[10px] text-violet-700 font-extrabold tracking-wider uppercase font-mono">Express Campus Food Court</p>
-            <h2 className="font-display font-bold text-gray-950 text-sm">
-              Canteen Room: <span className="text-violet-700">{canteenName}</span>
-            </h2>
+      {/* HERO BANNER - College Branded */}
+      <div className="relative rounded-3xl overflow-hidden mb-8 bg-gradient-to-r from-violet-700 via-purple-700 to-fuchsia-600 text-white">
+        <div className="absolute inset-0 bg-black/20" />
+        <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 p-6 md:p-10">
+          {userCollege?.logoUrl ? (
+            <img src={userCollege.logoUrl} alt={userCollege.name} className="h-20 w-20 md:h-28 md:w-28 rounded-2xl object-cover border-2 border-white/30 shadow-lg" />
+          ) : (
+            <div className="h-20 w-20 md:h-28 md:w-28 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-3xl md:text-4xl font-bold border-2 border-white/30 shadow-lg">
+              {userCollege?.name?.charAt(0) || 'V'}
+            </div>
+          )}
+          <div className="text-center md:text-left flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70 mb-1">Welcome to</p>
+            <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight">{userCollege?.name || 'Violet Bites'}</h1>
+            <p className="text-sm text-white/80 font-sans mt-1">Official Smart Canteen Platform</p>
+            <div className="flex flex-wrap gap-2 mt-3 justify-center md:justify-start">
+              <span className="bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20">Order Faster</span>
+              <span className="bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20">Skip the Queue</span>
+              <span className="bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20">Smart Pickup</span>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* SUB-CANTEEN SELECTOR + SEARCH (compact) */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <select
+          value={selectedSubCanteenId}
+          onChange={(e) => setSelectedSubCanteenId(e.target.value)}
+          className="bg-white border border-violet-100 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-500 min-w-[200px]"
+        >
+          <option value="">All Counters</option>
+          {subCanteens.filter(s => s.canteenId === selectedCanteenId).map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+        <input
+          type="text"
+          placeholder="Search menus, food items, categories..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="flex-1 bg-white border border-violet-100 rounded-xl px-4 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-500 font-medium"
+        />
+      </div>
+      
       {/* Tab Switcher */}
       {!successOrder && (
         <div className="flex border-b border-violet-100 mb-8 gap-6 text-left">
@@ -1007,6 +1005,29 @@ export default function CustomerApp({
           </div>
         </div>
       )}
+
+      {/* BRANDED FOOTER */}
+      <footer className="mt-12 bg-gray-900 text-white rounded-3xl p-6 md:p-8">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            {userCollege?.logoUrl ? (
+              <img src={userCollege.logoUrl} alt="" className="h-10 w-10 rounded-lg object-cover border border-white/20" />
+            ) : (
+              <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center text-sm font-bold">{userCollege?.name?.charAt(0) || 'V'}</div>
+            )}
+            <div>
+              <p className="font-display font-bold text-sm">{userCollege?.name || 'Violet Bites'}</p>
+              <p className="text-[10px] text-white/50 font-sans">Official Smart Canteen Platform</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-6 text-[10px] text-white/60">
+            <span className="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Smart Ordering</span>
+            <span className="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Live Order Tracking</span>
+            <span className="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Hygienic & Safe</span>
+          </div>
+          <p className="text-[10px] text-white/40 font-sans">Powered by Violet Bites</p>
+        </div>
+      </footer>
 
     </div>
   );
