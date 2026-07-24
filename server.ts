@@ -766,7 +766,7 @@ app.post('/api/auth/generate-otp', async (req, res) => {
 
   console.log(`\n========================================`);
   console.log(`OTP for superadmin login: ${code}`);
-  console.log(`Email: ${SUPERADMIN_PHONE}`);
+  console.log(`Email: ${SUPERADMIN_EMAIL}`);
   console.log(`Expires in 5 minutes`);
   console.log(`========================================\n`);
 
