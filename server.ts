@@ -20,7 +20,7 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Enable CORS for mobile Capacitor WebView clients (http://localhost and capacitor://)
 app.use((req, res, next) => {
