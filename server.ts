@@ -11,6 +11,7 @@ import admin from 'firebase-admin';
 import Razorpay from 'razorpay';
 import { GoogleGenAI, Type } from '@google/genai';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User } from './src/types';
 
 // Load environment variables
@@ -746,7 +747,7 @@ app.post('/api/auth/login', async (req, res) => {
 // OTP VERIFICATION FOR SUPERADMIN LOGIN
 // ============================================================================
 
-const SUPERADMIN_PHONE = '9940918442';
+const SUPERADMIN_EMAIL = 'usrinivasan240@gmail.com';
 const otpStore = new Map<string, { code: string; expiresAt: number; email: string }>();
 
 app.post('/api/auth/generate-otp', async (req, res) => {
@@ -765,13 +766,30 @@ app.post('/api/auth/generate-otp', async (req, res) => {
 
   console.log(`\n========================================`);
   console.log(`OTP for superadmin login: ${code}`);
-  console.log(`Phone: ${SUPERADMIN_PHONE}`);
+  console.log(`Email: ${SUPERADMIN_PHONE}`);
   console.log(`Expires in 5 minutes`);
   console.log(`========================================\n`);
 
-  // In production, send SMS here via Twilio/textlocal API
-  // For now, return OTP in response for testing (remove in production!)
-  res.json({ success: true, message: `OTP sent to ${SUPERADMIN_PHONE}`, otp: code });
+  // Send OTP via email
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.SMTP_EMAIL || 'usrinivasan240@gmail.com',
+        pass: process.env.SMTP_PASSWORD || ''
+      }
+    });
+    await transporter.sendMail({
+      from: `"Violet Bites" <${process.env.SMTP_EMAIL || 'usrinivasan240@gmail.com'}>`,
+      to: SUPERADMIN_EMAIL,
+      subject: 'Violet Bites - Superadmin Login OTP',
+      html: `<div style="font-family:sans-serif;text-align:center;padding:20px"><h2 style="color:#7c3aed">Violet Bites</h2><p>Your superadmin login OTP is:</p><h1 style="font-size:32px;letter-spacing:8px;color:#7c3aed;background:#f3f0ff;padding:15px;border-radius:12px">${code}</h1><p style="color:#888;font-size:12px">Valid for 5 minutes. Do not share this OTP.</p></div>`
+    });
+    console.log('OTP email sent to', SUPERADMIN_EMAIL);
+  } catch (emailErr) {
+    console.error('Email send failed, OTP:', code, emailErr);
+  }
+  res.json({ success: true, message: `OTP sent to ${SUPERADMIN_EMAIL}` });
 });
 
 app.post('/api/auth/verify-otp', async (req, res) => {
@@ -2002,7 +2020,7 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
               type: 'walkin',
               billNumber: bill.billNumber,
               customerName: bill.customerName,
-              customerPhone: bill.customerPhone,
+              customerEmail: bill.customerPhone,
               customerRegNo: bill.customerRegNo,
             };
           }
@@ -2035,7 +2053,7 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
               type: 'walkin',
               billNumber: bill.billNumber,
               customerName: bill.customerName,
-              customerPhone: bill.customerPhone,
+              customerEmail: bill.customerPhone,
               customerRegNo: bill.customerRegNo,
             };
           }
@@ -2486,7 +2504,7 @@ app.post('/api/canteen/walkin-bill', async (req, res) => {
       type: 'walkin',
       billNumber: bill.billNumber,
       customerName: bill.customerName,
-      customerPhone: bill.customerPhone,
+      customerEmail: bill.customerPhone,
       customerRegNo: bill.customerRegNo,
       grandTotal: bill.grandTotal,
     };
@@ -2580,7 +2598,7 @@ app.get('/api/canteen/walkin-bill/lookup', async (req, res) => {
             type: 'walkin',
             billNumber: bill.billNumber,
             customerName: bill.customerName,
-            customerPhone: bill.customerPhone,
+            customerEmail: bill.customerPhone,
             customerRegNo: bill.customerRegNo,
           }
         });
@@ -2608,7 +2626,7 @@ app.get('/api/canteen/walkin-bill/lookup', async (req, res) => {
             type: 'walkin',
             billNumber: bill.billNumber,
             customerName: bill.customerName,
-            customerPhone: bill.customerPhone,
+            customerEmail: bill.customerPhone,
             customerRegNo: bill.customerRegNo,
           }
         });
