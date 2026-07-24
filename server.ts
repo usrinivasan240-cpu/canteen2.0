@@ -770,10 +770,13 @@ app.post('/api/auth/generate-otp', async (req, res) => {
   console.log(`Expires in 5 minutes`);
   console.log(`========================================\n`);
 
-  // Send OTP via email using Resend API (fast, works on serverless)
+  // Send OTP via email using Resend API
   try {
     const resendApiKey = process.env.RESEND_API_KEY;
+    console.log('RESEND_API_KEY present:', !!resendApiKey, 'length:', (resendApiKey || '').length);
     if (resendApiKey) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
       const emailResp = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -785,19 +788,20 @@ app.post('/api/auth/generate-otp', async (req, res) => {
           to: [SUPERADMIN_EMAIL],
           subject: 'Violet Bites - Superadmin Login OTP',
           html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">Violet Bites</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
-        })
+        }),
+        signal: controller.signal
       });
-      if (emailResp.ok) {
-        console.log('OTP email sent to', SUPERADMIN_EMAIL);
-      } else {
-        const errText = await emailResp.text();
-        console.error('Resend API error:', emailResp.status, errText);
+      clearTimeout(timeout);
+      const respBody = await emailResp.text();
+      console.log('Resend response:', emailResp.status, respBody);
+      if (!emailResp.ok) {
+        console.error('Resend API error:', emailResp.status, respBody);
       }
     } else {
-      console.log('RESEND_API_KEY not set. OTP:', code, 'for', SUPERADMIN_EMAIL);
+      console.log('RESEND_API_KEY not set. OTP for testing:', code);
     }
   } catch (emailErr) {
-    console.error('Email send failed, OTP:', code, emailErr);
+    console.error('Email send failed:', emailErr);
   }
   res.json({ success: true, message: `OTP sent to ${SUPERADMIN_EMAIL}` });
 });
