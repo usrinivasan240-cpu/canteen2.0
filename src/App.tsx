@@ -53,7 +53,7 @@ export default function App() {
   useEffect(() => {
     fetchCanteenData(selectedCanteenId);
     // poll order statuses incrementally to update customer alerts
-    const interval = setInterval(() => fetchCanteenData(selectedCanteenId), 15000);
+    const interval = setInterval(() => fetchCanteenData(selectedCanteenId), 60000);
     return () => clearInterval(interval);
   }, [selectedCanteenId]);
 
