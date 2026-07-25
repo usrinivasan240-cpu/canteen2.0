@@ -358,11 +358,12 @@ export default function CustomerApp({
         {/* Background pattern overlay */}
         <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")'}} />
         <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 p-6 md:p-10">
-          <div className="flex items-center gap-4">
+          {/* Large College Logo */}
+          <div className="shrink-0">
             {userCollege?.logoUrl ? (
-              <img src={userCollege.logoUrl} alt={userCollege.name} className="h-20 w-20 md:h-28 md:w-28 rounded-2xl object-cover border-2 border-white/30 shadow-lg" />
+              <img src={userCollege.logoUrl} alt={userCollege.name} className="w-32 h-32 md:w-44 md:h-44 rounded-2xl object-contain border-3 border-white/30 shadow-2xl bg-white/10 p-2" />
             ) : (
-              <div className="h-20 w-20 md:h-28 md:w-28 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-3xl md:text-4xl font-bold border-2 border-white/30 shadow-lg">
+              <div className="w-32 h-32 md:w-44 md:h-44 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-5xl md:text-6xl font-bold border-2 border-white/30 shadow-2xl">
                 {userCollege?.name?.charAt(0) || 'V'}
               </div>
             )}
