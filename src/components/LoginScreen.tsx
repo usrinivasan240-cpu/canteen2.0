@@ -189,24 +189,24 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   return (
     <>
-    <div className="min-h-screen bg-[#e8e4f5] flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden p-8 border border-violet-100 transition-all">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden p-8 border border-blue-100 transition-all">
         <div className="flex flex-col items-center text-center space-y-2 mb-6">
-          <div className="h-14 w-14 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20">
+          <div className="h-14 w-14 rounded-2xl bg-orange-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20">
             <ChefHat className="h-8 w-8" />
           </div>
           <div>
             <h1 className="font-display font-bold text-2xl text-gray-900 tracking-tight">Violet Bites</h1>
-            <p className="text-xs font-semibold text-violet-600 font-sans tracking-wide">Your campus canteen, just a click away.</p>
+            <p className="text-xs font-semibold text-orange-600 font-sans tracking-wide">Your campus canteen, just a click away.</p>
           </div>
         </div>
 
-        <div className="flex bg-violet-50 p-1.5 rounded-2xl border border-violet-100/50 mb-6">
+        <div className="flex bg-blue-50 p-1.5 rounded-2xl border border-blue-100/50 mb-6">
           <button
             type="button"
             onClick={() => { setIsSignUp(false); resetForm(); }}
             className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              !isSignUp ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-950'
+              !isSignUp ? 'bg-orange-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-950'
             }`}
           >
             <LogIn className="h-3.5 w-3.5 inline mr-1.5" />
@@ -216,7 +216,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             type="button"
             onClick={() => { setIsSignUp(true); resetForm(); }}
             className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              isSignUp ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-950'
+              isSignUp ? 'bg-orange-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-950'
             }`}
           >
             <UserPlus className="h-3.5 w-3.5 inline mr-1.5" />
@@ -254,7 +254,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   value={nameInput}
                   onChange={(e) => setNameInput(e.target.value)}
                   required
-                  className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-medium text-gray-800"
+                  className="w-full bg-blue-50/50 hover:bg-blue-50 focus:bg-white text-xs px-4 py-3 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-medium text-gray-800"
                   placeholder="e.g. Raju Srinivasan"
                 />
               </div>
@@ -268,7 +268,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   value={registerNumberInput}
                   onChange={(e) => setRegisterNumberInput(e.target.value)}
                   required
-                  className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-medium text-gray-800"
+                  className="w-full bg-blue-50/50 hover:bg-blue-50 focus:bg-white text-xs px-4 py-3 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-medium text-gray-800"
                   placeholder="e.g. 21CS001"
                 />
               </div>
@@ -283,7 +283,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   onChange={(e) => setPhoneInput(e.target.value)}
                   required
                   pattern="[0-9]{10}"
-                  className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-medium text-gray-800"
+                  className="w-full bg-blue-50/50 hover:bg-blue-50 focus:bg-white text-xs px-4 py-3 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-medium text-gray-800"
                   placeholder="e.g. 9940918442"
                 />
               </div>
@@ -296,7 +296,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   value={selectedCollegeId}
                   onChange={(e) => setSelectedCollegeId(e.target.value)}
                   required
-                  className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-semibold text-gray-800 cursor-pointer"
+                  className="w-full bg-blue-50/50 hover:bg-blue-50 focus:bg-white text-xs px-4 py-3 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-semibold text-gray-800 cursor-pointer"
                 >
                   <option value="">-- Choose your college --</option>
                   {colleges.map(c => (
@@ -316,7 +316,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               value={emailInput}
               onChange={(e) => setEmailInput(e.target.value)}
               required
-              className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-medium text-gray-800"
+              className="w-full bg-blue-50/50 hover:bg-blue-50 focus:bg-white text-xs px-4 py-3 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-medium text-gray-800"
               placeholder="e.g. rajus@gmail.com"
             />
           </div>
@@ -331,7 +331,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 required
-                className="w-full bg-violet-50/50 hover:bg-violet-50 focus:bg-white text-xs px-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all font-mono text-gray-800 pr-10"
+                className="w-full bg-blue-50/50 hover:bg-blue-50 focus:bg-white text-xs px-4 py-3 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-mono text-gray-800 pr-10"
                 placeholder={isSignUp ? "Create a password" : "Enter your password"}
               />
               <button
@@ -347,7 +347,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-5 bg-violet-600 hover:bg-violet-750 active:bg-violet-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md flex items-center justify-center space-x-2 disabled:bg-violet-400/80 cursor-pointer font-display"
+            className="w-full mt-5 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md flex items-center justify-center space-x-2 disabled:bg-violet-400/80 cursor-pointer font-display"
           >
             {loading ? (
               <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -403,14 +403,14 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 value={otpInput}
                 onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
                 placeholder="000000"
-                className="w-full bg-violet-50/30 text-center text-2xl font-mono font-bold tracking-[0.3em] px-4 py-4 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all"
+                className="w-full bg-blue-50/30 text-center text-2xl font-mono font-bold tracking-[0.3em] px-4 py-4 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
                 autoFocus
               />
             </div>
             <button
               onClick={handleVerifyOtp}
               disabled={otpLoading || otpInput.length !== 6}
-              className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400/60 text-white rounded-xl py-3 text-sm font-semibold transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer font-display"
+              className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-violet-400/60 text-white rounded-xl py-3 text-sm font-semibold transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer font-display"
             >
               {otpLoading ? (
                 <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -420,7 +420,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </button>
             <button
               onClick={handleResendOtp}
-              className="w-full text-violet-600 hover:text-violet-800 text-xs font-semibold py-2 transition cursor-pointer"
+              className="w-full text-orange-600 hover:text-violet-800 text-xs font-semibold py-2 transition cursor-pointer"
             >
               Resend OTP
             </button>

@@ -387,12 +387,12 @@ export default function App() {
         )}
       </main>
 
-      {/* FOOTER ACCENTS */}
-      {role !== 'superadmin' && (
-        <footer className="border-t border-violet-100 bg-white py-6">
+      {/* FOOTER - Hidden for customer (CustomerApp has its own branded footer) */}
+      {role !== 'superadmin' && role !== 'customer' && (
+        <footer className="border-t border-blue-100 bg-white py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between text-xs text-gray-400 font-sans gap-3">
             <div className="flex items-center space-x-2">
-              <span className="font-bold text-violet-700 font-display text-sm">Violet Bites</span>
+              <span className="font-bold text-blue-900 font-display text-sm">{userCollege?.name || 'Violet Bites'}</span>
               <span>&copy; 2026 Campus Cafeteria Systems. All rights reserved.</span>
             </div>
             <div className="flex items-center space-x-4">
