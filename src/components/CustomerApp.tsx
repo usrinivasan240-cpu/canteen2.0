@@ -355,8 +355,15 @@ export default function CustomerApp({
 
       {/* HERO BANNER - College Branded */}
       <div className="relative rounded-3xl overflow-hidden mb-8 bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 text-white shadow-xl">
-        {/* Background pattern overlay */}
-        <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")'}} />
+        {/* Banner background image if set */}
+        {userCollege?.bannerUrl && (
+          <div className="absolute inset-0">
+            <img src={userCollege.bannerUrl} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-blue-900/70" />
+          </div>
+        )}
+        {/* Background pattern overlay (only when no banner image) */}
+        {!userCollege?.bannerUrl && <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")'}} />}
         <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 p-6 md:p-10">
           {/* Large College Logo */}
           <div className="shrink-0">
@@ -371,20 +378,14 @@ export default function CustomerApp({
           <div className="text-center md:text-left flex-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-orange-300 mb-1">Welcome to</p>
             <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight">{userCollege?.name || 'Violet Bites'}</h1>
-            <p className="text-sm text-white/80 font-sans mt-1">Official Smart Canteen Platform</p>
+            <p className="text-sm text-white/80 font-sans mt-1">{userCollege?.bannerSubtitle || 'Official Smart Canteen Platform'}</p>
             <div className="flex flex-wrap gap-2 mt-3 justify-center md:justify-start">
-              <span className="bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                Order Faster
-              </span>
-              <span className="bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                Skip the Queue
-              </span>
-              <span className="bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                Smart Pickup
-              </span>
+              {(userCollege?.bannerFeatures || ['Order Faster', 'Skip the Queue', 'Smart Pickup']).map((feat, i) => (
+                <span key={i} className="bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  {feat}
+                </span>
+              ))}
             </div>
           </div>
         </div>

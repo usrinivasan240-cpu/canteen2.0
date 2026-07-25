@@ -900,6 +900,28 @@ app.put('/api/colleges/:id/logo', async (req, res) => {
   res.json({ success: true });
 });
 
+app.put('/api/colleges/:id/banner', async (req, res) => {
+  const { id } = req.params;
+  const { bannerUrl, bannerSubtitle, bannerFeatures } = req.body;
+  const updates: any = {};
+  if (bannerUrl !== undefined) updates.bannerUrl = bannerUrl;
+  if (bannerSubtitle !== undefined) updates.bannerSubtitle = bannerSubtitle;
+  if (bannerFeatures !== undefined) updates.bannerFeatures = bannerFeatures;
+  if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
+  if (db) {
+    try {
+      await db.collection('colleges').doc(id).set(updates, { merge: true });
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ success: false, error: 'DB update failed' });
+    }
+  }
+  const idx = collegesState.findIndex(c => c.id === id);
+  if (idx !== -1) collegesState[idx] = { ...collegesState[idx], ...updates };
+  firestoreCache.delete('colleges');
+  res.json({ success: true });
+});
+
 app.delete('/api/colleges/:id', async (req, res) => {
   const { id } = req.params;
   if (db) {

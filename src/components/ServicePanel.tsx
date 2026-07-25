@@ -675,6 +675,86 @@ export default function ServicePanel({
                   </tbody>
                 </table>
               </div>
+
+              {/* Banner Settings for each college */}
+              <div className="bg-white rounded-3xl border border-violet-100/60 shadow-xs overflow-hidden text-left">
+                <div className="p-5 border-b border-violet-50/50">
+                  <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">Banner Settings</h3>
+                  <p className="text-[11px] text-gray-400 font-sans mt-0.5">Customize the hero banner for each college.</p>
+                </div>
+                <div className="p-5 space-y-4">
+                  {colleges.map(c => (
+                    <div key={c.id} className="border border-blue-100 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded bg-blue-100 flex items-center justify-center text-blue-700 text-[10px] font-bold">{c.name.charAt(0)}</div>
+                        <span className="text-xs font-bold text-gray-900">{c.name}</span>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Banner Image</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onloadend = async () => {
+                              try {
+                                await fetch(`${API_BASE}/api/colleges/${c.id}/banner`, {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ bannerUrl: reader.result as string })
+                                });
+                                await syncAdminData();
+                              } catch (err) { console.error(err); }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                          className="w-full text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
+                        />
+                        {c.bannerUrl && <img src={c.bannerUrl} alt="Banner" className="w-full h-20 object-cover rounded-lg border border-gray-100 mt-1" />}
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Banner Subtitle</label>
+                        <input
+                          type="text"
+                          defaultValue={c.bannerSubtitle || 'Official Smart Canteen Platform'}
+                          onBlur={async (e) => {
+                            try {
+                              await fetch(`${API_BASE}/api/colleges/${c.id}/banner`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ bannerSubtitle: e.target.value })
+                              });
+                              await syncAdminData();
+                            } catch (err) { console.error(err); }
+                          }}
+                          className="w-full bg-blue-50/30 text-xs px-3 py-2 border border-blue-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Feature Badges (comma separated)</label>
+                        <input
+                          type="text"
+                          defaultValue={(c.bannerFeatures || ['Order Faster', 'Skip the Queue', 'Smart Pickup']).join(', ')}
+                          onBlur={async (e) => {
+                            const features = e.target.value.split(',').map(f => f.trim()).filter(Boolean);
+                            try {
+                              await fetch(`${API_BASE}/api/colleges/${c.id}/banner`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ bannerFeatures: features })
+                              });
+                              await syncAdminData();
+                            } catch (err) { console.error(err); }
+                          }}
+                          className="w-full bg-blue-50/30 text-xs px-3 py-2 border border-blue-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-semibold"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )}

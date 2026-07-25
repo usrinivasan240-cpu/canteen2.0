@@ -98,6 +98,9 @@ export interface College {
   name: string;
   location: string;
   logoUrl?: string;
+  bannerUrl?: string;
+  bannerSubtitle?: string;
+  bannerFeatures?: string[];
   status: 'active' | 'inactive';
 }
 
