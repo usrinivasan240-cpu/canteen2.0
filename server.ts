@@ -59,6 +59,33 @@ if (paytmConfigured) {
 }
 
 // ============================================================================
+// SERVER-SIDE IMAGE COMPRESSION (reduces Firestore document sizes by 90%+)
+// ============================================================================
+let sharpLib: any = null;
+try {
+  sharpLib = require('sharp');
+  console.log('sharp loaded for server-side image compression.');
+} catch { console.log('sharp not available, skipping server-side image compression.'); }
+
+async function compressBase64Image(dataUrl: string, maxWidth = 300): Promise<string> {
+  if (!sharpLib || !dataUrl.startsWith('data:image')) return dataUrl;
+  try {
+    const matches = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!matches) return dataUrl;
+    const ext = matches[1] === 'png' ? 'png' : 'jpeg';
+    const buf = Buffer.from(matches[2], 'base64');
+    if (buf.length < 50000) return dataUrl; // already small (<50KB), skip
+    const resized = await sharpLib(buf).resize({ width: maxWidth, height: maxWidth, fit: 'inside' }).jpeg({ quality: 70 }).toBuffer();
+    const smallUrl = `data:image/jpeg;base64,${resized.toString('base64')}`;
+    console.log(`Image compressed: ${(buf.length/1024).toFixed(0)}KB -> ${(resized.length/1024).toFixed(0)}KB`);
+    return smallUrl;
+  } catch (e: any) {
+    console.warn('Image compression failed, using original:', e?.message);
+    return dataUrl;
+  }
+}
+
+// ============================================================================
 // FIRESTORE READ CACHE (reduces reads by 80-90%)
 // ============================================================================
 const firestoreCache = new Map<string, { data: any; expiresAt: number }>();
@@ -885,16 +912,18 @@ app.put('/api/colleges/:id/logo', async (req, res) => {
   const { id } = req.params;
   const { logoUrl } = req.body;
   if (!logoUrl) return res.status(400).json({ success: false, error: 'logoUrl is required' });
+  const compressed = await compressBase64Image(logoUrl, 300);
   if (db) {
     try {
-      await db.collection('colleges').doc(id).set({ logoUrl }, { merge: true });
+      await db.collection('colleges').doc(id).set({ logoUrl: compressed }, { merge: true });
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'DB update failed' });
     }
   }
   const idx = collegesState.findIndex(c => c.id === id);
-  if (idx !== -1) collegesState[idx] = { ...collegesState[idx], logoUrl };
+  if (idx !== -1) collegesState[idx] = { ...collegesState[idx], logoUrl: compressed };
+  firestoreCache.delete('colleges');
   res.json({ success: true });
 });
 
@@ -902,7 +931,7 @@ app.put('/api/colleges/:id/banner', async (req, res) => {
   const { id } = req.params;
   const { bannerUrl, bannerSubtitle, bannerFeatures } = req.body;
   const updates: any = {};
-  if (bannerUrl !== undefined) updates.bannerUrl = bannerUrl;
+  if (bannerUrl !== undefined) updates.bannerUrl = await compressBase64Image(bannerUrl, 800);
   if (bannerSubtitle !== undefined) updates.bannerSubtitle = bannerSubtitle;
   if (bannerFeatures !== undefined) updates.bannerFeatures = bannerFeatures;
   if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });

@@ -322,7 +322,7 @@ export default function WalkinPOS({
         {/* LEFT: Menu + Search */}
         <div className="xl:col-span-8 space-y-4">
           {/* Search & Category Filter */}
-          <div className="bg-white p-4 rounded-2xl border border-violet-100 shadow-xs space-y-3">
+          <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-xs space-y-3">
             <div className="flex gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -331,7 +331,7 @@ export default function WalkinPOS({
                   placeholder="Search food by name, category..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-violet-50/30 hover:bg-violet-50/60 focus:bg-white text-xs pl-10 pr-4 py-3 border border-violet-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 font-sans transition-all"
+                  className="w-full bg-blue-50/30 hover:bg-blue-50/60 focus:bg-white text-xs pl-10 pr-4 py-3 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 font-sans transition-all"
                 />
                 {searchQuery && (
                   <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
@@ -347,8 +347,8 @@ export default function WalkinPOS({
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-3 py-1.5 text-[10px] font-bold rounded-full whitespace-nowrap transition-all cursor-pointer ${
                     selectedCategory === cat
-                      ? 'bg-violet-600 text-white shadow-md'
-                      : 'bg-violet-50 text-violet-600 hover:bg-violet-100'
+                      ? 'bg-orange-600 text-white shadow-md'
+                      : 'bg-blue-50 text-orange-600 hover:bg-blue-100'
                   }`}
                 >
                   {cat}
@@ -369,29 +369,29 @@ export default function WalkinPOS({
                   disabled={stockLeft <= 0}
                   className={`relative bg-white p-3 rounded-2xl border text-left transition-all cursor-pointer group ${
                     inCart
-                      ? 'border-violet-400 ring-2 ring-violet-200 shadow-md'
+                      ? 'border-orange-400 ring-2 ring-blue-200 shadow-md'
                       : stockLeft <= 0
                         ? 'border-gray-100 opacity-50 cursor-not-allowed'
-                        : 'border-violet-100 hover:border-violet-300 hover:shadow-md active:scale-95'
+                        : 'border-blue-100 hover:border-blue-300 hover:shadow-md active:scale-95'
                   }`}
                 >
                   {inCart && (
-                    <span className="absolute -top-2 -right-2 bg-violet-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow">
+                    <span className="absolute -top-2 -right-2 bg-orange-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow">
                       {inCart.quantity}
                     </span>
                   )}
                   {item.imageUrl ? (
-                    <div className="w-full h-20 rounded-xl bg-violet-50 overflow-hidden mb-2">
+                    <div className="w-full h-20 rounded-xl bg-blue-50 overflow-hidden mb-2">
                       <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                     </div>
                   ) : (
-                    <div className="w-full h-20 rounded-xl bg-gradient-to-br from-violet-50 to-violet-100 flex items-center justify-center mb-2 text-2xl">
+                    <div className="w-full h-20 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center mb-2 text-2xl">
                       🍽️
                     </div>
                   )}
                   <p className="font-display font-bold text-[11px] text-gray-900 truncate">{item.name}</p>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="font-mono font-bold text-xs text-violet-700">₹{item.price}</span>
+                    <span className="font-mono font-bold text-xs text-blue-800">₹{item.price}</span>
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                       stockLeft > 5 ? 'bg-emerald-50 text-emerald-700' : stockLeft > 0 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'
                     }`}>
@@ -413,12 +413,12 @@ export default function WalkinPOS({
         {/* RIGHT: Cart + Payment */}
         <div className="xl:col-span-4 space-y-4">
           {/* Cart */}
-          <div className="bg-white p-4 rounded-2xl border border-violet-100 shadow-xs">
-            <div className="flex items-center justify-between border-b border-violet-50 pb-3 mb-3">
+          <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-xs">
+            <div className="flex items-center justify-between border-b border-blue-50 pb-3 mb-3">
               <div className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-violet-600" />
+                <ShoppingCart className="h-4 w-4 text-orange-600" />
                 <span className="font-display font-bold text-sm text-gray-900">Cart</span>
-                <span className="bg-violet-100 text-violet-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
                   {cart.reduce((s, c) => s + c.quantity, 0)}
                 </span>
               </div>
@@ -437,11 +437,11 @@ export default function WalkinPOS({
             ) : (
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                 {cart.map((item, idx) => (
-                  <div key={item.itemId} className="bg-violet-50/30 rounded-xl p-3 space-y-2">
+                  <div key={item.itemId} className="bg-blue-50/30 rounded-xl p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <p className="font-sans font-semibold text-[11px] text-gray-900 truncate">{item.name}</p>
-                        <p className="font-mono text-[10px] text-violet-600">₹{item.price} each</p>
+                        <p className="font-mono text-[10px] text-orange-600">₹{item.price} each</p>
                       </div>
                       <button onClick={() => removeCartItem(item.itemId)} className="text-red-400 hover:text-red-600 ml-2 cursor-pointer">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -451,7 +451,7 @@ export default function WalkinPOS({
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => updateCartQty(item.itemId, item.quantity - 1)}
-                          className="w-6 h-6 rounded-lg bg-white border border-violet-200 flex items-center justify-center hover:bg-violet-50 cursor-pointer"
+                          className="w-6 h-6 rounded-lg bg-white border border-blue-200 flex items-center justify-center hover:bg-blue-50 cursor-pointer"
                         >
                           <Minus className="h-3 w-3" />
                         </button>
@@ -464,7 +464,7 @@ export default function WalkinPOS({
                         />
                         <button
                           onClick={() => updateCartQty(item.itemId, item.quantity + 1)}
-                          className="w-6 h-6 rounded-lg bg-white border border-violet-200 flex items-center justify-center hover:bg-violet-50 cursor-pointer"
+                          className="w-6 h-6 rounded-lg bg-white border border-blue-200 flex items-center justify-center hover:bg-blue-50 cursor-pointer"
                         >
                           <Plus className="h-3 w-3" />
                         </button>
@@ -479,15 +479,15 @@ export default function WalkinPOS({
                           value={item.specialInstructions || ''}
                           onChange={e => updateSpecialInstructions(item.itemId, e.target.value)}
                           placeholder="Special instructions..."
-                          className="flex-1 text-[10px] px-2 py-1 border border-violet-200 rounded-lg outline-none"
+                          className="flex-1 text-[10px] px-2 py-1 border border-blue-200 rounded-lg outline-none"
                           autoFocus
                         />
-                        <button onClick={() => setActiveSpecialIdx(null)} className="text-violet-600 text-[10px] font-bold cursor-pointer">OK</button>
+                        <button onClick={() => setActiveSpecialIdx(null)} className="text-orange-600 text-[10px] font-bold cursor-pointer">OK</button>
                       </div>
                     ) : (
                       <button
                         onClick={() => { setActiveSpecialIdx(idx); setSpecialText(item.specialInstructions || ''); }}
-                        className="text-[9px] text-violet-500 hover:text-violet-700 flex items-center gap-1 cursor-pointer"
+                        className="text-[9px] text-orange-500 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                       >
                         <StickyNote className="h-2.5 w-2.5" />
                         {item.specialInstructions ? item.specialInstructions : 'Add note'}
@@ -500,29 +500,29 @@ export default function WalkinPOS({
           </div>
 
           {/* Customer Details */}
-          <div className="bg-white p-4 rounded-2xl border border-violet-100 shadow-xs space-y-3">
-            <div className="flex items-center gap-2 border-b border-violet-50 pb-2">
-              <User className="h-4 w-4 text-violet-600" />
+          <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-xs space-y-3">
+            <div className="flex items-center gap-2 border-b border-blue-50 pb-2">
+              <User className="h-4 w-4 text-orange-600" />
               <span className="font-display font-bold text-sm text-gray-900">Customer (Optional)</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <input type="text" placeholder="Name" value={customerName} onChange={e => setCustomerName(e.target.value)}
-                className="bg-violet-50/30 text-xs px-3 py-2 border border-violet-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-violet-400 font-sans" />
+                className="bg-blue-50/30 text-xs px-3 py-2 border border-blue-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-400 font-sans" />
               <input type="tel" placeholder="Phone" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
-                className="bg-violet-50/30 text-xs px-3 py-2 border border-violet-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-violet-400 font-sans" />
+                className="bg-blue-50/30 text-xs px-3 py-2 border border-blue-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-400 font-sans" />
               <input type="text" placeholder="Reg Number" value={customerRegNo} onChange={e => setCustomerRegNo(e.target.value)}
-                className="bg-violet-50/30 text-xs px-3 py-2 border border-violet-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-violet-400 font-sans" />
+                className="bg-blue-50/30 text-xs px-3 py-2 border border-blue-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-400 font-sans" />
               <input type="text" placeholder="Department" value={customerDept} onChange={e => setCustomerDept(e.target.value)}
-                className="bg-violet-50/30 text-xs px-3 py-2 border border-violet-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-violet-400 font-sans" />
+                className="bg-blue-50/30 text-xs px-3 py-2 border border-blue-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-400 font-sans" />
             </div>
             <textarea placeholder="Notes..." value={customerNotes} onChange={e => setCustomerNotes(e.target.value)} rows={1}
-              className="w-full bg-violet-50/30 text-xs px-3 py-2 border border-violet-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-violet-400 font-sans resize-none" />
+              className="w-full bg-blue-50/30 text-xs px-3 py-2 border border-blue-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-400 font-sans resize-none" />
           </div>
 
           {/* Payment */}
-          <div className="bg-white p-4 rounded-2xl border border-violet-100 shadow-xs space-y-3">
-            <div className="flex items-center gap-2 border-b border-violet-50 pb-2">
-              <CreditCard className="h-4 w-4 text-violet-600" />
+          <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-xs space-y-3">
+            <div className="flex items-center gap-2 border-b border-blue-50 pb-2">
+              <CreditCard className="h-4 w-4 text-orange-600" />
               <span className="font-display font-bold text-sm text-gray-900">Payment</span>
             </div>
 
@@ -564,7 +564,7 @@ export default function WalkinPOS({
                         if (m.id === 'upi') generateQRForPayment();
                       }}
                       className={`py-2 rounded-xl text-[10px] font-bold transition-all flex flex-col items-center gap-1 cursor-pointer ${
-                        paymentMethod === m.id ? 'bg-violet-100 text-violet-700 ring-2 ring-violet-400' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                        paymentMethod === m.id ? 'bg-blue-100 text-blue-800 ring-2 ring-orange-400' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                       }`}
                     >
                       <Icon className="h-3.5 w-3.5" />
@@ -578,16 +578,16 @@ export default function WalkinPOS({
             {paymentStatus === 'pending' && (
               <div className="space-y-2">
                 <input type="text" placeholder="Reason (e.g. will pay after lab)" value={pendingReason} onChange={e => setPendingReason(e.target.value)}
-                  className="w-full bg-violet-50/30 text-xs px-3 py-2 border border-violet-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-violet-400 font-sans" />
+                  className="w-full bg-blue-50/30 text-xs px-3 py-2 border border-blue-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-400 font-sans" />
                 <input type="text" placeholder="Expected payment time (e.g. 2:00 PM)" value={pendingExpectedTime} onChange={e => setPendingExpectedTime(e.target.value)}
-                  className="w-full bg-violet-50/30 text-xs px-3 py-2 border border-violet-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-violet-400 font-sans" />
+                  className="w-full bg-blue-50/30 text-xs px-3 py-2 border border-blue-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-400 font-sans" />
               </div>
             )}
 
             {/* QR Payment Display */}
             {showQRPayment && paymentMethod === 'upi' && qrDataUrl && (
-              <div className="bg-violet-50 rounded-xl p-4 text-center space-y-2 border border-violet-200">
-                <p className="text-[10px] font-bold text-violet-700">Scan to Pay ₹{grandTotal.toFixed(2)}</p>
+              <div className="bg-blue-50 rounded-xl p-4 text-center space-y-2 border border-blue-200">
+                <p className="text-[10px] font-bold text-blue-800">Scan to Pay ₹{grandTotal.toFixed(2)}</p>
                 <img src={qrDataUrl} alt="UPI QR" className="mx-auto rounded-lg" />
                 <button onClick={() => setShowQRPayment(false)} className="text-[10px] text-gray-400 hover:text-gray-600 cursor-pointer">Hide QR</button>
               </div>
@@ -595,7 +595,7 @@ export default function WalkinPOS({
           </div>
 
           {/* Bill Summary */}
-          <div className="bg-white p-4 rounded-2xl border border-violet-100 shadow-xs space-y-3">
+          <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-xs space-y-3">
             <div className="space-y-2 text-xs font-sans">
               <div className="flex justify-between">
                 <span className="text-gray-500">Subtotal</span>
@@ -609,7 +609,7 @@ export default function WalkinPOS({
                     type="number"
                     value={discount}
                     onChange={e => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-                    className="w-16 text-right text-[10px] bg-violet-50/50 border border-violet-100 rounded px-1.5 py-0.5 outline-none"
+                    className="w-16 text-right text-[10px] bg-blue-50/50 border border-blue-100 rounded px-1.5 py-0.5 outline-none"
                     min={0}
                   />
                 </div>
@@ -618,9 +618,9 @@ export default function WalkinPOS({
                 <span className="text-gray-500">Tax (5%)</span>
                 <span className="font-mono font-medium">₹{taxAmount.toFixed(2)}</span>
               </div>
-              <div className="border-t border-violet-100 pt-2 flex justify-between font-bold text-sm">
+              <div className="border-t border-blue-100 pt-2 flex justify-between font-bold text-sm">
                 <span>Grand Total</span>
-                <span className="font-mono text-violet-700 text-base">₹{grandTotal.toFixed(2)}</span>
+                <span className="font-mono text-blue-800 text-base">₹{grandTotal.toFixed(2)}</span>
               </div>
             </div>
 
@@ -630,7 +630,7 @@ export default function WalkinPOS({
               className={`w-full py-3.5 rounded-xl text-xs font-bold tracking-wide transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer font-display ${
                 cart.length === 0 || isProcessing
                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-750 hover:to-fuchsia-750 text-white active:scale-98'
+                  : 'bg-gradient-to-r from-orange-600 to-purple-600 hover:from-orange-700 hover:to-purple-700 text-white active:scale-98'
               }`}
             >
               <Receipt className="h-4 w-4" />
@@ -643,8 +643,8 @@ export default function WalkinPOS({
       {/* Receipt Modal */}
       {showReceipt && lastBill && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col border border-violet-100">
-            <div className="p-6 text-center border-b border-violet-50">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col border border-blue-100">
+            <div className="p-6 text-center border-b border-blue-50">
               <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto mb-2" />
               <h3 className="font-display font-bold text-lg text-gray-900">Bill Generated!</h3>
               <p className="text-xs text-gray-400 mt-1">{lastBill.billNumber}</p>
@@ -717,8 +717,8 @@ export default function WalkinPOS({
               </div>
             </div>
 
-            <div className="p-4 border-t border-violet-50 flex gap-2 no-print shrink-0">
-              <button onClick={handlePrint} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+            <div className="p-4 border-t border-blue-50 flex gap-2 no-print shrink-0">
+              <button onClick={handlePrint} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
                 <Printer className="h-3.5 w-3.5" /> Print
               </button>
               <button onClick={() => { setShowReceipt(false); setLastBill(null); setReceiptQrUrl(''); }} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold cursor-pointer">

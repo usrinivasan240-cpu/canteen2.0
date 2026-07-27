@@ -455,7 +455,7 @@ export default function CustomerApp({
                 </div>
 
                 {/* QR Code generated locally */}
-                <div className="bg-[#ffffff] p-5 rounded-2xl border-2 border-dashed border-violet-200/80 my-4 flex flex-col items-center">
+                <div className="bg-[#ffffff] p-5 rounded-2xl border-2 border-dashed border-blue-200/80 my-4 flex flex-col items-center">
                   <div className="bg-neutral-900 p-4 rounded-xl">
                     {qrImageUrl ? (
                       <img src={qrImageUrl} alt="Order QR Code" className="h-44 w-44 rounded-lg" />
@@ -483,7 +483,7 @@ export default function CustomerApp({
                 {/* Dynamic List order summary */}
                 <div className="w-full text-left space-y-3.5 mt-4">
                   <h3 className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Order Summary</h3>
-                  <div className="divide-y divide-violet-100/50 font-sans text-xs">
+                  <div className="divide-y divide-blue-100/50 font-sans text-xs">
                     {successOrder.items.map((item, idx) => (
                       <div key={idx} className="py-2.5 flex justify-between items-center">
                         <span className="text-gray-800 font-medium">
@@ -519,7 +519,7 @@ export default function CustomerApp({
                 <button
                   type="button"
                   onClick={() => { setSuccessOrder(null); setQrImageUrl(''); setQrPayload(''); }}
-                  className="w-full mt-6 bg-orange-600 hover:bg-orange-700 active:bg-violet-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md cursor-pointer font-display"
+                  className="w-full mt-6 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md cursor-pointer font-display"
                 >
                   Place Another Order
                 </button>
@@ -629,7 +629,7 @@ export default function CustomerApp({
                                 <button
                                   onClick={() => updateCartQty(item.id, true)}
                                   disabled={item.stock === 0 || item.bookedToday >= item.dailyLimit || item.isPaused}
-                                  className="bg-orange-600 hover:bg-orange-700 active:bg-violet-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition shadow-xs flex items-center space-x-1 disabled:bg-slate-100 disabled:text-slate-450"
+                                  className="bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition shadow-xs flex items-center space-x-1 disabled:bg-slate-100 disabled:text-slate-450"
                                 >
                                   <Plus className="h-3.5 w-3.5" />
                                   <span>{item.isPaused ? 'Unavailable' : (item.stock === 0 || item.bookedToday >= item.dailyLimit) ? 'Sold Out' : 'Add to Cart'}</span>
@@ -750,13 +750,13 @@ export default function CustomerApp({
 
                   {totalCartCount === 0 ? (
                     <div className="text-center py-10 space-y-3">
-                      <ShoppingCart className="h-10 w-10 text-violet-100 mx-auto" />
+                      <ShoppingCart className="h-10 w-10 text-blue-100 mx-auto" />
                       <p className="text-xs text-gray-400 max-w-xs mx-auto">Your cart is currently empty. Tap products to include them in your lunch order.</p>
                     </div>
                   ) : (
                     <div className="space-y-6">
                       {/* Products list */}
-                      <div className="divide-y divide-violet-50 max-h-[240px] overflow-y-auto pr-1">
+                      <div className="divide-y divide-blue-50 max-h-[240px] overflow-y-auto pr-1">
                         {Object.entries(cart).map(([itemId, qty]) => {
                           const item = menuItems.find(i => i.id === itemId);
                           if (!item) return null;
@@ -863,7 +863,7 @@ export default function CustomerApp({
                     );
                   }
                   return (
-                    <div className="divide-y divide-violet-100">
+                    <div className="divide-y divide-blue-100">
                       {myOrders.map(o => {
                         let remainingMinutes = 0;
                         if (o.expiryTime && (o.status === 'scheduled' || o.status === 'preparing' || o.status === 'ready')) {
@@ -967,7 +967,7 @@ export default function CustomerApp({
                   <span className="text-xs font-bold text-gray-700">Google Pay</span>
                 </div>
                 {/* Simulated round avatar photo representing Raju/Watson */}
-                <div className="h-8 w-8 rounded-full overflow-hidden ring-2 ring-violet-200">
+                <div className="h-8 w-8 rounded-full overflow-hidden ring-2 ring-blue-200">
                   <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop" alt="User Profile" className="h-full w-full object-cover" />
                 </div>
               </div>
@@ -975,7 +975,7 @@ export default function CustomerApp({
               {/* VISA CARD MOCKUP */}
               <div className="bg-white p-4 rounded-xl border border-neutral-300/60 shadow-xs flex items-center justify-between hover:bg-neutral-50 transition cursor-pointer">
                 <div className="flex items-center space-x-2.5">
-                  <div className="px-2 py-1 bg-violet-100 text-blue-800 rounded font-semibold text-[10px] font-mono">VISA</div>
+                  <div className="px-2 py-1 bg-blue-100 text-blue-800 rounded font-semibold text-[10px] font-mono">VISA</div>
                   <div>
                     <span className="text-xs font-bold text-gray-800 block">Test Card</span>
                     <span className="text-[10px] text-gray-400 font-mono">Visa •••• 1111</span>

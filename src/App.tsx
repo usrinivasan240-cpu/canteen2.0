@@ -237,15 +237,15 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#e8e4f5] flex flex-col items-center justify-center p-6 text-center text-gray-500">
         <div className="relative mb-6">
-          <div className="h-16 w-16 bg-violet-600 rounded-3xl flex items-center justify-center text-white shadow-lg animate-bounce">
+          <div className="h-16 w-16 bg-orange-600 rounded-3xl flex items-center justify-center text-white shadow-lg animate-bounce">
             <ChefHat className="h-8 w-8" />
           </div>
           <div className="absolute -bottom-2 -right-2 h-6 w-6 bg-white rounded-full flex items-center justify-center shadow-xs">
-            <div className="h-4.5 w-4.5 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+            <div className="h-4.5 w-4.5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" />
           </div>
         </div>
         <h2 className="font-display font-bold text-gray-950 text-xl tracking-tight">Booting Violet Bites</h2>
-        <p className="text-xs text-violet-650 mt-1 max-w-xs font-semibold">Connecting smart dining cloud network...</p>
+        <p className="text-xs text-orange-600 mt-1 max-w-xs font-semibold">Connecting smart dining cloud network...</p>
       </div>
     );
   }

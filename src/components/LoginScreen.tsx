@@ -192,7 +192,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden p-8 border border-blue-100 transition-all">
         <div className="flex flex-col items-center text-center space-y-2 mb-6">
-          <div className="h-14 w-14 rounded-2xl bg-orange-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20">
+          <div className="h-14 w-14 rounded-2xl bg-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20">
             <ChefHat className="h-8 w-8" />
           </div>
           <div>
@@ -347,7 +347,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-5 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md flex items-center justify-center space-x-2 disabled:bg-violet-400/80 cursor-pointer font-display"
+            className="w-full mt-5 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md flex items-center justify-center space-x-2 disabled:bg-orange-400/80 cursor-pointer font-display"
           >
             {loading ? (
               <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -366,7 +366,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         </form>
 
         {!isSignUp && (
-          <div className="mt-5 border-t border-violet-50 pt-4 text-center">
+          <div className="mt-5 border-t border-blue-50 pt-4 text-center">
             <span className="text-[10px] text-gray-450 font-medium">
               Demo: watson777@gmail.com / password123
             </span>
@@ -379,7 +379,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     {showOtpModal && (
       <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden">
-          <div className="bg-gradient-to-br from-violet-600 to-purple-700 p-6 text-center text-white">
+          <div className="bg-gradient-to-br from-orange-600 to-purple-700 p-6 text-center text-white">
             <div className="h-16 w-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </div>
@@ -410,7 +410,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             <button
               onClick={handleVerifyOtp}
               disabled={otpLoading || otpInput.length !== 6}
-              className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-violet-400/60 text-white rounded-xl py-3 text-sm font-semibold transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer font-display"
+              className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400/60 text-white rounded-xl py-3 text-sm font-semibold transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer font-display"
             >
               {otpLoading ? (
                 <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -420,7 +420,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </button>
             <button
               onClick={handleResendOtp}
-              className="w-full text-orange-600 hover:text-violet-800 text-xs font-semibold py-2 transition cursor-pointer"
+              className="w-full text-orange-600 hover:text-blue-900 text-xs font-semibold py-2 transition cursor-pointer"
             >
               Resend OTP
             </button>
