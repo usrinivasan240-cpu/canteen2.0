@@ -713,7 +713,7 @@ export default function WalkinPOS({
               )}
               <div className="text-center mt-4">
                 <p className="text-[10px] text-gray-400">Thank you for dining with us!</p>
-                <p className="text-[9px] text-gray-300">For support: Violet Bites Helpdesk</p>
+                <p className="text-[9px] text-gray-300">For support: Bite &amp; Byte Helpdesk</p>
               </div>
             </div>
 

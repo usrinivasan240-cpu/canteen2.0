@@ -44,7 +44,7 @@ export default function UpdatePopup() {
         {/* Body */}
         <div className="p-6 text-center space-y-4">
           <p className="text-sm text-gray-600">
-            A new version of <span className="font-bold text-amber-600">Violet Bites</span> is available with improvements and bug fixes.
+            A new version of <span className="font-bold text-amber-600">Bite &amp; Byte</span> is available with improvements and bug fixes.
           </p>
           <p className="text-xs text-gray-400">
             Please update to continue using the app.

@@ -568,7 +568,7 @@ let subCanteensState: SubCanteen[] = [
 let canteensState: Canteen[] = [
   {
     id: 'canteen_001',
-    name: 'SkipQ',
+    name: 'Bite & Byte',
     collegeId: 'college_001',
     ownerId: 'user_owner_default',
     ownerName: 'Chef Watson',
@@ -834,10 +834,10 @@ app.post('/api/auth/generate-otp', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'SkipQ <onboarding@resend.dev>',
+        from: 'Bite & Byte <onboarding@resend.dev>',
         to: [SUPERADMIN_EMAIL],
-        subject: 'SkipQ - Superadmin Login OTP',
-        html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">SkipQ</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
+        subject: 'Bite & Byte - Superadmin Login OTP',
+        html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">Bite & Byte</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
       })
     }).then(r => r.text()).then(t => console.log('Resend:', t)).catch(e => console.error('Resend error:', e));
   } else {
@@ -1386,7 +1386,7 @@ app.get('/api/canteen', async (req, res) => {
       const ingredients = ingSnap.empty ? INITIAL_INGREDIENTS.map(ing => ({ ...ing, canteenId })) : ingSnap.docs.map(doc => doc.data() as Ingredient);
       const settings = settingsSnap.exists ? settingsSnap.data() as CanteenSettings : { ...canteenSettings, canteenId };
 
-      let canteenName = 'SkipQ';
+      let canteenName = 'Bite & Byte';
       let ownerName = 'Chef Watson';
       if (cRef.exists) {
         canteenName = cRef.data()?.name || canteenName;
@@ -2456,7 +2456,7 @@ app.post('/api/canteen/reset', async (req, res) => {
   const targetCanteen = getCanteenState(canteenId);
   const resetCanteen: Canteen = {
     id: canteenId,
-    name: canteenId === 'canteen_001' ? 'SkipQ' : 'Default Canteen',
+    name: canteenId === 'canteen_001' ? 'Bite & Byte' : 'Default Canteen',
     collegeId: targetCanteen.collegeId || 'college_001',
     ownerId: targetCanteen.ownerId || 'user_owner_default',
     status: targetCanteen.status || 'active',

@@ -377,8 +377,8 @@ export default function CustomerApp({
           </div>
           <div className="text-center md:text-left flex-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300 mb-1">Welcome to</p>
-            <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight">{userCollege?.name || 'Violet Bites'}</h1>
-            <p className="text-sm text-white/80 font-sans mt-1">{userCollege?.bannerSubtitle || 'Official SkipQ Platform'}</p>
+            <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight">{userCollege?.name || 'Bite & Byte'}</h1>
+            <p className="text-sm text-white/80 font-sans mt-1">{userCollege?.bannerSubtitle || 'Official Bite & Byte Platform'}</p>
             <div className="flex flex-wrap gap-2 mt-3 justify-center md:justify-start">
               {(userCollege?.bannerFeatures || ['Order Faster', 'Skip the Queue', 'Smart Pickup']).map((feat, i) => (
                 <span key={i} className="bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-1">
@@ -1046,21 +1046,21 @@ export default function CustomerApp({
                   <div className="h-12 w-12 rounded-xl bg-red-900 flex items-center justify-center text-lg font-bold border border-white/20">{userCollege?.name?.charAt(0) || 'S'}</div>
                 )}
                 <div>
-                  <p className="font-display font-black text-xl tracking-tight">SkipQ</p>
+                    <p className="font-display font-black text-xl tracking-tight">Bite &amp; Byte</p>
                   <p className="text-[10px] text-gray-400 font-sans">Campus Smart Canteen Platform</p>
                 </div>
               </div>
-              <p className="text-[11px] text-gray-500 font-sans">Powered by {userCollege?.name || 'SkipQ'}</p>
+              <p className="text-[11px] text-gray-500 font-sans">Powered by {userCollege?.name || 'Bite & Byte'}</p>
             </div>
 
             {/* Quick Links */}
             <div className="space-y-4">
               <h4 className="font-display font-bold text-sm">Quick Links</h4>
               <ul className="space-y-2 text-[11px] text-gray-400">
-                <li className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> Menu & Order</li>
-                <li className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> Order History</li>
-                <li className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> My Profile</li>
-                <li className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> Help & Support</li>
+                <li onClick={() => { setCustomerTab('menu'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> Menu &amp; Order</li>
+                <li onClick={() => { setCustomerTab('history'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> Order History</li>
+                <li onClick={() => { setToastMessage('Profile settings are available in the top-right menu.'); setTimeout(() => setToastMessage(''), 3000); }} className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> My Profile</li>
+                <li onClick={() => { setToastMessage('For help, contact support@biteandbyte.in or call 0431 123 4567'); setTimeout(() => setToastMessage(''), 4000); }} className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> Help &amp; Support</li>
               </ul>
             </div>
 
@@ -1074,7 +1074,7 @@ export default function CustomerApp({
                 </li>
                 <li className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                  support@skipq.in
+                  support@biteandbyte.in
                 </li>
                 <li className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -1086,7 +1086,7 @@ export default function CustomerApp({
         </div>
         <div className="border-t border-gray-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row items-center justify-between text-[10px] text-gray-500 font-sans gap-2">
-            <span>&copy; 2026 SkipQ. All Rights Reserved.</span>
+            <span>&copy; 2026 Bite &amp; Byte. All Rights Reserved.</span>
             <div className="flex items-center gap-4">
               <span className="hover:text-white cursor-pointer transition">Privacy Policy</span>
               <span>|</span>

@@ -34,11 +34,11 @@ export default function AppHeader({ currentRole, onChangeRole, userEmail, onLogo
                 {collegeName ? (
                   <span className="font-display font-bold text-base sm:text-lg tracking-tight text-gray-900">{collegeName}</span>
                 ) : (
-                  <span className="font-display font-bold text-xl tracking-tight text-gray-900">Violet Bites</span>
+                  <span className="font-display font-bold text-xl tracking-tight text-gray-900">Bite &amp; Byte</span>
                 )}
               </div>
               <p className="hidden sm:block text-[10px] text-gray-400 font-sans tracking-wide uppercase">
-                SkipQ Platform
+                Bite & Byte Platform
               </p>
             </div>
           </div>

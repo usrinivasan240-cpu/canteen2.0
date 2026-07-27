@@ -10,6 +10,7 @@ import {
 import { Order, MenuItem } from '../types';
 import { API_BASE } from '../config';
 import CanteenAdmin from './CanteenAdmin';
+import ImageEditor from './ImageEditor';
 
 interface ServicePanelProps {
   orders: Order[];
@@ -100,6 +101,11 @@ export default function ServicePanel({
   const [editCantId, setEditCantId] = useState('');
   const [editSubId, setEditSubId] = useState('');
   const [editPosting, setEditPosting] = useState('');
+
+  const [imageEditorOpen, setImageEditorOpen] = useState(false);
+  const [imageEditorType, setImageEditorType] = useState<'logo' | 'banner'>('logo');
+  const [imageEditorCollegeId, setImageEditorCollegeId] = useState<string>('');
+  const [imageEditorInitial, setImageEditorInitial] = useState<string>('');
 
   const syncAdminData = async () => {
     try {
@@ -631,36 +637,20 @@ export default function ServicePanel({
                           <td className="px-6 py-4 font-mono font-bold text-gray-500">{c.id}</td>
                           <td className="px-6 py-4 font-bold text-gray-950">
                             <div className="flex items-center gap-2">
-                              <label className="relative cursor-pointer group">
+                              <button
+                                onClick={() => {
+                                  setImageEditorType('logo');
+                                  setImageEditorCollegeId(c.id);
+                                  setImageEditorInitial(c.logoUrl || '');
+                                  setImageEditorOpen(true);
+                                }}
+                                className="relative group cursor-pointer"
+                              >
                                 {c.logoUrl ? <img src={c.logoUrl} alt="" className="h-7 w-7 rounded-lg object-cover border border-red-100 group-hover:opacity-70 transition" /> : <div className="h-7 w-7 rounded-lg bg-red-100 flex items-center justify-center text-amber-600 text-[10px] font-bold group-hover:bg-red-200 transition">{c.name.charAt(0)}</div>}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={async (e) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    const reader = new FileReader();
-                                    reader.onloadend = async () => {
-                                      const logoData = reader.result as string;
-                                      try {
-                                        const resp = await fetch(`${API_BASE}/api/colleges/${c.id}/logo`, {
-                                          method: 'PUT',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({ logoUrl: logoData })
-                                        });
-                                        const d = await resp.json();
-                                        if (d.success) {
-                                          await syncAdminData();
-                                        }
-                                      } catch (err) {
-                                        console.error('Failed to upload logo', err);
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }}
-                                />
-                              </label>
+                                <div className="absolute inset-0 bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                                  <span className="text-white text-[8px] font-bold">Edit</span>
+                                </div>
+                              </button>
                               <span>{c.name}</span>
                             </div>
                           </td>
@@ -695,34 +685,25 @@ export default function ServicePanel({
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Banner Image</label>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            const reader = new FileReader();
-                            reader.onloadend = async () => {
-                              try {
-                                await fetch(`${API_BASE}/api/colleges/${c.id}/banner`, {
-                                  method: 'PUT',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ bannerUrl: reader.result as string })
-                                });
-                                await syncAdminData();
-                              } catch (err) { console.error(err); }
-                            };
-                            reader.readAsDataURL(file);
+                        <button
+                          onClick={() => {
+                            setImageEditorType('banner');
+                            setImageEditorCollegeId(c.id);
+                            setImageEditorInitial(c.bannerUrl || '');
+                            setImageEditorOpen(true);
                           }}
-                          className="w-full text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-red-100 file:text-red-700 hover:file:bg-red-200 cursor-pointer"
-                        />
+                          className="w-full text-left text-xs text-gray-600 bg-red-50/50 hover:bg-red-100/50 border border-red-100 rounded-lg py-2 px-3 font-semibold transition flex items-center gap-2"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                          {c.bannerUrl ? 'Edit Banner Image' : 'Upload Banner Image'}
+                        </button>
                         {c.bannerUrl && <img src={c.bannerUrl} alt="Banner" className="w-full h-20 object-cover rounded-lg border border-gray-100 mt-1" />}
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Banner Subtitle</label>
                         <input
                           type="text"
-                          defaultValue={c.bannerSubtitle || 'Official SkipQ Platform'}
+                          defaultValue={c.bannerSubtitle || 'Official Bite & Byte Platform'}
                           onBlur={async (e) => {
                             try {
                               await fetch(`${API_BASE}/api/colleges/${c.id}/banner`, {
@@ -786,7 +767,7 @@ export default function ServicePanel({
                       value={cantName}
                       onChange={(e) => setCantName(e.target.value)}
                       required
-                      placeholder="e.g. Violet Bites"
+                      placeholder="e.g. Bite &amp; Byte"
                       className="w-full bg-red-50/30 hover:bg-red-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-gray-800 font-semibold"
                     />
                   </div>
@@ -1466,6 +1447,37 @@ export default function ServicePanel({
             </div>
           </div>
         </div>
+      )}
+
+      {imageEditorOpen && (
+        <ImageEditor
+          initialImage={imageEditorInitial}
+          title={imageEditorType === 'logo' ? 'Edit College Logo' : 'Edit Banner Image'}
+          aspectRatio={imageEditorType === 'logo' ? '1:1' : '16:9'}
+          shape={imageEditorType === 'logo' ? 'circle' : 'rounded'}
+          maxWidth={imageEditorType === 'logo' ? 256 : 1200}
+          maxHeight={imageEditorType === 'logo' ? 256 : 400}
+          onSave={async (dataUrl) => {
+            const endpoint = imageEditorType === 'logo'
+              ? `${API_BASE}/api/colleges/${imageEditorCollegeId}/logo`
+              : `${API_BASE}/api/colleges/${imageEditorCollegeId}/banner`;
+            const body = imageEditorType === 'logo'
+              ? { logoUrl: dataUrl }
+              : { bannerUrl: dataUrl };
+            try {
+              await fetch(endpoint, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+              });
+              await syncAdminData();
+            } catch (err) {
+              console.error('Failed to save image', err);
+            }
+            setImageEditorOpen(false);
+          }}
+          onCancel={() => setImageEditorOpen(false)}
+        />
       )}
     </div>
   );

@@ -196,7 +196,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             <ChefHat className="h-8 w-8" />
           </div>
           <div>
-            <h1 className="font-display font-bold text-2xl text-gray-900 tracking-tight">Violet Bites</h1>
+            <h1 className="font-display font-bold text-2xl text-gray-900 tracking-tight">Bite &amp; Byte</h1>
             <p className="text-xs font-semibold text-amber-600 font-sans tracking-wide">Your campus canteen, just a click away.</p>
           </div>
         </div>
