@@ -11,7 +11,6 @@ import admin from 'firebase-admin';
 import { PaytmChecksum } from 'paytmchecksum';
 import { GoogleGenAI, Type } from '@google/genai';
 import crypto from 'crypto';
-import nodemailer from 'nodemailer';
 import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User } from './src/types';
 
 // Load environment variables
@@ -798,11 +797,13 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ============================================================================
-// OTP VERIFICATION FOR SUPERADMIN LOGIN
+// OTP VERIFICATION FOR SUPERADMIN LOGIN (Firestore-backed)
 // ============================================================================
 
 const SUPERADMIN_EMAIL = 'usrinivasan240@gmail.com';
-const otpStore = new Map<string, { code: string; expiresAt: number; email: string }>();
+const SUPERADMIN_CHECK_EMAIL = 'superadmin@gmail.com';
+const OTP_COLLECTION = 'otp_store';
+const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 app.post('/api/auth/generate-otp', async (req, res) => {
   const { email } = req.body;
@@ -810,13 +811,26 @@ app.post('/api/auth/generate-otp', async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   // Verify user is superadmin
-  if (normalizedEmail !== 'superadmin@gmail.com') {
+  if (normalizedEmail !== SUPERADMIN_CHECK_EMAIL) {
     return res.status(403).json({ success: false, error: 'OTP verification only required for superadmin accounts.' });
   }
 
-  // Generate 6-digit OTP
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  otpStore.set(normalizedEmail, { code, expiresAt: Date.now() + 5 * 60 * 1000, email: normalizedEmail });
+  // Generate 6-digit OTP using crypto
+  const code = crypto.randomInt(100000, 999999).toString();
+  const expiresAt = Date.now() + OTP_TTL_MS;
+
+  // Store OTP in Firestore (persists across serverless instances)
+  try {
+    await db.collection(OTP_COLLECTION).doc(normalizedEmail).set({
+      code,
+      expiresAt,
+      email: normalizedEmail,
+      createdAt: Date.now(),
+    });
+  } catch (err) {
+    console.error('Failed to store OTP in Firestore:', err);
+    return res.status(500).json({ success: false, error: 'Failed to generate OTP. Please try again.' });
+  }
 
   console.log(`\n========================================`);
   console.log(`OTP for superadmin login: ${code}`);
@@ -824,22 +838,31 @@ app.post('/api/auth/generate-otp', async (req, res) => {
   console.log(`Expires in 5 minutes`);
   console.log(`========================================\n`);
 
-  // Send OTP via email in background (non-blocking)
+  // Send OTP via email (await before responding)
   const resendApiKey = process.env.RESEND_API_KEY;
   if (resendApiKey) {
-    fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: 'Bite & Byte <onboarding@resend.dev>',
-        to: [SUPERADMIN_EMAIL],
-        subject: 'Bite & Byte - Superadmin Login OTP',
-        html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">Bite & Byte</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
-      })
-    }).then(r => r.text()).then(t => console.log('Resend:', t)).catch(e => console.error('Resend error:', e));
+    try {
+      const emailResp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: 'Bite & Byte <onboarding@resend.dev>',
+          to: [SUPERADMIN_EMAIL],
+          subject: 'Bite & Byte - Superadmin Login OTP',
+          html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">Bite & Byte</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
+        })
+      });
+      const emailResult = await emailResp.text();
+      console.log('Resend API response:', emailResult);
+      if (!emailResp.ok) {
+        console.error('Email send failed:', emailResult);
+      }
+    } catch (e) {
+      console.error('Resend error:', e);
+    }
   } else {
     console.log('RESEND_API_KEY not set. OTP:', code);
   }
@@ -852,19 +875,32 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   if (!email || !otp) return res.status(400).json({ success: false, error: 'Email and OTP required' });
   const normalizedEmail = email.trim().toLowerCase();
 
-  const stored = otpStore.get(normalizedEmail);
+  // Read OTP from Firestore
+  let stored: any = null;
+  try {
+    const doc = await db.collection(OTP_COLLECTION).doc(normalizedEmail).get();
+    if (doc.exists) stored = doc.data();
+  } catch (err) {
+    console.error('Failed to read OTP from Firestore:', err);
+    return res.status(500).json({ success: false, error: 'Failed to verify OTP. Please try again.' });
+  }
+
   if (!stored) {
     return res.status(400).json({ success: false, error: 'No OTP generated. Please request a new one.' });
   }
   if (Date.now() > stored.expiresAt) {
-    otpStore.delete(normalizedEmail);
+    await db.collection(OTP_COLLECTION).doc(normalizedEmail).delete().catch(() => {});
     return res.status(400).json({ success: false, error: 'OTP expired. Please request a new one.' });
   }
-  if (stored.code !== otp.trim()) {
+
+  // Compare OTP (strip whitespace)
+  const inputOtp = otp.replace(/\s/g, '').trim();
+  if (stored.code !== inputOtp) {
     return res.status(400).json({ success: false, error: 'Invalid OTP. Please try again.' });
   }
 
-  otpStore.delete(normalizedEmail);
+  // Delete used OTP
+  await db.collection(OTP_COLLECTION).doc(normalizedEmail).delete().catch(() => {});
   res.json({ success: true, message: 'OTP verified successfully.' });
 });
 
