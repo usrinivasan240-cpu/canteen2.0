@@ -196,7 +196,7 @@ export default function QRScannerSim({ onScanSuccess }: QRScannerSimProps) {
               id="camera-scan-trigger"
               onClick={() => handleSimulateScan('T3', 'Table 03 Live QR')}
               disabled={scanning || success}
-              className="mt-3.5 inline-flex items-center space-x-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-[11px] font-semibold shadow-xs transition-all font-display cursor-pointer"
+              className="mt-3.5 inline-flex items-center space-x-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-semibold shadow-xs transition-all font-display cursor-pointer"
             >
               <Scan className="h-3 w-3" />
               <span>Force Table Sync</span>

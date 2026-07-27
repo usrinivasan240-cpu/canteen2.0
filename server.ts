@@ -325,6 +325,7 @@ let canteenSettings: CanteenSettings = {
 const INITIAL_MENU_ITEMS: MenuItem[] = [
   {
     id: 'item_001',
+    canteenId: 'canteen_001',
     name: 'poori 1 pcs',
     price: 10,
     stock: 25,
@@ -346,6 +347,7 @@ const INITIAL_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'item_002',
+    canteenId: 'canteen_001',
     name: 'chapati (per quantity)',
     price: 20,
     stock: 50,
@@ -366,6 +368,7 @@ const INITIAL_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'item_003',
+    canteenId: 'canteen_001',
     name: 'chicken fried rice',
     price: 80,
     stock: 12,
@@ -389,6 +392,7 @@ const INITIAL_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'item_004',
+    canteenId: 'canteen_001',
     name: 'veg puffs',
     price: 10,
     stock: 24,
@@ -411,6 +415,7 @@ const INITIAL_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'item_005',
+    canteenId: 'canteen_001',
     name: 'chaki chaki',
     price: 2,
     stock: 150,
@@ -431,6 +436,7 @@ const INITIAL_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'item_006',
+    canteenId: 'canteen_001',
     name: 'egg puffs',
     price: 10,
     stock: 18,
@@ -452,6 +458,7 @@ const INITIAL_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'item_007',
+    canteenId: 'canteen_001',
     name: 'veg biryani',
     price: 89,
     stock: 35,
@@ -561,7 +568,7 @@ let subCanteensState: SubCanteen[] = [
 let canteensState: Canteen[] = [
   {
     id: 'canteen_001',
-    name: 'Violet Bites',
+    name: 'Smart Canteen',
     collegeId: 'college_001',
     ownerId: 'user_owner_default',
     ownerName: 'Chef Watson',
@@ -827,10 +834,10 @@ app.post('/api/auth/generate-otp', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'Violet Bites <onboarding@resend.dev>',
+        from: 'Smart Canteen <onboarding@resend.dev>',
         to: [SUPERADMIN_EMAIL],
-        subject: 'Violet Bites - Superadmin Login OTP',
-        html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">Violet Bites</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
+        subject: 'Smart Canteen - Superadmin Login OTP',
+        html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">Smart Canteen</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
       })
     }).then(r => r.text()).then(t => console.log('Resend:', t)).catch(e => console.error('Resend error:', e));
   } else {
@@ -1369,13 +1376,17 @@ app.get('/api/canteen', async (req, res) => {
       ]);
 
       let items = itemsSnap.docs.map(doc => doc.data() as MenuItem);
-      // NO fallback full-collection scan — use empty array instead
+      // Fallback: if no items match canteenId, try getting all items (for legacy data without canteenId)
+      if (items.length === 0) {
+        const allItemsSnap = await db.collection('items').limit(100).get();
+        items = allItemsSnap.docs.map(doc => doc.data() as MenuItem);
+      }
       let orders = ordersSnap.docs.map(doc => doc.data() as Order);
       let reviews = reviewsSnap.docs.map(doc => doc.data() as Review);
       const ingredients = ingSnap.empty ? INITIAL_INGREDIENTS.map(ing => ({ ...ing, canteenId })) : ingSnap.docs.map(doc => doc.data() as Ingredient);
       const settings = settingsSnap.exists ? settingsSnap.data() as CanteenSettings : { ...canteenSettings, canteenId };
 
-      let canteenName = 'Violet Bites';
+      let canteenName = 'Smart Canteen';
       let ownerName = 'Chef Watson';
       if (cRef.exists) {
         canteenName = cRef.data()?.name || canteenName;
@@ -1404,7 +1415,7 @@ app.get('/api/canteen', async (req, res) => {
 
 // 2. Add / Edit Menu Items (Owner)
 app.post('/api/canteen/menu', async (req, res) => {
-  const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe } = req.body;
+  const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe, canteenId } = req.body;
   
   if (!name || isNaN(price) || isNaN(stock)) {
     return res.status(400).json({ success: false, error: 'Name, valid price and stock are required.' });
@@ -1429,6 +1440,7 @@ app.post('/api/canteen/menu', async (req, res) => {
 
   const menuItem: MenuItem = {
     id: targetId,
+    canteenId: canteenId || 'canteen_001',
     name,
     price: Number(price),
     stock: Number(stock),
@@ -2444,7 +2456,7 @@ app.post('/api/canteen/reset', async (req, res) => {
   const targetCanteen = getCanteenState(canteenId);
   const resetCanteen: Canteen = {
     id: canteenId,
-    name: canteenId === 'canteen_001' ? 'Violet Bites' : 'Default Canteen',
+    name: canteenId === 'canteen_001' ? 'Smart Canteen' : 'Default Canteen',
     collegeId: targetCanteen.collegeId || 'college_001',
     ownerId: targetCanteen.ownerId || 'user_owner_default',
     status: targetCanteen.status || 'active',

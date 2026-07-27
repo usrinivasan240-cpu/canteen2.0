@@ -790,7 +790,7 @@ export default function CanteenAdmin({
         )}
 
         {/* SCAN & SERVE CENTRAL CONTROLLER */}
-        <div className="bg-white p-6 md:p-8 rounded-3xl border border-blue-100/70 shadow-sm text-center space-y-6">
+        <div className="bg-white p-6 md:p-8 rounded-3xl border border-red-100/70 shadow-sm text-center space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-left gap-4">
             <div>
               <h2 className="font-display font-black text-xl text-gray-900 tracking-tight">Staff Order Scan & Serve</h2>
@@ -800,7 +800,7 @@ export default function CanteenAdmin({
             </div>
             <button
               onClick={startCameraScannerStaff}
-              className="bg-gradient-to-r from-blue-900 to-blue-800 hover:from-blue-800 hover:to-blue-700 active:scale-98 text-white font-semibold py-3 px-5 rounded-2xl text-xs tracking-wide transition-all shadow-md flex items-center space-x-2 cursor-pointer font-display self-start sm:self-auto"
+              className="bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 active:scale-98 text-white font-semibold py-3 px-5 rounded-2xl text-xs tracking-wide transition-all shadow-md flex items-center space-x-2 cursor-pointer font-display self-start sm:self-auto"
             >
               <QrCode className="h-4.5 w-4.5" />
               <span>Open Camera Scanner</span>
@@ -808,18 +808,18 @@ export default function CanteenAdmin({
           </div>
 
           {/* Manual code lookup form */}
-          <div className="border-t border-blue-50 pt-4 text-left">
+          <div className="border-t border-red-50 pt-4 text-left">
             <form onSubmit={handleManualCodeLookupStaff} className="flex flex-wrap gap-2">
               <input
                 type="text"
                 placeholder="Paste/Type Order ID (e.g. 4bZHdu1ca9qs...)"
                 value={searchCode}
                 onChange={(e) => setSearchCode(e.target.value)}
-                className="flex-1 bg-blue-50/30 hover:bg-blue-50/60 focus:bg-white text-xs px-4 py-3.5 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-blue-500 font-mono transition-all"
+                className="flex-1 bg-red-50/30 hover:bg-red-50/60 focus:bg-white text-xs px-4 py-3.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-red-500 font-mono transition-all"
               />
               <button
                 type="submit"
-                className="bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs px-6 font-semibold transition-all shadow-md shrink-0 flex items-center space-x-1.5 cursor-pointer font-display"
+                className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs px-6 font-semibold transition-all shadow-md shrink-0 flex items-center space-x-1.5 cursor-pointer font-display"
               >
                 <Search className="h-3.5 w-3.5" />
                 <span>Verify Ticket</span>
@@ -831,7 +831,7 @@ export default function CanteenAdmin({
         {/* REAL CAMERA SCANNER OVERLAY MODAL */}
         {isCameraActive && (
           <div className="fixed inset-0 bg-black/80 z-50 flex flex-col items-center justify-center p-4">
-            <div className="bg-white rounded-3xl p-6 max-w-md w-full relative border border-blue-100 text-center shadow-2xl">
+            <div className="bg-white rounded-3xl p-6 max-w-md w-full relative border border-red-100 text-center shadow-2xl">
               <button 
                 onClick={stopCameraScannerStaff}
                 className="absolute top-5 right-5 p-1 text-gray-400 hover:text-gray-655 transition rounded-full hover:bg-gray-100 cursor-pointer"
@@ -849,7 +849,7 @@ export default function CanteenAdmin({
         {/* ORDER DETAILS MODAL SHEET */}
         {scannedOrder && scannedOrder.status !== 'delivered' && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden p-6 relative border border-blue-100 text-left">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden p-6 relative border border-red-100 text-left">
               <button 
                 onClick={() => setScannedOrder(null)} 
                 className="absolute top-5 right-5 text-gray-400 hover:text-gray-655 transition p-1 hover:bg-gray-55 rounded-full cursor-pointer"
@@ -866,46 +866,46 @@ export default function CanteenAdmin({
                   : `Complete information for order ${scannedOrder.id}.`}
               </p>
 
-              <div className="border-t border-blue-50 my-4" />
+              <div className="border-t border-red-50 my-4" />
 
               <div className="space-y-3.5 text-xs font-sans">
                 {(scannedOrder as any).type === 'walkin' && (scannedOrder as any).customerName && (
-                  <div className="flex justify-between py-1 border-b border-blue-50/50">
-                    <span className="text-orange-600 font-medium">Customer:</span>
+                  <div className="flex justify-between py-1 border-b border-red-50/50">
+                    <span className="text-amber-600 font-medium">Customer:</span>
                     <span className="font-semibold text-gray-900">{(scannedOrder as any).customerName}</span>
                   </div>
                 )}
-                <div className="flex justify-between py-1 border-b border-blue-50/50">
-                  <span className="text-orange-600 font-medium">
+                <div className="flex justify-between py-1 border-b border-red-50/50">
+                  <span className="text-amber-600 font-medium">
                     {(scannedOrder as any).type === 'walkin' ? 'Bill Number:' : 'Customer ID:'}
                   </span>
                   <span className="font-mono text-gray-600 truncate max-w-[200px] select-all">
                     {(scannedOrder as any).billNumber || scannedOrder.userId}
                   </span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-blue-50/50">
-                  <span className="text-orange-600 font-medium">
+                <div className="flex justify-between py-1 border-b border-red-50/50">
+                  <span className="text-amber-600 font-medium">
                     {(scannedOrder as any).type === 'walkin' ? 'Bill ID:' : 'Order ID:'}
                   </span>
                   <span className="font-mono text-gray-955 font-bold">{scannedOrder.id}</span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-blue-50/50">
-                  <span className="text-orange-600 font-medium">Date:</span>
+                <div className="flex justify-between py-1 border-b border-red-50/50">
+                  <span className="text-amber-600 font-medium">Date:</span>
                   <span className="font-semibold text-gray-900">
                     {new Date(scannedOrder.timestamp || scannedOrder.createdAt).toLocaleString()}
                   </span>
                 </div>
                 {(scannedOrder as any).type === 'walkin' && (
-                  <div className="flex justify-between py-1 border-b border-blue-50/50">
-                    <span className="text-orange-600 font-medium">Payment:</span>
+                  <div className="flex justify-between py-1 border-b border-red-50/50">
+                    <span className="text-amber-600 font-medium">Payment:</span>
                     <span className="font-semibold text-gray-900 capitalize">
                       {(scannedOrder as any).paymentMethod || 'cash'} ({(scannedOrder as any).paymentStatus || 'pending'})
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between py-1 items-center border-b border-blue-50/50">
-                  <span className="text-orange-600 font-medium">Status:</span>
-                  <span className="px-3 py-1 bg-orange-600 text-white text-[10px] font-bold rounded-full uppercase">
+                <div className="flex justify-between py-1 items-center border-b border-red-50/50">
+                  <span className="text-amber-600 font-medium">Status:</span>
+                  <span className="px-3 py-1 bg-amber-600 text-white text-[10px] font-bold rounded-full uppercase">
                     {scannedOrder.status}
                   </span>
                 </div>
@@ -914,14 +914,14 @@ export default function CanteenAdmin({
               <div className="mt-6">
                 <h3 className="font-display font-bold text-xs text-gray-900 mb-3">Items Ordered</h3>
                 
-                <div className="grid grid-cols-12 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-blue-50 pb-2 mb-2">
+                <div className="grid grid-cols-12 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-red-50 pb-2 mb-2">
                   <div className="col-span-6">Item</div>
                   <div className="col-span-2 text-center">Quantity</div>
                   <div className="col-span-2 text-right">Price</div>
                   <div className="col-span-2 text-right">Total</div>
                 </div>
 
-                <div className="divide-y divide-blue-50/50 max-h-[160px] overflow-y-auto pr-1">
+                <div className="divide-y divide-red-50/50 max-h-[160px] overflow-y-auto pr-1">
                   {scannedOrder.items.map((item, idx) => (
                     <div key={idx} className="grid grid-cols-12 items-center py-2.5 text-xs font-sans text-gray-800">
                       <div className="col-span-6 font-medium capitalize truncate">{item.name}</div>
@@ -938,7 +938,7 @@ export default function CanteenAdmin({
                 const isWalkin = (scannedOrder as any).type === 'walkin';
                 const orderFee = isWalkin ? 0 : Math.max(0, scannedOrder.totalPrice - orderFoodAmount);
                 return (
-                  <div className="border-t border-blue-100 pt-4 mt-4 space-y-2.5 text-xs font-sans text-gray-500">
+                  <div className="border-t border-red-100 pt-4 mt-4 space-y-2.5 text-xs font-sans text-gray-500">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
                       <span className="font-mono text-gray-900 font-medium">₹{orderFoodAmount.toFixed(2)}</span>
@@ -949,9 +949,9 @@ export default function CanteenAdmin({
                         <span className="font-mono text-gray-900 font-medium">₹{orderFee.toFixed(2)}</span>
                       </div>
                     )}
-                    <div className="border-t border-blue-50 pt-3 flex justify-between font-bold text-sm text-gray-900">
+                    <div className="border-t border-red-50 pt-3 flex justify-between font-bold text-sm text-gray-900">
                       <span>Grand Total:</span>
-                      <span className="font-mono text-orange-600 text-base">₹{scannedOrder.totalPrice.toFixed(2)}</span>
+                      <span className="font-mono text-amber-600 text-base">₹{scannedOrder.totalPrice.toFixed(2)}</span>
                     </div>
                   </div>
                 );
@@ -980,7 +980,7 @@ export default function CanteenAdmin({
         )}
 
         {/* LIVE ACTIVE TICKETS 3-COLUMN QUEUE */}
-        <div className="space-y-6 pt-6 border-t border-blue-200">
+        <div className="space-y-6 pt-6 border-t border-red-200">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-display font-bold text-base sm:text-lg text-gray-900 truncate">Live Counter Queue</h2>
@@ -988,7 +988,7 @@ export default function CanteenAdmin({
             </div>
             <button
               onClick={onFetchCanteen}
-              className="p-2 bg-blue-50 hover:bg-blue-100 text-orange-600 rounded-lg transition"
+              className="p-2 bg-red-50 hover:bg-red-100 text-amber-600 rounded-lg transition"
             >
               <RefreshCw className="h-4 w-4 animate-spin-slow" />
             </button>
@@ -997,8 +997,8 @@ export default function CanteenAdmin({
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* COLUMN 1: PREPARING / QUEUED */}
-            <div className="bg-white p-5 rounded-3xl border border-blue-100 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-blue-50 pb-3">
+            <div className="bg-white p-5 rounded-3xl border border-red-100 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-red-50 pb-3">
                 <div>
                   <h3 className="font-display font-bold text-sm text-gray-900">Preparing</h3>
                   <p className="text-[10px] text-gray-400 font-sans">Dishes currently in the kitchen.</p>
@@ -1018,7 +1018,7 @@ export default function CanteenAdmin({
                     <div key={order.id} className="p-3 bg-amber-50/20 border border-amber-100/50 rounded-2xl space-y-2 text-left">
                       <div className="flex justify-between items-start">
                         <div>
-                          <span className="font-mono text-[10px] font-bold text-orange-600 block">{order.id}</span>
+                          <span className="font-mono text-[10px] font-bold text-amber-600 block">{order.id}</span>
                           <span className="text-xs font-semibold text-gray-800">{order.userName}</span>
                         </div>
                         <span className="bg-amber-50 text-amber-800 border border-amber-100 text-[9px] font-mono px-1.5 py-0.2 rounded font-bold uppercase">
@@ -1041,8 +1041,8 @@ export default function CanteenAdmin({
             </div>
 
             {/* COLUMN 2: READY FOR COLLECTION */}
-            <div className="bg-white p-5 rounded-3xl border border-blue-100 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-blue-50 pb-3">
+            <div className="bg-white p-5 rounded-3xl border border-red-100 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-red-50 pb-3">
                 <div>
                   <h3 className="font-display font-bold text-sm text-gray-900">Ready for Collection</h3>
                   <p className="text-[10px] text-gray-400 font-sans">Prepared and waiting at counter.</p>
@@ -1062,7 +1062,7 @@ export default function CanteenAdmin({
                     <div key={order.id} className="p-3 bg-emerald-50/20 border border-emerald-100/50 rounded-2xl space-y-2 text-left">
                       <div className="flex justify-between items-start">
                         <div>
-                          <span className="font-mono text-[10px] font-bold text-orange-600 block">{order.id}</span>
+                          <span className="font-mono text-[10px] font-bold text-amber-600 block">{order.id}</span>
                           <span className="text-xs font-semibold text-gray-800">{order.userName}</span>
                         </div>
                         <span className="bg-emerald-50 text-emerald-850 border border-emerald-100 text-[9px] font-mono px-1.5 py-0.2 rounded font-bold uppercase">
@@ -1085,13 +1085,13 @@ export default function CanteenAdmin({
             </div>
 
             {/* COLUMN 3: SERVED / DELIVERED */}
-            <div className="bg-white p-5 rounded-3xl border border-blue-100 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-blue-50 pb-3">
+            <div className="bg-white p-5 rounded-3xl border border-red-100 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-red-50 pb-3">
                 <div>
                   <h3 className="font-display font-bold text-sm text-gray-900">Served / Delivered</h3>
                   <p className="text-[10px] text-gray-400 font-sans">Recently completed orders.</p>
                 </div>
-                <span className="bg-blue-50 text-blue-800 font-bold font-mono text-[10px] px-2 py-0.5 rounded-full">
+                <span className="bg-red-50 text-red-800 font-bold font-mono text-[10px] px-2 py-0.5 rounded-full">
                   {orders.filter(o => o.status === 'delivered' || o.status === 'collected').length} completed
                 </span>
               </div>
@@ -1165,7 +1165,7 @@ export default function CanteenAdmin({
 
       {/* 1. STATE EXECUTIVE KPI CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white border border-blue-100 rounded-3xl p-5 shadow-xs flex items-center justify-between">
+        <div className="bg-white border border-red-100 rounded-3xl p-5 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Delivered Sales</span>
             <h3 className="font-display font-extrabold text-2xl text-gray-950">₹{totalIncome.toFixed(2)}</h3>
@@ -1176,18 +1176,18 @@ export default function CanteenAdmin({
           </div>
         </div>
 
-        <div className="bg-white border border-blue-100 rounded-3xl p-5 shadow-xs flex items-center justify-between">
+        <div className="bg-white border border-red-100 rounded-3xl p-5 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Kitchen Active Orders</span>
             <h3 className="font-display font-extrabold text-2xl text-gray-950">{pendingOrders.length} orders</h3>
-            <span className="text-[10px] text-orange-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full">{preppingOrdersCount} prepping • {readyOrdersCount} ready</span>
+            <span className="text-[10px] text-amber-600 font-bold bg-red-50 px-2 py-0.5 rounded-full">{preppingOrdersCount} prepping • {readyOrdersCount} ready</span>
           </div>
-          <div className="h-12 w-12 bg-blue-50 text-orange-600 rounded-2xl flex items-center justify-center font-bold">
+          <div className="h-12 w-12 bg-red-50 text-amber-600 rounded-2xl flex items-center justify-center font-bold">
             <ClipboardList className="h-6 w-6 animate-pulse" />
           </div>
         </div>
 
-        <div className="bg-white border border-blue-100 rounded-3xl p-5 shadow-xs flex items-center justify-between">
+        <div className="bg-white border border-red-100 rounded-3xl p-5 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Out of Stock</span>
             <h3 className="font-display font-extrabold text-2xl text-rose-600">{outOfStockItemsCount} items</h3>
@@ -1198,7 +1198,7 @@ export default function CanteenAdmin({
           </div>
         </div>
 
-        <div className="bg-white border border-blue-100 rounded-3xl p-5 shadow-xs flex items-center justify-between">
+        <div className="bg-white border border-red-100 rounded-3xl p-5 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Faculty Rating</span>
             <h3 className="font-display font-extrabold text-2xl text-amber-500">{averageRating} ★</h3>
@@ -1211,7 +1211,7 @@ export default function CanteenAdmin({
       </div>
 
       {/* 2. ADMIN CHOICES TABS */}
-      <div className="flex border-b border-blue-100 overflow-x-auto scrollbar-none pb-0.5 gap-4">
+      <div className="flex border-b border-red-100 overflow-x-auto scrollbar-none pb-0.5 gap-4">
         {[
           { id: 'chef', label: `Chef Dashboard (${preppingOrdersCount})`, icon: ChefHat },
           { id: 'counter', label: `Counter Staff (${readyOrdersCount})`, icon: QrCode },
@@ -1230,7 +1230,7 @@ export default function CanteenAdmin({
               }}
               className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold transition-all border-b-2 tracking-wide whitespace-nowrap cursor-pointer ${
                 activeTab === tab.id
-                  ? 'border-orange-600 text-orange-600 font-extrabold'
+                  ? 'border-amber-600 text-amber-600 font-extrabold'
                   : 'border-transparent text-gray-400 hover:text-gray-900'
               }`}
             >
@@ -1248,7 +1248,7 @@ export default function CanteenAdmin({
           <div className="lg:col-span-8 space-y-6">
             
             {/* UPCOMING SLOT AGGREGATION */}
-            <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-4">
+            <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-4">
               <div>
                 <h3 className="font-display font-bold text-sm text-gray-900">Upcoming Time Slot Aggregation</h3>
                 <p className="text-xs text-gray-400 font-sans">Scheduled demand grouped by 15-minute intervals. Start and finish batches in bulk.</p>
@@ -1259,22 +1259,22 @@ export default function CanteenAdmin({
               ) : (
                 <div className="space-y-4 font-sans text-xs">
                   {Object.entries(slotAggregatedDemands).map(([slot, itemsMap]) => (
-                    <div key={slot} className="border border-blue-100 rounded-2xl p-4 bg-blue-50/10 space-y-3">
-                      <div className="flex justify-between items-center border-b border-blue-50 pb-2">
-                        <span className="font-bold text-blue-800 font-mono text-sm">{slot} Slot</span>
-                        <span className="bg-blue-100 text-blue-900 px-2.5 py-0.5 rounded text-[10px] font-bold">
+                    <div key={slot} className="border border-red-100 rounded-2xl p-4 bg-red-50/10 space-y-3">
+                      <div className="flex justify-between items-center border-b border-red-50 pb-2">
+                        <span className="font-bold text-red-800 font-mono text-sm">{slot} Slot</span>
+                        <span className="bg-red-100 text-red-900 px-2.5 py-0.5 rounded text-[10px] font-bold">
                           {Object.values(itemsMap).reduce((sum, item) => sum + item.quantity, 0)} Total Dishes
                         </span>
                       </div>
                       
-                      <div className="divide-y divide-blue-50">
+                      <div className="divide-y divide-red-50">
                         {Object.entries(itemsMap).map(([itemId, details]) => (
                           <div key={itemId} className="py-2.5 flex justify-between items-center flex-wrap gap-2">
                             <div>
                               <span className="font-semibold text-gray-800 capitalize">{details.name}</span>
-                              <span className="text-orange-600 font-bold ml-1 font-mono">x{details.quantity}</span>
+                              <span className="text-amber-600 font-bold ml-1 font-mono">x{details.quantity}</span>
                               <span className={`text-[9px] font-mono font-bold uppercase ml-2 px-1.5 py-0.2 rounded ${
-                                details.status === 'preparing' ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-800'
+                                details.status === 'preparing' ? 'bg-amber-100 text-amber-800' : 'bg-red-50 text-red-800'
                               }`}>
                                 {details.status}
                               </span>
@@ -1284,7 +1284,7 @@ export default function CanteenAdmin({
                               {details.status === 'scheduled' ? (
                                 <button
                                   onClick={() => startBatchCooking(slot, itemId)}
-                                  className="bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                                  className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
                                 >
                                   Start Batch
                                 </button>
@@ -1307,7 +1307,7 @@ export default function CanteenAdmin({
             </div>
 
             {/* DETAILED TIMELINE WITH COOKING ALERTS */}
-            <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-4">
+            <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-4">
               <div>
                 <h3 className="font-display font-bold text-sm text-gray-900">Priority Cooking Timeline (Priority = Pickup Time + FIFO)</h3>
                 <p className="text-xs text-gray-400 font-sans">Sequence of orders determined by earliest pickup time slot, then order queue index.</p>
@@ -1316,14 +1316,14 @@ export default function CanteenAdmin({
               {sortedChefOrders.length === 0 ? (
                 <p className="text-xs text-gray-400 py-6 text-center">No orders currently waiting in the kitchen timeline.</p>
               ) : (
-                <div className="divide-y divide-blue-50">
+                <div className="divide-y divide-red-50">
                   {sortedChefOrders.map(order => {
                     const isCookingOverdue = order.status === 'scheduled' && Date.now() >= (order.prepStartTime || 0);
                     return (
                       <div key={order.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-sans text-xs">
                         <div className="space-y-1">
                           <div className="flex items-center space-x-2 flex-wrap gap-1">
-                            <span className="font-mono font-bold text-orange-600">{order.id}</span>
+                            <span className="font-mono font-bold text-amber-600">{order.id}</span>
                             <span className="text-[10px] text-gray-500 font-mono">Slot: <strong className="text-gray-900">{order.pickupSlot}</strong></span>
                             {isCookingOverdue && (
                               <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[9px] px-2 py-0.5 rounded font-black uppercase tracking-wider animate-pulse flex items-center space-x-1">
@@ -1350,7 +1350,7 @@ export default function CanteenAdmin({
                           {order.status !== 'ready' && (
                             <button
                               onClick={() => handleCycleStatus(order.id, order.status)}
-                              className="bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider shadow-xs transition"
+                              className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider shadow-xs transition"
                             >
                               {order.status === 'scheduled' && 'Prep Meal'}
                               {order.status === 'preparing' && 'Set Ready'}
@@ -1368,7 +1368,7 @@ export default function CanteenAdmin({
 
           {/* INGREDIENTS CHECKLIST (SIDE COLUMN) */}
           <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-sm space-y-5 text-xs text-left">
+            <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-sm space-y-5 text-xs text-left">
               <div>
                 <h4 className="font-display font-bold text-sm text-gray-900">Required Cooking Ingredients</h4>
                 <p className="text-xs text-gray-400 font-sans">Accumulated weight totals required for all active kitchen orders.</p>
@@ -1388,10 +1388,10 @@ export default function CanteenAdmin({
                     const displayStock = stock >= 1000 ? `${(stock / 1000).toFixed(2)}kg` : `${stock}g`;
                     
                     return (
-                      <div key={ingName} className="p-3 border border-blue-100/50 bg-blue-50/10 rounded-xl space-y-1">
+                      <div key={ingName} className="p-3 border border-red-100/50 bg-red-50/10 rounded-xl space-y-1">
                         <div className="flex justify-between items-center font-semibold text-gray-800">
                           <span className="capitalize">{ingName}</span>
-                          <span className="font-mono text-orange-600">{displayWeight}</span>
+                          <span className="font-mono text-amber-600">{displayWeight}</span>
                         </div>
                         <div className="flex justify-between text-[10px] text-gray-400">
                           <span>In Stock: {displayStock} {stockUnit}</span>
@@ -1437,7 +1437,7 @@ export default function CanteenAdmin({
             </div>
           )}
 
-          <div className="bg-white p-6 md:p-8 rounded-3xl border border-blue-100/70 shadow-sm text-center space-y-6">
+          <div className="bg-white p-6 md:p-8 rounded-3xl border border-red-100/70 shadow-sm text-center space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-left gap-4">
               <div>
                 <h2 className="font-display font-black text-xl text-gray-900 tracking-tight">Token Scan & Verify</h2>
@@ -1447,24 +1447,24 @@ export default function CanteenAdmin({
               </div>
               <button
                 onClick={startCameraScannerStaff}
-                className="bg-gradient-to-r from-blue-900 to-blue-800 hover:from-blue-800 hover:to-blue-700 active:scale-98 text-white font-semibold py-3 px-5 rounded-2xl text-xs tracking-wide transition-all shadow-md flex items-center space-x-2 cursor-pointer font-display self-start sm:self-auto"
+                className="bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 active:scale-98 text-white font-semibold py-3 px-5 rounded-2xl text-xs tracking-wide transition-all shadow-md flex items-center space-x-2 cursor-pointer font-display self-start sm:self-auto"
               >
                 <QrCode className="h-4.5 w-4.5" />
                 <span>Open Camera Scanner</span>
               </button>
             </div>
-            <div className="border-t border-blue-50 pt-4 text-left">
+            <div className="border-t border-red-50 pt-4 text-left">
               <form onSubmit={handleManualCodeLookupStaff} className="flex flex-wrap gap-2">
                 <input
                   type="text"
                   placeholder="Paste/Type Order ID or Bill Number"
                   value={searchCode}
                   onChange={(e) => setSearchCode(e.target.value)}
-                  className="flex-1 bg-blue-50/30 hover:bg-blue-50/60 focus:bg-white text-xs px-4 py-3.5 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-blue-500 font-mono transition-all"
+                  className="flex-1 bg-red-50/30 hover:bg-red-50/60 focus:bg-white text-xs px-4 py-3.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-red-500 font-mono transition-all"
                 />
                 <button
                   type="submit"
-                  className="bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs px-6 font-semibold transition-all shadow-md shrink-0 flex items-center space-x-1.5 cursor-pointer font-display"
+                  className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs px-6 font-semibold transition-all shadow-md shrink-0 flex items-center space-x-1.5 cursor-pointer font-display"
                 >
                   <Search className="h-3.5 w-3.5" />
                   <span>Verify Ticket</span>
@@ -1498,7 +1498,7 @@ export default function CanteenAdmin({
             </div>
             <button
               onClick={onFetchCanteen}
-              className="p-2 bg-blue-50 hover:bg-blue-100 text-orange-600 rounded-lg transition"
+              className="p-2 bg-red-50 hover:bg-red-100 text-amber-600 rounded-lg transition"
             >
               <RefreshCw className="h-4 w-4" />
             </button>
@@ -1507,8 +1507,8 @@ export default function CanteenAdmin({
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* COLUMN 1: PREPARING / QUEUED */}
-            <div className="bg-white p-5 rounded-3xl border border-blue-100 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-blue-50 pb-3">
+            <div className="bg-white p-5 rounded-3xl border border-red-100 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-red-50 pb-3">
                 <div>
                   <h3 className="font-display font-bold text-sm text-gray-900">Preparing</h3>
                   <p className="text-[10px] text-gray-400 font-sans">Dishes currently in the kitchen.</p>
@@ -1528,7 +1528,7 @@ export default function CanteenAdmin({
                     <div key={order.id} className="p-3 bg-amber-50/20 border border-amber-100/50 rounded-2xl space-y-2">
                       <div className="flex justify-between items-start">
                         <div>
-                          <span className="font-mono text-[10px] font-bold text-orange-600 block">{order.id}</span>
+                          <span className="font-mono text-[10px] font-bold text-amber-600 block">{order.id}</span>
                           <span className="text-xs font-semibold text-gray-800">{order.userName}</span>
                         </div>
                         <span className="bg-amber-50 text-amber-800 border border-amber-100 text-[9px] font-mono px-1.5 py-0.2 rounded font-bold uppercase">
@@ -1551,8 +1551,8 @@ export default function CanteenAdmin({
             </div>
 
             {/* COLUMN 2: READY FOR COLLECTION */}
-            <div className="bg-white p-5 rounded-3xl border border-blue-100 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-blue-50 pb-3">
+            <div className="bg-white p-5 rounded-3xl border border-red-100 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-red-50 pb-3">
                 <div>
                   <h3 className="font-display font-bold text-sm text-gray-900">Ready for Collection</h3>
                   <p className="text-[10px] text-gray-400 font-sans">Prepared and waiting at counter.</p>
@@ -1572,7 +1572,7 @@ export default function CanteenAdmin({
                     <div key={order.id} className="p-3 bg-emerald-50/20 border border-emerald-100/50 rounded-2xl space-y-2">
                       <div className="flex justify-between items-start">
                         <div>
-                          <span className="font-mono text-[10px] font-bold text-orange-600 block">{order.id}</span>
+                          <span className="font-mono text-[10px] font-bold text-amber-600 block">{order.id}</span>
                           <span className="text-xs font-semibold text-gray-800">{order.userName}</span>
                         </div>
                         <span className="bg-emerald-50 text-emerald-850 border border-emerald-100 text-[9px] font-mono px-1.5 py-0.2 rounded font-bold uppercase">
@@ -1595,13 +1595,13 @@ export default function CanteenAdmin({
             </div>
 
             {/* COLUMN 3: SERVED / DELIVERED */}
-            <div className="bg-white p-5 rounded-3xl border border-blue-100 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-blue-50 pb-3">
+            <div className="bg-white p-5 rounded-3xl border border-red-100 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-red-50 pb-3">
                 <div>
                   <h3 className="font-display font-bold text-sm text-gray-900">Served / Delivered</h3>
                   <p className="text-[10px] text-gray-400 font-sans">Recently completed orders.</p>
                 </div>
-                <span className="bg-blue-50 text-blue-800 font-bold font-mono text-[10px] px-2 py-0.5 rounded-full">
+                <span className="bg-red-50 text-red-800 font-bold font-mono text-[10px] px-2 py-0.5 rounded-full">
                   {orders.filter(o => o.status === 'delivered' || o.status === 'collected').length} completed
                 </span>
               </div>
@@ -1644,7 +1644,7 @@ export default function CanteenAdmin({
       {activeTab === 'owner' && (
         <div className="space-y-6">
           {/* Nested Sub Tabs (Menu Management, Inventory Management, Settings Editor, Reviews, AI Predictions) */}
-          <div className="flex border-b border-blue-100 overflow-x-auto scrollbar-none pb-0.5 gap-4">
+          <div className="flex border-b border-red-100 overflow-x-auto scrollbar-none pb-0.5 gap-4">
             {[
               { id: 'orders_mgr', label: 'Manage Orders', icon: ClipboardList },
               { id: 'pos', label: 'Walk-in Billing (POS)', icon: ShoppingCart },
@@ -1661,7 +1661,7 @@ export default function CanteenAdmin({
                   onClick={() => setOwnerSubTab(sub.id as any)}
                   className={`flex items-center space-x-1.5 px-3 py-2 text-xs font-bold transition-all border-b-2 tracking-wide whitespace-nowrap cursor-pointer ${
                     ownerSubTab === sub.id
-                      ? 'border-orange-600 text-orange-600 font-extrabold'
+                      ? 'border-amber-600 text-amber-600 font-extrabold'
                       : 'border-transparent text-gray-400 hover:text-gray-900'
                   }`}
                 >
@@ -1674,7 +1674,7 @@ export default function CanteenAdmin({
 
           {/* OWNER SUBTAB: MANAGE ORDERS */}
           {ownerSubTab === 'orders_mgr' && (
-            <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-6">
+            <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-6">
               <div>
                 <h3 className="font-display font-bold text-sm text-gray-900">Manage Canteen Orders</h3>
                 <p className="text-xs text-gray-400 font-sans">View prepared orders, ready orders, edit pickup slots, cancel, or collect them.</p>
@@ -1683,7 +1683,7 @@ export default function CanteenAdmin({
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-blue-50 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
+                    <tr className="border-b border-red-50 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
                       <th className="pb-3.5">Order ID</th>
                       <th className="pb-3.5">Customer Name</th>
                       <th className="pb-3.5">Items</th>
@@ -1692,9 +1692,9 @@ export default function CanteenAdmin({
                       <th className="pb-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-blue-50 font-sans">
+                  <tbody className="divide-y divide-red-50 font-sans">
                     {orders.map((order) => (
-                      <tr key={order.id} className="hover:bg-blue-50/25">
+                      <tr key={order.id} className="hover:bg-red-50/25">
                         <td className="py-4 font-mono font-bold text-gray-800">{order.id}</td>
                         <td className="py-4 text-gray-700 font-semibold">{order.userName}</td>
                         <td className="py-4 text-gray-500">
@@ -1706,7 +1706,7 @@ export default function CanteenAdmin({
                               <select
                                 value={editingOrderSlot}
                                 onChange={(e) => setEditingOrderSlot(e.target.value)}
-                                className="bg-blue-50 border border-blue-100 rounded px-2 py-1 text-xs outline-none"
+                                className="bg-red-50 border border-red-100 rounded px-2 py-1 text-xs outline-none"
                               >
                                 <option value="">Select slot...</option>
                                 <option value="12:00 PM">12:00 PM</option>
@@ -1741,7 +1741,7 @@ export default function CanteenAdmin({
                                     setEditingOrderId(order.id);
                                     setEditingOrderSlot(order.pickupSlot || '');
                                   }}
-                                  className="text-orange-600 hover:text-blue-900 text-[10px] font-bold underline cursor-pointer"
+                                  className="text-amber-600 hover:text-red-900 text-[10px] font-bold underline cursor-pointer"
                                 >
                                   Edit
                                 </button>
@@ -1759,7 +1759,7 @@ export default function CanteenAdmin({
                               ? 'bg-gray-100 text-gray-600'
                               : order.status === 'cancelled'
                               ? 'bg-rose-50 text-rose-700'
-                              : 'bg-blue-50 text-blue-700'
+                              : 'bg-red-50 text-red-700'
                           }`}>
                             {order.status}
                           </span>
@@ -1783,7 +1783,7 @@ export default function CanteenAdmin({
                             ) : order.status === 'ready' ? (
                               <button
                                 onClick={() => onUpdateOrderStatus(order.id, 'delivered')}
-                                className="bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold px-2 py-1 rounded cursor-pointer"
+                                className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold px-2 py-1 rounded cursor-pointer"
                               >
                                 Collect
                               </button>
@@ -1821,15 +1821,15 @@ export default function CanteenAdmin({
 
           {/* OWNER SUBTAB: MENU CATALOG */}
           {ownerSubTab === 'menu' && (
-            <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-blue-50 pb-5">
+            <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-red-50 pb-5">
                 <div>
                   <h3 className="font-display font-bold text-sm text-gray-900">Dynamic Menu Catalog Manager</h3>
                   <p className="text-xs text-gray-400 font-sans">Adjust prices, preparation times, and pause items instantly.</p>
                 </div>
                 <button
                   onClick={handleOpenAddModal}
-                  className="bg-orange-600 hover:bg-orange-700 text-white rounded-xl px-4 py-2.5 text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                  className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl px-4 py-2.5 text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
                   <span>Add Food Option</span>
@@ -1839,7 +1839,7 @@ export default function CanteenAdmin({
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-blue-50 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
+                    <tr className="border-b border-red-50 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
                       <th className="pb-3.5">Food Product</th>
                       <th className="pb-3.5">Category</th>
                       <th className="pb-3.5">Prep Time</th>
@@ -1850,11 +1850,11 @@ export default function CanteenAdmin({
                       <th className="pb-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-blue-50 font-sans">
+                  <tbody className="divide-y divide-red-50 font-sans">
                     {menuItems.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-blue-50/25">
+                      <tr key={idx} className="hover:bg-red-50/25">
                         <td className="py-4 font-bold text-gray-800 capitalize flex items-center space-x-2.5">
-                          <img src={item.imageUrl} className="h-8 w-8 object-cover rounded-lg bg-blue-50" />
+                          <img src={item.imageUrl} className="h-8 w-8 object-cover rounded-lg bg-red-50" />
                           <span>{item.name}</span>
                         </td>
                         <td className="py-4 text-gray-500 font-medium">{item.category}</td>
@@ -1867,7 +1867,7 @@ export default function CanteenAdmin({
                             {item.stock} left
                           </span>
                         </td>
-                        <td className="py-4 font-bold text-orange-600">₹{item.price.toFixed(2)}</td>
+                        <td className="py-4 font-bold text-amber-600">₹{item.price.toFixed(2)}</td>
                         <td className="py-4">
                           <button
                             onClick={() => handleTogglePause(item)}
@@ -1884,7 +1884,7 @@ export default function CanteenAdmin({
                           <div className="flex items-center justify-end space-x-2">
                             <button
                               onClick={() => handleOpenEditModal(item)}
-                              className="p-1.5 text-gray-400 hover:text-blue-800 hover:bg-blue-50 rounded"
+                              className="p-1.5 text-gray-400 hover:text-red-800 hover:bg-red-50 rounded"
                             >
                               <Edit2 className="h-3.5 w-3.5" />
                             </button>
@@ -1906,15 +1906,15 @@ export default function CanteenAdmin({
 
           {/* OWNER SUBTAB: RAW INVENTORY */}
           {ownerSubTab === 'inventory' && (
-            <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-blue-50 pb-5">
+            <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-red-50 pb-5">
                 <div>
                   <h3 className="font-display font-bold text-sm text-gray-900">Raw Ingredient Depletion Log</h3>
                   <p className="text-xs text-gray-400 font-sans">Active raw supplies measured in grams/kilograms/pcs. Create, update, or delete ingredients.</p>
                 </div>
                 <button
                   onClick={handleOpenAddIngModal}
-                  className="bg-orange-600 hover:bg-orange-700 text-white rounded-xl px-4 py-2.5 text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                  className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl px-4 py-2.5 text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
                   <span>Add Raw Stock</span>
@@ -1924,28 +1924,28 @@ export default function CanteenAdmin({
               <div className="overflow-x-auto text-xs">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-blue-50 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
+                    <tr className="border-b border-red-50 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
                       <th className="pb-3.5">Ingredient Name</th>
                       <th className="pb-3.5">Ingredient ID</th>
                       <th className="pb-3.5">Remaining Stock</th>
                       <th className="pb-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-blue-50 font-sans text-slate-755">
+                  <tbody className="divide-y divide-red-50 font-sans text-slate-755">
                     {ingredients.map((ing, idx) => {
                       const displayStock = ing.stockGrams >= 1000 
                         ? `${(ing.stockGrams / 1000).toFixed(2)} ${ing.unit === 'kg' ? 'kg' : 'pcs'}`
                         : `${ing.stockGrams}g`;
                       return (
-                        <tr key={idx} className="hover:bg-blue-50/25">
+                        <tr key={idx} className="hover:bg-red-50/25">
                           <td className="py-4 font-bold capitalize">{ing.name}</td>
                           <td className="py-4 font-mono text-gray-400">{ing.id}</td>
-                          <td className="py-4 font-mono font-bold text-orange-600">{displayStock}</td>
+                          <td className="py-4 font-mono font-bold text-amber-600">{displayStock}</td>
                           <td className="py-4 text-right">
                             <div className="flex items-center justify-end space-x-2">
                               <button
                                 onClick={() => handleOpenEditIngModal(ing)}
-                                className="p-1.5 text-gray-400 hover:text-blue-800 hover:bg-blue-50 rounded"
+                                className="p-1.5 text-gray-400 hover:text-red-800 hover:bg-red-50 rounded"
                               >
                                 <Edit2 className="h-3.5 w-3.5" />
                               </button>
@@ -1968,7 +1968,7 @@ export default function CanteenAdmin({
 
           {/* OWNER SUBTAB: REVENUE DASHBOARD */}
           {ownerSubTab === 'revenue' && (
-            <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-6">
+            <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-6">
               <div>
                 <h3 className="font-display font-bold text-sm text-gray-900">Revenue & Earnings Dashboard</h3>
                 <p className="text-xs text-gray-400 font-sans">Comprehensive financial reports and real-time transaction history.</p>
@@ -1981,17 +1981,17 @@ export default function CanteenAdmin({
                 const avgTicketVal = completedOrdersList.length > 0 ? (totalRevenueEarned / completedOrdersList.length) : 0;
                 return (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <div className="bg-blue-50/35 border border-blue-100/70 p-5 rounded-2xl">
+                    <div className="bg-red-50/35 border border-red-100/70 p-5 rounded-2xl">
                       <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Total Revenue</span>
-                      <h4 className="font-display font-extrabold text-2xl text-orange-600 mt-1">₹{totalRevenueEarned.toFixed(2)}</h4>
+                      <h4 className="font-display font-extrabold text-2xl text-amber-600 mt-1">₹{totalRevenueEarned.toFixed(2)}</h4>
                       <p className="text-[10px] text-gray-400 font-sans mt-0.5">Sum of all completed orders</p>
                     </div>
-                    <div className="bg-blue-50/35 border border-blue-100/70 p-5 rounded-2xl">
+                    <div className="bg-red-50/35 border border-red-100/70 p-5 rounded-2xl">
                       <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Completed Orders</span>
                       <h4 className="font-display font-extrabold text-2xl text-gray-900 mt-1">{completedOrdersList.length} orders</h4>
                       <p className="text-[10px] text-gray-400 font-sans mt-0.5">Fully served student tickets</p>
                     </div>
-                    <div className="bg-blue-50/35 border border-blue-100/70 p-5 rounded-2xl">
+                    <div className="bg-red-50/35 border border-red-100/70 p-5 rounded-2xl">
                       <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Average Ticket Value</span>
                       <h4 className="font-display font-extrabold text-2xl text-gray-900 mt-1">₹{avgTicketVal.toFixed(2)}</h4>
                       <p className="text-[10px] text-gray-400 font-sans mt-0.5">Mean checkout billing value</p>
@@ -2004,7 +2004,7 @@ export default function CanteenAdmin({
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-blue-50 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
+                    <tr className="border-b border-red-50 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
                       <th className="pb-3.5">Transaction ID</th>
                       <th className="pb-3.5">Customer</th>
                       <th className="pb-3.5">Method</th>
@@ -2012,14 +2012,14 @@ export default function CanteenAdmin({
                       <th className="pb-3.5 text-right">Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-blue-50 font-sans">
+                  <tbody className="divide-y divide-red-50 font-sans">
                     {orders.filter(o => o.status === 'delivered' || o.status === 'collected').map((order) => (
-                      <tr key={order.id} className="hover:bg-blue-50/25">
+                      <tr key={order.id} className="hover:bg-red-50/25">
                         <td className="py-3 font-mono font-bold text-gray-800">{order.id}</td>
                         <td className="py-3 text-gray-700 font-semibold">{order.userName}</td>
                         <td className="py-3 text-gray-500">{order.paymentMethod || 'Paytm Gateway'}</td>
                         <td className="py-3 text-gray-500">{new Date(order.timestamp || order.createdAt).toLocaleString()}</td>
-                        <td className="py-3 text-right font-bold text-orange-600">₹{order.totalPrice.toFixed(2)}</td>
+                        <td className="py-3 text-right font-bold text-amber-600">₹{order.totalPrice.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2030,7 +2030,7 @@ export default function CanteenAdmin({
 
           {/* OWNER SUBTAB: CAPACITY SETTINGS EDITOR */}
           {ownerSubTab === 'settings' && (
-            <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs max-w-md space-y-5">
+            <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs max-w-md space-y-5">
               <div>
                 <h3 className="font-display font-bold text-sm text-gray-900">Queue Capacity Parameters</h3>
                 <p className="text-xs text-gray-400 font-sans">Fine-tune pickup window expiry limits and slot bookings capacity.</p>
@@ -2042,7 +2042,7 @@ export default function CanteenAdmin({
                   <select
                     value={noShowMinutesVal}
                     onChange={(e) => setNoShowMinutesVal(e.target.value)}
-                    className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium cursor-pointer"
+                    className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium cursor-pointer"
                   >
                     <option value="15">15 Minutes Window</option>
                     <option value="30">30 Minutes Window</option>
@@ -2057,14 +2057,14 @@ export default function CanteenAdmin({
                     value={defaultSlotCapacityVal}
                     onChange={(e) => setDefaultSlotCapacityVal(e.target.value)}
                     required
-                    className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={updatingSettings}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white rounded-xl py-3 text-xs font-bold transition shadow-md cursor-pointer flex items-center justify-center"
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-xs font-bold transition shadow-md cursor-pointer flex items-center justify-center"
                 >
                   {updatingSettings ? 'Updating Parameters...' : 'Save Configuration Parameters'}
                 </button>
@@ -2074,7 +2074,7 @@ export default function CanteenAdmin({
 
           {/* OWNER SUBTAB: REVIEWS FEED */}
           {ownerSubTab === 'reviews' && (
-            <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-6">
+            <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-6">
               <div>
                 <h3 className="font-display font-bold text-sm text-gray-900">Student Reviews Audit Log</h3>
                 <p className="text-xs text-gray-400 font-sans">Verified checkout reviews analyzed by Gemini NLP sentiment pipelines.</p>
@@ -2082,12 +2082,12 @@ export default function CanteenAdmin({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {reviews.map((rev, idx) => (
-                  <div key={idx} className="bg-blue-50/50 p-5 rounded-2xl text-xs font-sans border border-blue-100/30 text-left space-y-3">
+                  <div key={idx} className="bg-red-50/50 p-5 rounded-2xl text-xs font-sans border border-red-100/30 text-left space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-bold text-gray-900 shrink-0 capitalize">{rev.userName}</h4>
                         {rev.menuItemName && (
-                          <span className="text-[10px] text-blue-800 font-bold uppercase tracking-wider block mt-0.5">Purchased: {rev.menuItemName}</span>
+                          <span className="text-[10px] text-red-800 font-bold uppercase tracking-wider block mt-0.5">Purchased: {rev.menuItemName}</span>
                         )}
                       </div>
                       <span className={`px-2.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wider ${
@@ -2116,14 +2116,14 @@ export default function CanteenAdmin({
       {/* ======================= GLOBAL ADD/EDIT PRODUCT MODAL ======================= */}
       {showItemModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-blue-100 max-h-[90vh] overflow-y-auto">
-            <div className="bg-blue-50 px-6 py-4.5 border-b border-blue-100 flex items-center justify-between">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-red-100 max-h-[90vh] overflow-y-auto">
+            <div className="bg-red-50 px-6 py-4.5 border-b border-red-100 flex items-center justify-between">
               <h3 className="font-display font-bold text-sm text-gray-900">
                 {editingItem ? 'Edit Canteen Meal' : 'Add Custom Combo'}
               </h3>
               <button
                 onClick={() => setShowItemModal(false)}
-                className="p-1 rounded-full hover:bg-blue-100 text-gray-400 hover:text-gray-650 transition"
+                className="p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-gray-650 transition"
               >
                 <X className="h-4.5 w-4.5" />
               </button>
@@ -2138,7 +2138,7 @@ export default function CanteenAdmin({
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="e.g. Schezwan Noodles"
-                  className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs"
+                  className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs"
                 />
               </div>
 
@@ -2150,7 +2150,7 @@ export default function CanteenAdmin({
                     required
                     value={formPrice}
                     onChange={(e) => setFormPrice(e.target.value)}
-                    className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2160,7 +2160,7 @@ export default function CanteenAdmin({
                     required
                     value={formStock}
                     onChange={(e) => setFormStock(e.target.value)}
-                    className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
                   />
                 </div>
               </div>
@@ -2171,7 +2171,7 @@ export default function CanteenAdmin({
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium"
+                    className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium"
                   >
                     <option value="Meals">Meals</option>
                     <option value="Snacks & Beverages">Snacks & Beverages</option>
@@ -2184,10 +2184,10 @@ export default function CanteenAdmin({
                     value={formImageUrl}
                     onChange={(e) => setFormImageUrl(e.target.value)}
                     placeholder="Paste Google/Unsplash image URL..."
-                    className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs"
+                    className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs"
                   />
                   {formImageUrl && (
-                    <div className="mt-1 rounded-lg overflow-hidden border border-blue-100 h-24 bg-blue-50">
+                    <div className="mt-1 rounded-lg overflow-hidden border border-red-100 h-24 bg-red-50">
                       <img src={formImageUrl} alt="Preview" referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     </div>
                   )}
@@ -2202,7 +2202,7 @@ export default function CanteenAdmin({
                     required
                     value={formPrepTime}
                     onChange={(e) => setFormPrepTime(e.target.value)}
-                    className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2212,18 +2212,18 @@ export default function CanteenAdmin({
                     required
                     value={formDailyLimit}
                     onChange={(e) => setFormDailyLimit(e.target.value)}
-                    className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
                   />
                 </div>
               </div>
  
-              <div className="flex items-center space-x-2 bg-blue-50/20 p-3.5 rounded-xl border border-blue-100">
+              <div className="flex items-center space-x-2 bg-red-50/20 p-3.5 rounded-xl border border-red-100">
                 <input
                   type="checkbox"
                   id="formRequiresChef"
                   checked={formRequiresChef}
                   onChange={(e) => setFormRequiresChef(e.target.checked)}
-                  className="rounded text-orange-600 focus:ring-orange-500 h-4 w-4"
+                  className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4"
                 />
                 <label htmlFor="formRequiresChef" className="text-xs font-bold text-gray-700 cursor-pointer">
                   Requires Chef cooking (Send to Kitchen Queue)
@@ -2231,13 +2231,13 @@ export default function CanteenAdmin({
               </div>
 
               {/* INGREDIENTS RECIPE MAPPING editor inside Save item modal */}
-              <div className="space-y-2 border border-blue-100 p-3 rounded-xl bg-blue-50/20">
+              <div className="space-y-2 border border-red-100 p-3 rounded-xl bg-red-50/20">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider block">Recipe Ingredients Map (g / pcs)</span>
+                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Recipe Ingredients Map (g / pcs)</span>
                   <button
                     type="button"
                     onClick={() => setFormRecipe([...formRecipe, { ingredientId: '', amountGrams: 0 }])}
-                    className="text-[10px] font-bold text-orange-600 hover:text-blue-900 cursor-pointer"
+                    className="text-[10px] font-bold text-amber-600 hover:text-red-900 cursor-pointer"
                   >
                     + Add Ingredient
                   </button>
@@ -2255,7 +2255,7 @@ export default function CanteenAdmin({
                           copy[idx] = { ...copy[idx], ingredientId: e.target.value };
                           setFormRecipe(copy);
                         }}
-                        className="flex-1 bg-white border border-blue-100 rounded px-2 py-1 outline-none text-[10px]"
+                        className="flex-1 bg-white border border-red-100 rounded px-2 py-1 outline-none text-[10px]"
                       >
                         <option value="">Select ingredient...</option>
                         {ingredients.map(ing => (
@@ -2271,7 +2271,7 @@ export default function CanteenAdmin({
                           copy[idx] = { ...copy[idx], amountGrams: Number(e.target.value) };
                           setFormRecipe(copy);
                         }}
-                        className="w-20 bg-white border border-blue-100 rounded px-2 py-1 outline-none text-[10px] font-mono"
+                        className="w-20 bg-white border border-red-100 rounded px-2 py-1 outline-none text-[10px] font-mono"
                       />
                       <button
                         type="button"
@@ -2292,13 +2292,13 @@ export default function CanteenAdmin({
                   onChange={(e) => setFormDescription(e.target.value)}
                   rows={2}
                   placeholder="Ingredients list..."
-                  className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs text-gray-700"
+                  className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs text-gray-700"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full mt-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl py-3 text-xs font-bold transition shadow-md cursor-pointer"
+                className="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-xs font-bold transition shadow-md cursor-pointer"
               >
                 Save Food Details
               </button>
@@ -2310,14 +2310,14 @@ export default function CanteenAdmin({
       {/* GLOBAL ADD/EDIT INGREDIENT MODAL */}
       {showIngModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-blue-100">
-            <div className="bg-blue-50 px-6 py-4.5 border-b border-blue-100 flex items-center justify-between">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-red-100">
+            <div className="bg-red-50 px-6 py-4.5 border-b border-red-100 flex items-center justify-between">
               <h3 className="font-display font-bold text-sm text-gray-900">
                 {editingIng ? 'Edit Raw Stock' : 'Add Raw Stock'}
               </h3>
               <button
                 onClick={() => setShowIngModal(false)}
-                className="p-1 rounded-full hover:bg-blue-100 text-gray-400 hover:text-gray-655 transition"
+                className="p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-gray-655 transition"
               >
                 <X className="h-4.5 w-4.5" />
               </button>
@@ -2332,7 +2332,7 @@ export default function CanteenAdmin({
                   value={formIngName}
                   onChange={(e) => setFormIngName(e.target.value)}
                   placeholder="e.g. Rice, Veg, Sauce"
-                  className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs"
+                  className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs"
                 />
               </div>
 
@@ -2344,7 +2344,7 @@ export default function CanteenAdmin({
                     required
                     value={formIngStock}
                     onChange={(e) => setFormIngStock(e.target.value)}
-                    className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2352,7 +2352,7 @@ export default function CanteenAdmin({
                   <select
                     value={formIngUnit}
                     onChange={(e) => setFormIngUnit(e.target.value)}
-                    className="w-full bg-blue-50/40 border border-blue-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium"
+                    className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium"
                   >
                     <option value="g">g (grams)</option>
                     <option value="kg">kg (kilograms)</option>
@@ -2363,7 +2363,7 @@ export default function CanteenAdmin({
 
               <button
                 type="submit"
-                className="w-full mt-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl py-3 text-xs font-bold transition shadow-md cursor-pointer"
+                className="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-xs font-bold transition shadow-md cursor-pointer"
               >
                 Save Ingredient Details
               </button>

@@ -354,12 +354,12 @@ export default function CustomerApp({
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
       {/* HERO BANNER - College Branded */}
-      <div className="relative rounded-3xl overflow-hidden mb-8 bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 text-white shadow-xl">
+      <div className="relative rounded-3xl overflow-hidden mb-8 bg-gradient-to-r from-red-900 via-red-800 to-red-800 text-white shadow-xl">
         {/* Banner background image if set */}
         {userCollege?.bannerUrl && (
           <div className="absolute inset-0">
             <img src={userCollege.bannerUrl} alt="" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-blue-900/70" />
+            <div className="absolute inset-0 bg-red-900/70" />
           </div>
         )}
         {/* Background pattern overlay (only when no banner image) */}
@@ -376,7 +376,7 @@ export default function CustomerApp({
             )}
           </div>
           <div className="text-center md:text-left flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-orange-300 mb-1">Welcome to</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300 mb-1">Welcome to</p>
             <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight">{userCollege?.name || 'Violet Bites'}</h1>
             <p className="text-sm text-white/80 font-sans mt-1">{userCollege?.bannerSubtitle || 'Official Smart Canteen Platform'}</p>
             <div className="flex flex-wrap gap-2 mt-3 justify-center md:justify-start">
@@ -396,7 +396,7 @@ export default function CustomerApp({
         <select
           value={selectedSubCanteenId}
           onChange={(e) => setSelectedSubCanteenId(e.target.value)}
-          className="bg-white border border-blue-100 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-500 min-w-[200px]"
+          className="bg-white border border-red-100 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500 min-w-[200px]"
         >
           <option value="">All Counters</option>
           {subCanteens.filter(s => s.canteenId === selectedCanteenId).map(s => (
@@ -408,19 +408,19 @@ export default function CustomerApp({
           placeholder="Search menus, food items, categories..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium"
+          className="flex-1 bg-white border border-red-100 rounded-xl px-4 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
         />
       </div>
       
       {/* Tab Switcher */}
       {!successOrder && (
-        <div className="flex border-b border-blue-100 mb-8 gap-6 text-left">
+        <div className="flex border-b border-red-100 mb-8 gap-6 text-left">
           <button
             type="button"
             onClick={() => setCustomerTab('menu')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 tracking-wide uppercase cursor-pointer ${
               customerTab === 'menu'
-                ? 'border-orange-600 text-orange-600 font-extrabold'
+                ? 'border-amber-600 text-amber-600 font-extrabold'
                 : 'border-transparent text-gray-400 hover:text-gray-900'
             }`}
           >
@@ -431,7 +431,7 @@ export default function CustomerApp({
             onClick={() => setCustomerTab('history')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 tracking-wide uppercase cursor-pointer ${
               customerTab === 'history'
-                ? 'border-orange-600 text-orange-600 font-extrabold'
+                ? 'border-amber-600 text-amber-600 font-extrabold'
                 : 'border-transparent text-gray-400 hover:text-gray-900'
             }`}
           >
@@ -444,7 +444,7 @@ export default function CustomerApp({
       <div className="transition-all">
           {successOrder ? (
             /* E-TICKET SUCCESS VIEW (Image 6 & Image 13) */
-            <div className="max-w-xl mx-auto bg-white rounded-3xl border border-blue-100 shadow-xl overflow-hidden p-8 transition-all relative text-center">
+            <div className="max-w-xl mx-auto bg-white rounded-3xl border border-red-100 shadow-xl overflow-hidden p-8 transition-all relative text-center">
               <div className="flex flex-col items-center space-y-4">
                 <div className="h-14 w-14 bg-emerald-500 rounded-2xl text-white flex items-center justify-center shadow-lg">
                   <CheckCircle className="h-8 w-8 stroke-[2.5]" />
@@ -455,7 +455,7 @@ export default function CustomerApp({
                 </div>
 
                 {/* QR Code generated locally */}
-                <div className="bg-[#ffffff] p-5 rounded-2xl border-2 border-dashed border-blue-200/80 my-4 flex flex-col items-center">
+                <div className="bg-[#ffffff] p-5 rounded-2xl border-2 border-dashed border-red-200/80 my-4 flex flex-col items-center">
                   <div className="bg-neutral-900 p-4 rounded-xl">
                     {qrImageUrl ? (
                       <img src={qrImageUrl} alt="Order QR Code" className="h-44 w-44 rounded-lg" />
@@ -469,10 +469,10 @@ export default function CustomerApp({
                 </div>
 
                 {/* Info summary brackets */}
-                <div className="w-full grid grid-cols-2 gap-4 bg-blue-50/50 p-4 rounded-2xl text-left border border-blue-100/30">
+                <div className="w-full grid grid-cols-2 gap-4 bg-red-50/50 p-4 rounded-2xl text-left border border-red-100/30">
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Order ID</span>
-                    <span className="text-xs font-mono font-bold text-orange-700">{successOrder.id}</span>
+                    <span className="text-xs font-mono font-bold text-amber-700">{successOrder.id}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Amount Paid</span>
@@ -483,11 +483,11 @@ export default function CustomerApp({
                 {/* Dynamic List order summary */}
                 <div className="w-full text-left space-y-3.5 mt-4">
                   <h3 className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Order Summary</h3>
-                  <div className="divide-y divide-blue-100/50 font-sans text-xs">
+                  <div className="divide-y divide-red-100/50 font-sans text-xs">
                     {successOrder.items.map((item, idx) => (
                       <div key={idx} className="py-2.5 flex justify-between items-center">
                         <span className="text-gray-800 font-medium">
-                          {item.name} <span className="text-orange-600 font-bold ml-1">x{item.quantity}</span>
+                          {item.name} <span className="text-amber-600 font-bold ml-1">x{item.quantity}</span>
                         </span>
                         <span className="font-mono text-gray-600">₹{(item.price * item.quantity).toFixed(2)}</span>
                       </div>
@@ -507,7 +507,7 @@ export default function CustomerApp({
                           </div>
                           <div className="py-3 flex justify-between font-bold text-sm text-gray-900">
                             <span>Total Paid</span>
-                            <span className="font-mono text-orange-700">₹{successOrder.totalPrice.toFixed(2)}</span>
+                            <span className="font-mono text-amber-700">₹{successOrder.totalPrice.toFixed(2)}</span>
                           </div>
                         </>
                       );
@@ -519,7 +519,7 @@ export default function CustomerApp({
                 <button
                   type="button"
                   onClick={() => { setSuccessOrder(null); setQrImageUrl(''); setQrPayload(''); }}
-                  className="w-full mt-6 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md cursor-pointer font-display"
+                  className="w-full mt-6 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md cursor-pointer font-display"
                 >
                   Place Another Order
                 </button>
@@ -533,22 +533,22 @@ export default function CustomerApp({
               <div className="lg:col-span-8 space-y-8">
 
                 {/* TODAY'S MENU BLOCK */}
-                <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-blue-50 pb-5">
+                <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-red-50 pb-5">
                     <div>
                       <h2 className="font-display font-bold text-xl text-gray-900 tracking-tight">Today's Menu</h2>
                       <p className="text-xs text-gray-400 mt-0.5 font-sans">Freshly prepared, just for you.</p>
                     </div>
 
                     {/* MENU FILTER TABS (Meals, Snacks & Beverages) */}
-                    <div className="bg-blue-50/80 p-1.5 rounded-xl flex items-center border border-blue-100/50">
+                    <div className="bg-red-50/80 p-1.5 rounded-xl flex items-center border border-red-100/50">
                       {['Meals', 'Snacks & Beverages'].map(cat => (
                         <button
                           key={cat}
                           onClick={() => setSelectedCategory(cat)}
                           className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
                             selectedCategory === cat
-                              ? 'bg-white text-orange-700 shadow-xs border border-blue-100'
+                              ? 'bg-white text-amber-700 shadow-xs border border-red-100'
                               : 'text-gray-500 hover:text-gray-900'
                           }`}
                         >
@@ -563,9 +563,9 @@ export default function CustomerApp({
                     {filteredItems.map(item => {
                       const cartCount = cart[item.id] || 0;
                       return (
-                        <div key={item.id} className="bg-[#ffffff] rounded-2xl border border-blue-100 shadow-xs hover:shadow-md transition-all flex flex-col overflow-hidden relative">
+                        <div key={item.id} className="bg-[#ffffff] rounded-2xl border border-red-100 shadow-xs hover:shadow-md transition-all flex flex-col overflow-hidden relative">
                           {/* Image Box */}
-                          <div className="aspect-video relative overflow-hidden bg-blue-50">
+                          <div className="aspect-video relative overflow-hidden bg-red-50">
                             {item.imageUrl ? (
                               <img src={item.imageUrl} alt={item.name} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-all" />
                             ) : (
@@ -601,26 +601,26 @@ export default function CustomerApp({
                               </div>
                               <p className="text-[11px] text-gray-400 font-sans line-clamp-2 leading-relaxed">{item.description}</p>
                               <div className="flex items-center space-x-2 pt-0.5">
-                                <span className="text-[9px] font-mono bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded-md font-bold">Prep: {item.prepTime} mins</span>
+                                <span className="text-[9px] font-mono bg-red-50 text-red-800 px-1.5 py-0.5 rounded-md font-bold">Prep: {item.prepTime} mins</span>
                                 <span className="text-[9px] font-mono bg-neutral-50 text-gray-500 px-1.5 py-0.5 rounded-md font-medium">Limit: {item.dailyLimit}</span>
                               </div>
                             </div>
 
                             <div className="flex items-center justify-between pt-1.5">
-                              <span className="font-display font-extrabold text-sm text-blue-800">₹{item.price.toFixed(2)}</span>
+                              <span className="font-display font-extrabold text-sm text-red-800">₹{item.price.toFixed(2)}</span>
                               
                               {cartCount > 0 && !item.isPaused ? (
-                                <div className="flex items-center space-x-1.5 bg-blue-50 p-1 rounded-lg">
+                                <div className="flex items-center space-x-1.5 bg-red-50 p-1 rounded-lg">
                                   <button
                                     onClick={() => updateCartQty(item.id, false)}
-                                    className="p-1 rounded-md bg-white hover:bg-blue-100 text-blue-800 transition"
+                                    className="p-1 rounded-md bg-white hover:bg-red-100 text-red-800 transition"
                                   >
                                     <Minus className="h-3 w-3" />
                                   </button>
                                   <span className="text-xs font-bold font-mono px-1.5 text-slate-800">{cartCount}</span>
                                   <button
                                     onClick={() => updateCartQty(item.id, true)}
-                                    className="p-1 rounded-md bg-white hover:bg-blue-100 text-blue-800 transition"
+                                    className="p-1 rounded-md bg-white hover:bg-red-100 text-red-800 transition"
                                   >
                                     <Plus className="h-3 w-3" />
                                   </button>
@@ -629,7 +629,7 @@ export default function CustomerApp({
                                 <button
                                   onClick={() => updateCartQty(item.id, true)}
                                   disabled={item.stock === 0 || item.bookedToday >= item.dailyLimit || item.isPaused}
-                                  className="bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition shadow-xs flex items-center space-x-1 disabled:bg-slate-100 disabled:text-slate-450"
+                                  className="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition shadow-xs flex items-center space-x-1 disabled:bg-slate-100 disabled:text-slate-450"
                                 >
                                   <Plus className="h-3.5 w-3.5" />
                                   <span>{item.isPaused ? 'Unavailable' : (item.stock === 0 || item.bookedToday >= item.dailyLimit) ? 'Sold Out' : 'Add to Cart'}</span>
@@ -644,7 +644,7 @@ export default function CustomerApp({
                 </div>
 
                 {/* WRITE A PUBLIC CAMPUS REVIEW */}
-                <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-4">
+                <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-4">
                   <div>
                     <h3 className="font-display font-bold text-sm text-gray-900">Add Public Faculty Review</h3>
                     <p className="text-[11px] text-gray-400 font-sans">Reviews are sentiment analyzed automatically using server-side Gemini models.</p>
@@ -658,8 +658,8 @@ export default function CustomerApp({
                         onClick={() => setSelectedReviewItem(selectedReviewItem?.id === m.id ? null : m)}
                         className={`px-3 py-1.5 rounded-xl text-[10px] font-bold font-mono transition-all uppercase border ${
                           selectedReviewItem?.id === m.id
-                            ? 'bg-orange-600 text-white border-orange-600'
-                            : 'bg-blue-50/50 hover:bg-blue-50 text-gray-500 border-blue-100/40'
+                            ? 'bg-amber-600 text-white border-amber-600'
+                            : 'bg-red-50/50 hover:bg-red-50 text-gray-500 border-red-100/40'
                         }`}
                       >
                         {m.name}
@@ -692,7 +692,7 @@ export default function CustomerApp({
                           onChange={(e) => setReviewComment(e.target.value)}
                           required
                           rows={2}
-                          className="w-full bg-blue-50/50 focus:bg-white text-xs px-3.5 py-2 rounded-xl focus:outline-none border border-blue-100 focus:ring-1 focus:ring-orange-400 text-gray-700"
+                          className="w-full bg-red-50/50 focus:bg-white text-xs px-3.5 py-2 rounded-xl focus:outline-none border border-red-100 focus:ring-1 focus:ring-amber-400 text-gray-700"
                         />
                       </div>
 
@@ -700,22 +700,22 @@ export default function CustomerApp({
                         <button
                           type="submit"
                           disabled={isSubmittingReview}
-                          className="bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-4 py-2 text-[10px] font-bold uppercase tracking-wider shadow-xs"
+                          className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-4 py-2 text-[10px] font-bold uppercase tracking-wider shadow-xs"
                         >
                           {isSubmittingReview ? 'Analyzing AI Sentiment...' : 'Post Security Review'}
                         </button>
-                        <span className="text-[10px] font-mono text-purple-700 font-bold">{reviewFeedbackText}</span>
+                        <span className="text-[10px] font-mono text-red-700 font-bold">{reviewFeedbackText}</span>
                       </div>
                     </form>
                   )}
                 </div>
 
                 {/* FEEDBACK LOGS PREVIEW */}
-                <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-4">
+                <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-4">
                   <h3 className="font-display font-bold text-xs tracking-wider uppercase text-gray-400">Live Campus Sentiment Log</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {reviews.slice(0, 4).map((rev, idx) => (
-                      <div key={idx} className="bg-blue-50/50 p-4 rounded-2xl text-xs font-sans border border-blue-100/30">
+                      <div key={idx} className="bg-red-50/50 p-4 rounded-2xl text-xs font-sans border border-red-100/30">
                         <div className="flex justify-between items-center mb-1">
                           <span className="font-bold text-gray-900">{rev.userName}</span>
                           <span className={`text-[9px] font-bold uppercase font-mono px-2 py-0.5 rounded ${
@@ -729,7 +729,7 @@ export default function CustomerApp({
                           </span>
                         </div>
                         {rev.menuItemName && (
-                          <span className="text-[9px] font-semibold text-blue-800 uppercase tracking-wider block mb-1">On: {rev.menuItemName}</span>
+                          <span className="text-[9px] font-semibold text-red-800 uppercase tracking-wider block mb-1">On: {rev.menuItemName}</span>
                         )}
                         <p className="text-gray-500 leading-relaxed italic">"{rev.comment}"</p>
                       </div>
@@ -741,7 +741,7 @@ export default function CustomerApp({
 
               {/* LIVE SLIDING CHECKOUT CART BAR (RIGHT COLUMN) */}
               <div className="lg:col-span-4 space-y-6">
-                <div className="sticky top-20 bg-white p-6 rounded-3xl border border-blue-100 shadow-sm space-y-6">
+                <div className="sticky top-20 bg-white p-6 rounded-3xl border border-red-100 shadow-sm space-y-6">
                   
                   <div>
                     <h3 className="font-display font-bold text-base text-gray-900">Your Checkout Basket</h3>
@@ -750,13 +750,13 @@ export default function CustomerApp({
 
                   {totalCartCount === 0 ? (
                     <div className="text-center py-10 space-y-3">
-                      <ShoppingCart className="h-10 w-10 text-blue-100 mx-auto" />
+                      <ShoppingCart className="h-10 w-10 text-red-100 mx-auto" />
                       <p className="text-xs text-gray-400 max-w-xs mx-auto">Your cart is currently empty. Tap products to include them in your lunch order.</p>
                     </div>
                   ) : (
                     <div className="space-y-6">
                       {/* Products list */}
-                      <div className="divide-y divide-blue-50 max-h-[240px] overflow-y-auto pr-1">
+                      <div className="divide-y divide-red-50 max-h-[240px] overflow-y-auto pr-1">
                         {Object.entries(cart).map(([itemId, qty]) => {
                           const item = menuItems.find(i => i.id === itemId);
                           if (!item) return null;
@@ -764,22 +764,22 @@ export default function CustomerApp({
                             <div key={itemId} className="py-3 flex justify-between items-center text-xs font-sans">
                               <div className="flex items-center space-x-2">
                                 {item.imageUrl ? (
-                                  <img src={item.imageUrl} alt={item.name} referrerPolicy="no-referrer" className="h-9 w-9 rounded-lg object-cover bg-blue-50" />
+                                  <img src={item.imageUrl} alt={item.name} referrerPolicy="no-referrer" className="h-9 w-9 rounded-lg object-cover bg-red-50" />
                                 ) : (
-                                  <div className="h-9 w-9 rounded-lg bg-blue-50 flex items-center justify-center text-sm">🍲</div>
+                                  <div className="h-9 w-9 rounded-lg bg-red-50 flex items-center justify-center text-sm">🍲</div>
                                 )}
                                 <div>
                                   <span className="font-semibold text-gray-800 block capitalize">{item.name}</span>
-                                  <span className="text-[10px] text-blue-800 font-bold font-mono">₹{item.price.toFixed(2)}</span>
+                                  <span className="text-[10px] text-red-800 font-bold font-mono">₹{item.price.toFixed(2)}</span>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
-                                <div className="flex items-center space-x-1.5 bg-blue-50 p-1 rounded-lg">
-                                  <button onClick={() => updateCartQty(item.id, false)} className="p-1 rounded-md bg-white hover:bg-blue-100 text-orange-600">
+                                <div className="flex items-center space-x-1.5 bg-red-50 p-1 rounded-lg">
+                                  <button onClick={() => updateCartQty(item.id, false)} className="p-1 rounded-md bg-white hover:bg-red-100 text-amber-600">
                                     <Minus className="h-2.5 w-2.5" />
                                   </button>
                                   <span className="font-bold text-gray-800 px-1 font-mono">{qty}</span>
-                                  <button onClick={() => updateCartQty(item.id, true)} className="p-1 rounded-md bg-white hover:bg-blue-100 text-orange-600">
+                                  <button onClick={() => updateCartQty(item.id, true)} className="p-1 rounded-md bg-white hover:bg-red-100 text-amber-600">
                                     <Plus className="h-2.5 w-2.5" />
                                   </button>
                                 </div>
@@ -796,12 +796,12 @@ export default function CustomerApp({
                       </div>
 
                       {/* PRE-BOOKING SLOT SELECTOR */}
-                      <div className="border-t border-blue-100/60 pt-4 space-y-1.5 text-xs text-left">
+                      <div className="border-t border-red-100/60 pt-4 space-y-1.5 text-xs text-left">
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Choose Pickup Slot</label>
                         <select
                           value={selectedSlot}
                           onChange={(e) => setSelectedSlot(e.target.value)}
-                          className="w-full bg-blue-50/50 hover:bg-blue-50 focus:bg-white text-xs px-3 py-2.5 rounded-xl border border-blue-200 focus:outline-none focus:ring-2 focus:ring-orange-500 font-semibold cursor-pointer transition-all"
+                          className="w-full bg-red-50/50 hover:bg-red-50 focus:bg-white text-xs px-3 py-2.5 rounded-xl border border-red-200 focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold cursor-pointer transition-all"
                         >
                           {availableTimeSlots.map(slot => (
                             <option key={slot} value={slot}>{slot}</option>
@@ -810,7 +810,7 @@ export default function CustomerApp({
                       </div>
 
                       {/* Financial values */}
-                      <div className="border-t border-blue-100/60 pt-4 space-y-2.5 text-xs font-sans text-gray-500">
+                      <div className="border-t border-red-100/60 pt-4 space-y-2.5 text-xs font-sans text-gray-500">
                         <div className="flex justify-between">
                           <span>Subtotal:</span>
                           <span className="font-mono text-gray-700">₹{cartSubtotal.toFixed(2)}</span>
@@ -819,9 +819,9 @@ export default function CustomerApp({
                           <span>Convenience Fee:</span>
                           <span className="font-mono text-gray-700">₹{displayedConvenienceFee.toFixed(2)}</span>
                         </div>
-                        <div className="border-t border-blue-50 pt-2.5 flex justify-between font-bold text-sm text-gray-900">
+                        <div className="border-t border-red-50 pt-2.5 flex justify-between font-bold text-sm text-gray-900">
                           <span>Grand Total Due:</span>
-                          <span className="font-mono text-orange-700">₹{totalAmount.toFixed(2)}</span>
+                          <span className="font-mono text-amber-700">₹{totalAmount.toFixed(2)}</span>
                         </div>
                       </div>
 
@@ -843,7 +843,7 @@ export default function CustomerApp({
           ) : (
             /* HISTORY TAB */
             <div className="max-w-4xl mx-auto space-y-8 text-left animate-fade-in">
-              <div className="bg-white p-6 rounded-3xl border border-blue-100 shadow-xs space-y-4">
+              <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-4">
                 <div>
                   <h3 className="font-display font-bold text-sm text-gray-900">Your Booking History</h3>
                   <p className="text-xs text-gray-400 font-sans mt-0.5">Track kitchen progress, countdowns, and click any order to retrieve its pickup QR code.</p>
@@ -863,7 +863,7 @@ export default function CustomerApp({
                     );
                   }
                   return (
-                    <div className="divide-y divide-blue-100">
+                    <div className="divide-y divide-red-100">
                       {myOrders.map(o => {
                         let remainingMinutes = 0;
                         if (o.expiryTime && (o.status === 'scheduled' || o.status === 'preparing' || o.status === 'ready')) {
@@ -880,7 +880,7 @@ export default function CustomerApp({
                                     ? 'bg-emerald-50 text-emerald-750'
                                     : o.status === 'expired'
                                     ? 'bg-rose-50 text-rose-700'
-                                    : 'bg-blue-50 text-orange-700'
+                                    : 'bg-red-50 text-amber-700'
                                 }`}>
                                   {o.status}
                                 </span>
@@ -904,9 +904,9 @@ export default function CustomerApp({
                               {/* STEPPER PROGRESS TIMELINE */}
                               {isActive && (
                                 <div className="flex items-center space-x-2.5 pt-1.5 text-[9px] uppercase tracking-wide font-bold">
-                                  <span className={`${o.status === 'scheduled' || o.status === 'preparing' || o.status === 'ready' ? 'text-orange-700 font-black' : 'text-gray-300'}`}>● Scheduled</span>
+                                  <span className={`${o.status === 'scheduled' || o.status === 'preparing' || o.status === 'ready' ? 'text-amber-700 font-black' : 'text-gray-300'}`}>● Scheduled</span>
                                   <span className="text-gray-300">➔</span>
-                                  <span className={`${o.status === 'preparing' || o.status === 'ready' ? 'text-orange-700 font-black' : 'text-gray-300'}`}>● Preparing</span>
+                                  <span className={`${o.status === 'preparing' || o.status === 'ready' ? 'text-amber-700 font-black' : 'text-gray-300'}`}>● Preparing</span>
                                   <span className="text-gray-300">➔</span>
                                   <span className={`${o.status === 'ready' ? 'text-emerald-600 animate-pulse font-black' : 'text-gray-300'}`}>● Ready</span>
                                 </div>
@@ -917,7 +917,7 @@ export default function CustomerApp({
                               <span className="font-mono font-bold text-gray-950 text-sm">₹{o.totalPrice.toFixed(2)}</span>
                               <button
                                 onClick={() => { setSuccessOrder(o); setQrPayload(o.qrCode || o.id); }}
-                                className="bg-blue-50 hover:bg-blue-100 text-orange-700 border border-blue-200 rounded-xl px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider transition flex items-center space-x-1 cursor-pointer"
+                                className="bg-red-50 hover:bg-red-100 text-amber-700 border border-red-200 rounded-xl px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider transition flex items-center space-x-1 cursor-pointer"
                               >
                                 <QrCode className="h-3.5 w-3.5" />
                                 <span>QR Ticket</span>
@@ -936,7 +936,7 @@ export default function CustomerApp({
 
       {/* 3. TOAST NOTIFICATIONS DRAWER */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white rounded-2xl py-3 px-5 shadow-xl text-xs font-semibold animate-bounce shadow-orange-950/20 max-w-sm flex items-center space-x-2.5 border border-neutral-800">
+        <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white rounded-2xl py-3 px-5 shadow-xl text-xs font-semibold animate-bounce shadow-amber-950/20 max-w-sm flex items-center space-x-2.5 border border-neutral-800">
           <div className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
           <span>{toastMessage}</span>
         </div>
@@ -963,11 +963,11 @@ export default function CustomerApp({
               <div className="flex items-center justify-between">
                 {/* G Pay brand */}
                 <div className="flex items-center space-x-2">
-                  <div className="px-2 py-1.5 bg-orange-600 text-white font-extrabold text-[10px] rounded tracking-wide font-mono">G Pay</div>
+                  <div className="px-2 py-1.5 bg-amber-600 text-white font-extrabold text-[10px] rounded tracking-wide font-mono">G Pay</div>
                   <span className="text-xs font-bold text-gray-700">Google Pay</span>
                 </div>
                 {/* Simulated round avatar photo representing Raju/Watson */}
-                <div className="h-8 w-8 rounded-full overflow-hidden ring-2 ring-blue-200">
+                <div className="h-8 w-8 rounded-full overflow-hidden ring-2 ring-red-200">
                   <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop" alt="User Profile" className="h-full w-full object-cover" />
                 </div>
               </div>
@@ -975,7 +975,7 @@ export default function CustomerApp({
               {/* VISA CARD MOCKUP */}
               <div className="bg-white p-4 rounded-xl border border-neutral-300/60 shadow-xs flex items-center justify-between hover:bg-neutral-50 transition cursor-pointer">
                 <div className="flex items-center space-x-2.5">
-                  <div className="px-2 py-1 bg-blue-100 text-blue-800 rounded font-semibold text-[10px] font-mono">VISA</div>
+                  <div className="px-2 py-1 bg-red-100 text-red-800 rounded font-semibold text-[10px] font-mono">VISA</div>
                   <div>
                     <span className="text-xs font-bold text-gray-800 block">Test Card</span>
                     <span className="text-[10px] text-gray-400 font-mono">Visa •••• 1111</span>
@@ -1021,7 +1021,7 @@ export default function CustomerApp({
       )}
 
       {/* BRANDED FOOTER */}
-      <footer className="mt-12 bg-blue-900 text-white rounded-3xl p-6 md:p-8 shadow-xl">
+      <footer className="mt-12 bg-red-900 text-white rounded-3xl p-6 md:p-8 shadow-xl">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             {userCollege?.logoUrl ? (
@@ -1031,20 +1031,20 @@ export default function CustomerApp({
             )}
             <div>
               <p className="font-display font-bold text-sm">{userCollege?.name || 'Violet Bites'}</p>
-              <p className="text-[10px] text-orange-300 font-sans font-semibold">Official Smart Canteen</p>
+              <p className="text-[10px] text-amber-300 font-sans font-semibold">Official Smart Canteen</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-6 text-[11px] text-white/70">
             <span className="flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               <div><span className="block font-bold text-white">Smart Ordering</span><span className="text-[9px] text-white/50">Skip the Queue</span></div>
             </span>
             <span className="flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <div><span className="block font-bold text-white">Real-time Updates</span><span className="text-[9px] text-white/50">Live order tracking</span></div>
             </span>
             <span className="flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               <div><span className="block font-bold text-white">Hygienic & Safe</span><span className="text-[9px] text-white/50">Quality assured</span></div>
             </span>
           </div>

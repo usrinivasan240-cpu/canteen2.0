@@ -37,7 +37,14 @@ export default function App() {
       const resp = await fetch(`${API_BASE}/api/canteen?canteenId=${activeCanteenId}`);
       const data = await resp.json();
       if (data.success && data.canteen) {
-        setCanteen(data.canteen);
+        // Only overwrite if the new data has items (prevent polling from wiping data)
+        if (data.canteen.items && data.canteen.items.length > 0) {
+          setCanteen(data.canteen);
+        } else if (canteen && canteen.items && canteen.items.length > 0) {
+          // Keep existing data if new fetch has empty items
+        } else {
+          setCanteen(data.canteen);
+        }
         setErrorMessage('');
       } else {
         setErrorMessage('Failed to fetch cafeteria details from backend.');
@@ -237,15 +244,15 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#e8e4f5] flex flex-col items-center justify-center p-6 text-center text-gray-500">
         <div className="relative mb-6">
-          <div className="h-16 w-16 bg-orange-600 rounded-3xl flex items-center justify-center text-white shadow-lg animate-bounce">
+          <div className="h-16 w-16 bg-amber-600 rounded-3xl flex items-center justify-center text-white shadow-lg animate-bounce">
             <ChefHat className="h-8 w-8" />
           </div>
           <div className="absolute -bottom-2 -right-2 h-6 w-6 bg-white rounded-full flex items-center justify-center shadow-xs">
-            <div className="h-4.5 w-4.5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" />
+            <div className="h-4.5 w-4.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
           </div>
         </div>
         <h2 className="font-display font-bold text-gray-950 text-xl tracking-tight">Booting Violet Bites</h2>
-        <p className="text-xs text-orange-600 mt-1 max-w-xs font-semibold">Connecting smart dining cloud network...</p>
+        <p className="text-xs text-amber-600 mt-1 max-w-xs font-semibold">Connecting smart dining cloud network...</p>
       </div>
     );
   }
@@ -334,10 +341,10 @@ export default function App() {
 
       {/* FOOTER - Hidden for customer (CustomerApp has its own branded footer) */}
       {role !== 'superadmin' && role !== 'customer' && (
-        <footer className="border-t border-blue-100 bg-white py-6">
+        <footer className="border-t border-red-100 bg-white py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between text-xs text-gray-400 font-sans gap-3">
             <div className="flex items-center space-x-2">
-              <span className="font-bold text-blue-900 font-display text-sm">{userCollege?.name || 'Violet Bites'}</span>
+              <span className="font-bold text-red-900 font-display text-sm">{userCollege?.name || 'Violet Bites'}</span>
               <span>&copy; 2026 Campus Cafeteria Systems. All rights reserved.</span>
             </div>
             <div className="flex items-center space-x-4">

@@ -33,7 +33,7 @@ export default function UpdatePopup() {
     <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-br from-blue-900 to-blue-800 p-6 text-center text-white">
+        <div className="bg-gradient-to-br from-red-900 to-red-800 p-6 text-center text-white">
           <div className="h-16 w-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
             <RefreshCw className="h-8 w-8 animate-spin" style={{ animationDuration: '3s' }} />
           </div>
@@ -44,7 +44,7 @@ export default function UpdatePopup() {
         {/* Body */}
         <div className="p-6 text-center space-y-4">
           <p className="text-sm text-gray-600">
-            A new version of <span className="font-bold text-orange-600">Violet Bites</span> is available with improvements and bug fixes.
+            A new version of <span className="font-bold text-amber-600">Violet Bites</span> is available with improvements and bug fixes.
           </p>
           <p className="text-xs text-gray-400">
             Please update to continue using the app.
@@ -54,7 +54,7 @@ export default function UpdatePopup() {
             <a
               href={`${API_BASE}/app-debug.apk`}
               download
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white rounded-xl py-3 text-sm font-semibold transition-all flex items-center justify-center space-x-2 shadow-md"
+              className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-sm font-semibold transition-all flex items-center justify-center space-x-2 shadow-md"
             >
               <Download className="h-4 w-4" />
               <span>Download Update</span>
