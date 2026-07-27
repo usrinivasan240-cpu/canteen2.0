@@ -80,7 +80,7 @@ export default function App() {
           userId: currentUser ? currentUser.id : 'user_guest',
           userName: currentUser ? currentUser.name : 'Raju Watson',
           items: cartItems,
-          paymentMethod: 'Razorpay Online Gateway',
+          paymentMethod: 'Paytm Gateway',
           pickupSlot,
           canteenId: canteenId || currentUser?.canteenId || selectedCanteenId,
           subCanteenId: subCanteenId || currentUser?.subCanteenId
@@ -91,80 +91,25 @@ export default function App() {
         return data;
       }
 
-      if (data.useRazorpay) {
+      if (data.usePaytm) {
         return new Promise((resolve) => {
-          const options: any = {
-            key: data.key,
-            amount: data.amount,
-            currency: 'INR',
-            name: 'Violet Bites',
-            description: 'Campus Canteen Food Order',
-            order_id: data.razorpayOrderId,
-            handler: async function (response: any) {
-              try {
-                const verifyResp = await fetch(`${API_BASE}/api/canteen/payment/verify`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    razorpay_order_id: response.razorpay_order_id,
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_signature: response.razorpay_signature,
-                  })
-                });
-                const verifyData = await verifyResp.json();
-                if (verifyData.success) {
-                  await fetchCanteenData();
-                  resolve({ success: true, order: verifyData.order });
-                } else {
-                  resolve({ success: false, error: verifyData.error || 'Payment signature verification failed.' });
-                }
-              } catch (err) {
-                console.error(err);
-                resolve({ success: false, error: 'Verification network failure.' });
-              }
-            },
-            prefill: {
-              name: currentUser ? currentUser.name : 'Raju Watson',
-              email: currentUser ? currentUser.email : 'watson777@gmail.com',
-              contact: '',
-              method: 'upi',
-            },
-            config: {
-              display: {
-                preferences: {
-                  default_method: 'upi',
-                },
-                blocks: {
-                  upi: {
-                    name: 'Pay via UPI',
-                    instruments: [
-                      { method: 'upi' }
-                    ]
-                  },
-                  card: { name: 'Cards', instruments: [{ method: 'card' }] },
-                  netbanking: { name: 'Netbanking', instruments: [{ method: 'netbanking' }] },
-                  wallet: { name: 'Wallets', instruments: [{ method: 'wallet' }] }
-                },
-                sequence: ['block.upi'],
-                compact: false,
-                hide: [
-                  { method: 'card' },
-                  { method: 'netbanking' },
-                  { method: 'wallet' }
-                ]
-              }
-            },
-            theme: {
-              color: '#7c3aed',
-            },
-            modal: {
-              ondismiss: function () {
-                resolve({ success: false, error: 'Payment checkout dismissed by user.' });
-              }
-            }
-          };
-          const rzp = new (window as any).Razorpay(options);
-          rzp.open();
+          const paytmForm = document.createElement('form');
+          paytmForm.setAttribute('method', 'POST');
+          paytmForm.setAttribute('action', data.paytmGatewayUrl);
+
+          for (const [key, value] of Object.entries(data.paytmParams)) {
+            const input = document.createElement('input');
+            input.setAttribute('type', 'hidden');
+            input.setAttribute('name', key);
+            input.setAttribute('value', value as string);
+            paytmForm.appendChild(input);
+          }
+
+          document.body.appendChild(paytmForm);
+          paytmForm.submit();
+
+          // Listen for callback from Paytm (page will redirect)
+          resolve({ success: true, order: data.order, redirecting: true });
         });
       }
 

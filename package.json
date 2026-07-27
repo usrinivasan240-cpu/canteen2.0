@@ -25,8 +25,8 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "nodemailer": "^9.0.3",
+    "paytmchecksum": "^1.5.1",
     "qrcode": "^1.5.4",
-    "razorpay": "^2.9.6",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "resend": "^6.18.0"

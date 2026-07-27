@@ -54,8 +54,8 @@ export interface Order {
   timestamp: string;
   createdAt: number;
   pickupTimeText?: string;
-  razorpayOrderId?: string;
-  razorpayPaymentId?: string;
+  paytmOrderId?: string;
+  paytmTransactionId?: string;
   pickupSlot?: string; // e.g. "12:45 PM"
   prepStartTime?: number; // unix timestamp
   expiryTime?: number; // unix timestamp
@@ -113,7 +113,7 @@ export interface Canteen {
   status: 'active' | 'inactive';
   location?: string;
   logoUrl?: string;
-  razorpayAccountId?: string;
+  paytmMerchantId?: string;
   items?: MenuItem[];
   orders?: Order[];
   reviews?: Review[];
