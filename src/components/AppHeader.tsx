@@ -38,7 +38,7 @@ export default function AppHeader({ currentRole, onChangeRole, userEmail, onLogo
                 )}
               </div>
               <p className="hidden sm:block text-[10px] text-gray-400 font-sans tracking-wide uppercase">
-                Smart Canteen Platform
+                SkipQ Platform
               </p>
             </div>
           </div>

@@ -722,7 +722,7 @@ export default function ServicePanel({
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Banner Subtitle</label>
                         <input
                           type="text"
-                          defaultValue={c.bannerSubtitle || 'Official Smart Canteen Platform'}
+                          defaultValue={c.bannerSubtitle || 'Official SkipQ Platform'}
                           onBlur={async (e) => {
                             try {
                               await fetch(`${API_BASE}/api/colleges/${c.id}/banner`, {

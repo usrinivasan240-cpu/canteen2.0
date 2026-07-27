@@ -341,14 +341,14 @@ export default function App() {
 
       {/* FOOTER - Hidden for customer (CustomerApp has its own branded footer) */}
       {role !== 'superadmin' && role !== 'customer' && (
-        <footer className="border-t border-red-100 bg-white py-6">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between text-xs text-gray-400 font-sans gap-3">
+        <footer className="border-t border-gray-800 bg-gray-900 py-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between text-xs text-gray-500 font-sans gap-3">
             <div className="flex items-center space-x-2">
-              <span className="font-bold text-red-900 font-display text-sm">{userCollege?.name || 'Violet Bites'}</span>
+              <span className="font-bold text-white font-display text-sm">SkipQ</span>
               <span>&copy; 2026 Campus Cafeteria Systems. All rights reserved.</span>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="flex items-center space-x-1 font-mono text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-bold uppercase select-none ring-1 ring-emerald-200">
+              <span className="flex items-center space-x-1 font-mono text-[10px] bg-emerald-50/10 text-emerald-400 px-2.5 py-0.5 rounded-full font-bold uppercase select-none ring-1 ring-emerald-500/20">
                 <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-ping mr-1" />
                 <span>Cloud Synced</span>
               </span>
