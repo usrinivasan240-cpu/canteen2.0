@@ -1,0 +1,8 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "shell": "powershell",
+  "layout": "stretch",
+  "experimental": {
+    "disable_paste_summary": false
+  }
+}

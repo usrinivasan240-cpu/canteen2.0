@@ -593,7 +593,7 @@ export default function CustomerApp({
                           </div>
 
                           {/* Body info */}
-                          <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
+                          <div className="p-4 flex-1 flex flex-col justify-between gap-3">
                             <div className="space-y-1">
                               <div className="flex justify-between items-start gap-2">
                                 <h4 className="font-display font-semibold text-sm text-gray-900 tracking-tight leading-tight capitalize">{item.name}</h4>
@@ -606,34 +606,40 @@ export default function CustomerApp({
                               </div>
                             </div>
 
-                            <div className="flex items-center justify-between pt-1.5">
-                              <span className="font-display font-extrabold text-sm text-red-800">₹{item.price.toFixed(2)}</span>
-                              
+                            <div className="pt-1.5 space-y-2">
                               {cartCount > 0 && !item.isPaused ? (
-                                <div className="flex items-center space-x-1.5 bg-red-50 p-1 rounded-lg">
-                                  <button
-                                    onClick={() => updateCartQty(item.id, false)}
-                                    className="p-1 rounded-md bg-white hover:bg-red-100 text-red-800 transition"
-                                  >
-                                    <Minus className="h-3 w-3" />
-                                  </button>
-                                  <span className="text-xs font-bold font-mono px-1.5 text-slate-800">{cartCount}</span>
-                                  <button
-                                    onClick={() => updateCartQty(item.id, true)}
-                                    className="p-1 rounded-md bg-white hover:bg-red-100 text-red-800 transition"
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                  </button>
+                                <div className="flex items-center justify-between">
+                                  <span className="font-display font-extrabold text-sm text-red-800">₹{item.price.toFixed(2)}</span>
+                                  <div className="flex items-center space-x-1.5 bg-red-50 p-1 rounded-lg">
+                                    <button
+                                      onClick={() => updateCartQty(item.id, false)}
+                                      className="p-1 rounded-md bg-white hover:bg-red-100 text-red-800 transition"
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </button>
+                                    <span className="text-xs font-bold font-mono px-1.5 text-slate-800">{cartCount}</span>
+                                    <button
+                                      onClick={() => updateCartQty(item.id, true)}
+                                      className="p-1 rounded-md bg-white hover:bg-red-100 text-red-800 transition"
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </button>
+                                  </div>
                                 </div>
                               ) : (
-                                <button
-                                  onClick={() => updateCartQty(item.id, true)}
-                                  disabled={item.stock === 0 || item.bookedToday >= item.dailyLimit || item.isPaused}
-                                  className="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition shadow-xs flex items-center space-x-1 disabled:bg-slate-100 disabled:text-slate-450"
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                  <span>{item.isPaused ? 'Unavailable' : (item.stock === 0 || item.bookedToday >= item.dailyLimit) ? 'Sold Out' : 'Add to Cart'}</span>
-                                </button>
+                                <>
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-display font-extrabold text-sm text-red-800">₹{item.price.toFixed(2)}</span>
+                                  </div>
+                                  <button
+                                    onClick={() => updateCartQty(item.id, true)}
+                                    disabled={item.stock === 0 || item.bookedToday >= item.dailyLimit || item.isPaused}
+                                    className="w-full bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-[11px] font-bold py-2 rounded-xl transition shadow-xs flex items-center justify-center space-x-1 disabled:bg-slate-100 disabled:text-slate-400"
+                                  >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    <span>{item.isPaused ? 'Unavailable' : (item.stock === 0 || item.bookedToday >= item.dailyLimit) ? 'Sold Out' : 'Add to Cart'}</span>
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>
