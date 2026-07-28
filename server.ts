@@ -1462,6 +1462,11 @@ app.get('/api/canteen', async (req, res) => {
       if (items.length === 0) {
         const legacySnap = await db.collection('items').where('canteenId', '==', 'canteen_001').limit(100).get();
         items = legacySnap.docs.map(doc => doc.data() as MenuItem);
+        // If still empty, try fetching all items (legacy data without canteenId)
+        if (items.length === 0) {
+          const allSnap = await db.collection('items').limit(200).get();
+          items = allSnap.docs.map(doc => doc.data() as MenuItem);
+        }
       }
       let orders = ordersSnap.docs.map(doc => {
         const o = doc.data() as Order;
@@ -1556,6 +1561,16 @@ app.post('/api/canteen/menu', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Name, valid price and stock are required.' });
   }
 
+  // Compress base64 images to prevent Firestore document size limit
+  let processedImageUrl = imageUrl;
+  if (imageUrl && imageUrl.startsWith('data:image')) {
+    try {
+      processedImageUrl = await compressBase64Image(imageUrl, 600);
+    } catch (e) {
+      console.warn('Menu image compression failed:', e);
+    }
+  }
+
   const isNew = !id;
   const targetId = id || `item_${Date.now()}`;
   const resolvedCanteenId = canteenId || 'canteen_001';
@@ -1586,7 +1601,7 @@ app.post('/api/canteen/menu', async (req, res) => {
     category: category || 'Meals',
     description: description || '',
     tags: tags || [],
-    imageUrl: imageUrl || existingItem?.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=300&auto=format&fit=crop',
+    imageUrl: processedImageUrl || existingItem?.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=300&auto=format&fit=crop',
     prepTime: Number(prepTime) || existingItem?.prepTime || 10,
     dailyLimit: Number(dailyLimit) || existingItem?.dailyLimit || 100,
     bookedToday: existingItem?.bookedToday || 0,

@@ -53,6 +53,13 @@
       "collectionGroup": "items",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "canteenId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "canteenId", "order": "ASCENDING" },
         { "fieldPath": "available", "order": "ASCENDING" }
       ]

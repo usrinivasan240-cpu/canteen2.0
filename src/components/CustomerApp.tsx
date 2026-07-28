@@ -700,10 +700,9 @@ export default function CustomerApp({
                           {/* Image Box */}
                           <div className="aspect-video relative overflow-hidden bg-red-50">
                             {item.imageUrl ? (
-                              <img src={item.imageUrl} alt={item.name} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-all" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-3xl">🍲</div>
-                            )}
+                              <img src={item.imageUrl} alt={item.name} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-all" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+                            ) : null}
+                            <div className={`w-full h-full flex items-center justify-center text-3xl ${item.imageUrl ? 'hidden' : ''}`}>🍲</div>
                             
                             {/* Paused or Sold Out Overlays */}
                             {item.isPaused ? (
