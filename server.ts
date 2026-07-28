@@ -1412,10 +1412,10 @@ app.get('/api/canteen', async (req, res) => {
       ]);
 
       let items = itemsSnap.docs.map(doc => doc.data() as MenuItem);
-      // Fallback: if no items match canteenId, try getting all items (for legacy data without canteenId)
+      // Fallback: if no items match canteenId, try getting items without canteenId (legacy data)
       if (items.length === 0) {
-        const allItemsSnap = await db.collection('items').limit(100).get();
-        items = allItemsSnap.docs.map(doc => doc.data() as MenuItem);
+        const legacySnap = await db.collection('items').where('canteenId', '==', 'canteen_001').limit(100).get();
+        items = legacySnap.docs.map(doc => doc.data() as MenuItem);
       }
       let orders = ordersSnap.docs.map(doc => doc.data() as Order);
       let reviews = reviewsSnap.docs.map(doc => doc.data() as Review);
@@ -1451,7 +1451,7 @@ app.get('/api/canteen', async (req, res) => {
 
 // 2. Add / Edit Menu Items (Owner)
 app.post('/api/canteen/menu', async (req, res) => {
-  const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe, canteenId } = req.body;
+  const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe, requiresChef, canteenId } = req.body;
   
   if (!name || isNaN(price) || isNaN(stock)) {
     return res.status(400).json({ success: false, error: 'Name, valid price and stock are required.' });
@@ -1459,6 +1459,7 @@ app.post('/api/canteen/menu', async (req, res) => {
 
   const isNew = !id;
   const targetId = id || `item_${Date.now()}`;
+  const resolvedCanteenId = canteenId || 'canteen_001';
 
   let existingItem: MenuItem | undefined;
   if (db && !isNew) {
@@ -1476,14 +1477,14 @@ app.post('/api/canteen/menu', async (req, res) => {
 
   const menuItem: MenuItem = {
     id: targetId,
-    canteenId: canteenId || 'canteen_001',
+    canteenId: resolvedCanteenId,
     name,
     price: Number(price),
     stock: Number(stock),
     rating: existingItem?.rating || 5.0,
     ratingCount: existingItem?.ratingCount || 1,
     available: stock > 0 ? (available !== undefined ? available : true) : false,
-    category,
+    category: category || 'Meals',
     description: description || '',
     tags: tags || [],
     imageUrl: imageUrl || existingItem?.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=300&auto=format&fit=crop',
@@ -1491,25 +1492,25 @@ app.post('/api/canteen/menu', async (req, res) => {
     dailyLimit: Number(dailyLimit) || existingItem?.dailyLimit || 100,
     bookedToday: existingItem?.bookedToday || 0,
     isPaused: isPaused !== undefined ? !!isPaused : (existingItem?.isPaused || false),
-    recipe: recipe || existingItem?.recipe || []
+    recipe: recipe || existingItem?.recipe || [],
+    requiresChef: requiresChef !== undefined ? !!requiresChef : true
   };
 
   if (db) {
     try {
       await db.collection('items').doc(targetId).set(menuItem);
+      console.log(`Menu item saved to Firestore: ${targetId} for canteen ${resolvedCanteenId}`);
     } catch (err) {
       console.error('Firestore save item error:', err);
+      return res.status(500).json({ success: false, error: 'Failed to save item to database. Please try again.' });
     }
-  }
-
-  if (isNew) {
-    canteenState.items.push(menuItem);
   } else {
-    canteenState.items = canteenState.items.map(item => item.id === id ? menuItem : item);
+    console.error('Firestore not initialized, cannot save menu item');
+    return res.status(500).json({ success: false, error: 'Database not connected. Please try again.' });
   }
 
-  invalidateCanteenCache(canteenId);
-  res.json({ success: true, menuItem, message: isNew ? 'Menu item added' : 'Menu item updated' });
+  invalidateCanteenCache(resolvedCanteenId);
+  res.json({ success: true, menuItem, message: isNew ? 'Menu item added successfully' : 'Menu item updated successfully' });
 });
 
 // 3. Delete Menu Item (Owner)
@@ -1518,11 +1519,12 @@ app.delete('/api/canteen/menu/:id', async (req, res) => {
   if (db) {
     try {
       await db.collection('items').doc(id).delete();
+      console.log(`Menu item deleted from Firestore: ${id}`);
     } catch (err) {
       console.error('Firestore delete error:', err);
+      return res.status(500).json({ success: false, error: 'Failed to delete item from database.' });
     }
   }
-  canteenState.items = canteenState.items.filter(item => item.id !== id);
   res.json({ success: true, message: 'Item deleted successfully' });
 });
 

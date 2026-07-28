@@ -130,6 +130,7 @@ export default function CanteenAdmin({
   
   // Menu form state
   const [showItemModal, setShowItemModal] = useState<boolean>(false);
+  const [itemFormError, setItemFormError] = useState<string>('');
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [formName, setFormName] = useState<string>('');
   const [formPrice, setFormPrice] = useState<string>('');
@@ -250,6 +251,7 @@ export default function CanteenAdmin({
     setFormDailyLimit('100');
     setFormRequiresChef(true);
     setFormRecipe([]);
+    setItemFormError('');
     setShowItemModal(true);
   };
 
@@ -270,11 +272,24 @@ export default function CanteenAdmin({
 
   const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim() || isNaN(Number(formPrice)) || isNaN(Number(formStock))) return;
+    setItemFormError('');
+
+    if (!formName.trim()) {
+      setItemFormError('Food name is required.');
+      return;
+    }
+    if (isNaN(Number(formPrice)) || Number(formPrice) <= 0) {
+      setItemFormError('Please enter a valid price greater than 0.');
+      return;
+    }
+    if (isNaN(Number(formStock)) || Number(formStock) < 0) {
+      setItemFormError('Please enter a valid stock quantity (0 or more).');
+      return;
+    }
 
     const payload = {
       id: editingItem ? editingItem.id : undefined,
-      name: formName,
+      name: formName.trim(),
       price: Number(formPrice),
       stock: Number(formStock),
       category: formCategory,
@@ -289,12 +304,17 @@ export default function CanteenAdmin({
       recipe: formRecipe.filter(r => r.amountGrams > 0)
     };
 
-    const res = await onAddMenuItem(payload);
-    if (res && res.success) {
-      setShowItemModal(false);
-      onFetchCanteen();
-    } else {
-      alert("Error saving item. Check backend logs.");
+    try {
+      const res = await onAddMenuItem(payload);
+      if (res && res.success) {
+        setShowItemModal(false);
+        setItemFormError('');
+        onFetchCanteen();
+      } else {
+        setItemFormError(res?.error || 'Failed to save item. Please try again.');
+      }
+    } catch (err) {
+      setItemFormError('Network error. Please check your connection and try again.');
     }
   };
 
@@ -2295,6 +2315,13 @@ export default function CanteenAdmin({
                   className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs text-gray-700"
                 />
               </div>
+
+              {itemFormError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {itemFormError}
+                </div>
+              )}
 
               <button
                 type="submit"
