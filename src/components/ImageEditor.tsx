@@ -369,7 +369,7 @@ export default function ImageEditor({
     ctx.drawImage(image, sx, sy, sw, sh, -outW / 2, -outH / 2, outW, outH);
     ctx.restore();
 
-    const dataUrl = exportCanvas.toDataURL('image/png', 0.92);
+    const dataUrl = exportCanvas.toDataURL('image/jpeg', 0.85);
     onSave(dataUrl);
   };
 

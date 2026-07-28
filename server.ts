@@ -71,10 +71,12 @@ async function compressBase64Image(dataUrl: string, maxWidth = 300): Promise<str
   try {
     const matches = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
     if (!matches) return dataUrl;
-    const ext = matches[1] === 'png' ? 'png' : 'jpeg';
     const buf = Buffer.from(matches[2], 'base64');
-    if (buf.length < 50000) return dataUrl; // already small (<50KB), skip
-    const resized = await sharpLib(buf).resize({ width: maxWidth, height: maxWidth, fit: 'inside' }).jpeg({ quality: 70 }).toBuffer();
+    if (buf.length < 30000) return dataUrl; // already small (<30KB), skip
+    const resized = await sharpLib(buf)
+      .resize({ width: maxWidth, height: maxWidth, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 70 })
+      .toBuffer();
     const smallUrl = `data:image/jpeg;base64,${resized.toString('base64')}`;
     console.log(`Image compressed: ${(buf.length/1024).toFixed(0)}KB -> ${(resized.length/1024).toFixed(0)}KB`);
     return smallUrl;
@@ -955,41 +957,63 @@ app.put('/api/colleges/:id/logo', async (req, res) => {
   const { id } = req.params;
   const { logoUrl } = req.body;
   if (!logoUrl) return res.status(400).json({ success: false, error: 'logoUrl is required' });
-  const compressed = await compressBase64Image(logoUrl, 300);
+  
+  let compressed: string;
+  try {
+    compressed = await compressBase64Image(logoUrl, 400);
+  } catch (e: any) {
+    console.error('Logo compression failed:', e?.message);
+    compressed = logoUrl; // use original if compression fails
+  }
+  
   if (db) {
     try {
       await db.collection('colleges').doc(id).set({ logoUrl: compressed }, { merge: true });
-    } catch (e) {
-      console.error(e);
-      return res.status(500).json({ success: false, error: 'DB update failed' });
+      console.log(`Logo saved for college ${id}, size: ${(compressed.length/1024).toFixed(0)}KB`);
+    } catch (e: any) {
+      console.error('Firestore logo save error:', e?.message || e);
+      return res.status(500).json({ success: false, error: 'Failed to save logo to database. Image may be too large.' });
     }
+  } else {
+    return res.status(500).json({ success: false, error: 'Database not connected' });
   }
+  
   const idx = collegesState.findIndex(c => c.id === id);
   if (idx !== -1) collegesState[idx] = { ...collegesState[idx], logoUrl: compressed };
   firestoreCache.delete('colleges');
-  res.json({ success: true });
+  res.json({ success: true, message: 'Logo saved successfully' });
 });
 
 app.put('/api/colleges/:id/banner', async (req, res) => {
   const { id } = req.params;
   const { bannerUrl, bannerSubtitle, bannerFeatures } = req.body;
   const updates: any = {};
-  if (bannerUrl !== undefined) updates.bannerUrl = await compressBase64Image(bannerUrl, 800);
+  if (bannerUrl !== undefined) {
+    try {
+      updates.bannerUrl = await compressBase64Image(bannerUrl, 800);
+    } catch (e: any) {
+      console.error('Banner compression failed:', e?.message);
+      updates.bannerUrl = bannerUrl;
+    }
+  }
   if (bannerSubtitle !== undefined) updates.bannerSubtitle = bannerSubtitle;
   if (bannerFeatures !== undefined) updates.bannerFeatures = bannerFeatures;
   if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
   if (db) {
     try {
       await db.collection('colleges').doc(id).set(updates, { merge: true });
-    } catch (e) {
-      console.error(e);
-      return res.status(500).json({ success: false, error: 'DB update failed' });
+      console.log(`Banner saved for college ${id}`);
+    } catch (e: any) {
+      console.error('Firestore banner save error:', e?.message || e);
+      return res.status(500).json({ success: false, error: 'Failed to save banner. Image may be too large.' });
     }
+  } else {
+    return res.status(500).json({ success: false, error: 'Database not connected' });
   }
   const idx = collegesState.findIndex(c => c.id === id);
   if (idx !== -1) collegesState[idx] = { ...collegesState[idx], ...updates };
   firestoreCache.delete('colleges');
-  res.json({ success: true });
+  res.json({ success: true, message: 'Banner saved successfully' });
 });
 
 // College Branding - Full A-to-Z customer page customization

@@ -1647,14 +1647,21 @@ export default function ServicePanel({
               ? { logoUrl: dataUrl }
               : { bannerUrl: dataUrl };
             try {
-              await fetch(endpoint, {
+              const resp = await fetch(endpoint, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
               });
-              await syncAdminData();
+              const result = await resp.json();
+              if (result.success) {
+                await syncAdminData();
+              } else {
+                console.error('Image save failed:', result.error);
+                alert('Failed to save image: ' + (result.error || 'Unknown error'));
+              }
             } catch (err) {
               console.error('Failed to save image', err);
+              alert('Network error saving image. Please try again.');
             }
             setImageEditorOpen(false);
           }}
