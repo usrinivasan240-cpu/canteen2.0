@@ -1443,11 +1443,193 @@ export default function ServicePanel({
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setEditingUser(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer">Cancel</button>
                 <button onClick={handleUpdateUser} className="flex-1 bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 text-white rounded-xl py-2.5 text-xs font-bold transition-all shadow-md cursor-pointer">Save Changes</button>
+                </div>
+              </div>
+
+              {/* FULL BRANDING EDITOR */}
+              <div className="bg-white rounded-3xl border border-red-100/60 shadow-xs overflow-hidden text-left">
+                <div className="p-5 border-b border-red-50/50">
+                  <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">Customer Page Branding</h3>
+                  <p className="text-[11px] text-gray-400 font-sans mt-0.5">Full control over what customers see. Changes reflect immediately.</p>
+                </div>
+                <div className="p-5 space-y-5">
+                  {colleges.map(c => {
+                    const b = (c as any).branding || {};
+                    const saveBranding = async (field: string, value: any) => {
+                      const updated = { ...b, [field]: value };
+                      try {
+                        await fetch(`${API_BASE}/api/colleges/${c.id}/branding`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(updated),
+                        });
+                        await syncAdminData();
+                      } catch (err) { console.error(err); }
+                    };
+                    return (
+                      <div key={c.id} className="border border-red-100 rounded-xl p-4 space-y-4">
+                        <div className="flex items-center gap-2 border-b border-red-50 pb-2">
+                          <div className="h-6 w-6 rounded bg-amber-100 flex items-center justify-center text-amber-700 text-[10px] font-bold">{c.name.charAt(0)}</div>
+                          <span className="text-xs font-bold text-gray-900">{c.name}</span>
+                          <span className="text-[9px] text-gray-400 ml-auto">College ID: {c.id}</span>
+                        </div>
+
+                        {/* Hero Section */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Hero Section</label>
+                          <input
+                            defaultValue={b.heroTitle || 'Bite & Byte'}
+                            onBlur={(e) => saveBranding('heroTitle', e.target.value)}
+                            placeholder="Hero Title (e.g. Bite & Byte)"
+                            className="w-full bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                          />
+                          <input
+                            defaultValue={b.heroSubtitle || `Official ${c.name} Canteen Platform`}
+                            onBlur={(e) => saveBranding('heroSubtitle', e.target.value)}
+                            placeholder="Subtitle (e.g. Official College Canteen Platform)"
+                            className="w-full bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                          />
+                          <input
+                            defaultValue={b.heroTagline || 'Order Faster · Skip the Queue · Smart Pickup'}
+                            onBlur={(e) => saveBranding('heroTagline', e.target.value)}
+                            placeholder="Tagline (e.g. Order Faster · Skip the Queue)"
+                            className="w-full bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                          />
+                        </div>
+
+                        {/* Feature Badges */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Feature Badges (comma separated)</label>
+                          <input
+                            defaultValue={(b.featureBadges || ['Order Faster', 'Skip the Queue', 'Smart Pickup']).join(', ')}
+                            onBlur={(e) => saveBranding('featureBadges', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                            placeholder="Order Faster, Skip the Queue, Smart Pickup"
+                            className="w-full bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                          />
+                        </div>
+
+                        {/* Menu Section */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Menu Section</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              defaultValue={b.menuTitle || "Today's Menu"}
+                              onBlur={(e) => saveBranding('menuTitle', e.target.value)}
+                              placeholder="Menu Title"
+                              className="bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                            />
+                            <input
+                              defaultValue={b.menuSubtitle || 'Freshly prepared, just for you.'}
+                              onBlur={(e) => saveBranding('menuSubtitle', e.target.value)}
+                              placeholder="Menu Subtitle"
+                              className="bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                            />
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Grid Columns</label>
+                              <select
+                                defaultValue={b.menuColumns || 4}
+                                onChange={(e) => saveBranding('menuColumns', Number(e.target.value))}
+                                className="bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value={2}>2 Columns</option>
+                                <option value={3}>3 Columns</option>
+                                <option value={4}>4 Columns</option>
+                              </select>
+                            </div>
+                            <label className="flex items-center gap-2 text-[10px] font-bold text-gray-600 cursor-pointer mt-4">
+                              <input
+                                type="checkbox"
+                                defaultChecked={b.showCategoryTabs !== false}
+                                onChange={(e) => saveBranding('showCategoryTabs', e.target.checked)}
+                                className="rounded text-amber-600 focus:ring-amber-500 h-3.5 w-3.5"
+                              />
+                              Show Category Tabs
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Visibility Toggles */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Visibility</label>
+                          <div className="flex flex-wrap gap-4">
+                            <label className="flex items-center gap-2 text-[10px] font-bold text-gray-600 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                defaultChecked={b.showReviews !== false}
+                                onChange={(e) => saveBranding('showReviews', e.target.checked)}
+                                className="rounded text-amber-600 focus:ring-amber-500 h-3.5 w-3.5"
+                              />
+                              Show Reviews
+                            </label>
+                            <label className="flex items-center gap-2 text-[10px] font-bold text-gray-600 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                defaultChecked={b.showSentiment !== false}
+                                onChange={(e) => saveBranding('showSentiment', e.target.checked)}
+                                className="rounded text-amber-600 focus:ring-amber-500 h-3.5 w-3.5"
+                              />
+                              Show Sentiment Log
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Footer & Contact */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Footer &amp; Contact</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              defaultValue={b.contactPhone || '0431 123 4567'}
+                              onBlur={(e) => saveBranding('contactPhone', e.target.value)}
+                              placeholder="Contact Phone"
+                              className="bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                            />
+                            <input
+                              defaultValue={b.contactEmail || `support@biteandbyte.in`}
+                              onBlur={(e) => saveBranding('contactEmail', e.target.value)}
+                              placeholder="Contact Email"
+                              className="bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                            />
+                          </div>
+                          <input
+                            defaultValue={b.contactAddress || 'Trichy, Tamil Nadu, India'}
+                            onBlur={(e) => saveBranding('contactAddress', e.target.value)}
+                            placeholder="Contact Address"
+                            className="w-full bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                          />
+                          <input
+                            defaultValue={b.footerCopyright || `© 2026 ${c.name}. All Rights Reserved.`}
+                            onBlur={(e) => saveBranding('footerCopyright', e.target.value)}
+                            placeholder="Copyright Text"
+                            className="w-full bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                          />
+                          <input
+                            defaultValue={(b.footerLinks || [
+                              { label: 'Menu & Order', action: 'menu' },
+                              { label: 'Order History', action: 'history' },
+                              { label: 'My Profile', action: 'profile' },
+                              { label: 'Help & Support', action: 'help' }
+                            ]).map((l: any) => l.label).join(', ')}
+                            onBlur={(e) => {
+                              const links = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean).map((label: string) => ({
+                                label,
+                                action: label.toLowerCase().includes('menu') ? 'menu' : label.toLowerCase().includes('order') ? 'history' : label.toLowerCase().includes('profile') ? 'profile' : 'help'
+                              }));
+                              saveBranding('footerLinks', links);
+                            }}
+                            placeholder="Footer Links (comma separated)"
+                            className="w-full bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {imageEditorOpen && (
         <ImageEditor

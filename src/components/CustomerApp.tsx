@@ -97,6 +97,29 @@ export default function CustomerApp({
   const [selectedSubCanteenId, setSelectedSubCanteenId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  const userCollege = colleges.find(c => c.id === selectedCollegeId);
+  const branding = (userCollege as any)?.branding || {};
+  const bHeroTitle = branding.heroTitle || 'Bite &amp; Byte';
+  const bHeroSubtitle = branding.heroSubtitle || `Official ${userCollege?.name || ''} Canteen Platform`;
+  const bHeroTagline = branding.heroTagline || 'Order Faster · Skip the Queue · Smart Pickup';
+  const bFeatureBadges = branding.featureBadges || ['Order Faster', 'Skip the Queue', 'Smart Pickup'];
+  const bMenuTitle = branding.menuTitle || "Today's Menu";
+  const bMenuSubtitle = branding.menuSubtitle || 'Freshly prepared, just for you.';
+  const bMenuColumns = branding.menuColumns || 4;
+  const bShowCategoryTabs = branding.showCategoryTabs !== false;
+  const bShowReviews = branding.showReviews !== false;
+  const bShowSentiment = branding.showSentiment !== false;
+  const bContactPhone = branding.contactPhone || '0431 123 4567';
+  const bContactEmail = branding.contactEmail || 'support@biteandbyte.in';
+  const bContactAddress = branding.contactAddress || 'Trichy, Tamil Nadu, India';
+  const bFooterCopyright = branding.footerCopyright || `© 2026 Bite &amp; Byte. All Rights Reserved.`;
+  const bFooterLinks = branding.footerLinks || [
+    { label: 'Menu &amp; Order', action: 'menu' },
+    { label: 'Order History', action: 'history' },
+    { label: 'My Profile', action: 'profile' },
+    { label: 'Help &amp; Support', action: 'help' }
+  ];
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -347,9 +370,6 @@ export default function CustomerApp({
     return categoryMatch && subCanteenMatch && searchMatch;
   });
 
-  // Derive college info
-  const userCollege = colleges.find(c => c.id === userCollegeId);
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
@@ -377,10 +397,11 @@ export default function CustomerApp({
           </div>
           <div className="text-center md:text-left flex-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300 mb-1">Welcome to</p>
-            <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight">{userCollege?.name || 'Bite & Byte'}</h1>
-            <p className="text-sm text-white/80 font-sans mt-1">{userCollege?.bannerSubtitle || 'Official Bite & Byte Platform'}</p>
+            <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
+            <p className="text-sm text-white/80 font-sans mt-1" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
+            <p className="text-[11px] text-white/50 font-sans mt-0.5 italic">{bHeroTagline}</p>
             <div className="flex flex-wrap gap-2 mt-3 justify-center md:justify-start">
-              {(userCollege?.bannerFeatures || ['Order Faster', 'Skip the Queue', 'Smart Pickup']).map((feat, i) => (
+              {bFeatureBadges.map((feat: string, i: number) => (
                 <span key={i} className="bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-1">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   {feat}
@@ -536,8 +557,8 @@ export default function CustomerApp({
                 <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs space-y-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-red-50 pb-5">
                     <div>
-                      <h2 className="font-display font-bold text-xl text-gray-900 tracking-tight">Today's Menu</h2>
-                      <p className="text-xs text-gray-400 mt-0.5 font-sans">Freshly prepared, just for you.</p>
+                      <h2 className="font-display font-bold text-xl text-gray-900 tracking-tight">{bMenuTitle}</h2>
+                      <p className="text-xs text-gray-400 mt-0.5 font-sans">{bMenuSubtitle}</p>
                     </div>
 
                     {/* MENU FILTER TABS (Meals, Snacks & Beverages) */}
@@ -559,7 +580,7 @@ export default function CustomerApp({
                   </div>
 
                   {/* CARDS GRID */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className={`grid gap-4`} style={{ gridTemplateColumns: `repeat(${bMenuColumns}, minmax(0, 1fr))` }}>
                     {filteredItems.map(item => {
                       const cartCount = cart[item.id] || 0;
                       return (
@@ -1046,7 +1067,7 @@ export default function CustomerApp({
                   <div className="h-12 w-12 rounded-xl bg-red-900 flex items-center justify-center text-lg font-bold border border-white/20">{userCollege?.name?.charAt(0) || 'S'}</div>
                 )}
                 <div>
-                    <p className="font-display font-black text-xl tracking-tight">Bite &amp; Byte</p>
+                    <p className="font-display font-black text-xl tracking-tight" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
                   <p className="text-[10px] text-gray-400 font-sans">Campus Smart Canteen Platform</p>
                 </div>
               </div>
@@ -1057,10 +1078,20 @@ export default function CustomerApp({
             <div className="space-y-4">
               <h4 className="font-display font-bold text-sm">Quick Links</h4>
               <ul className="space-y-2 text-[11px] text-gray-400">
-                <li onClick={() => { setCustomerTab('menu'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> Menu &amp; Order</li>
-                <li onClick={() => { setCustomerTab('history'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> Order History</li>
-                <li onClick={() => { setToastMessage('Profile settings are available in the top-right menu.'); setTimeout(() => setToastMessage(''), 3000); }} className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> My Profile</li>
-                <li onClick={() => { setToastMessage('For help, contact support@biteandbyte.in or call 0431 123 4567'); setTimeout(() => setToastMessage(''), 4000); }} className="hover:text-white cursor-pointer transition flex items-center gap-1.5"><span className="text-gray-600">&gt;</span> Help &amp; Support</li>
+                {bFooterLinks.map((link: any, i: number) => (
+                  <li
+                    key={i}
+                    onClick={() => {
+                      if (link.action === 'menu') { setCustomerTab('menu'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+                      else if (link.action === 'history') { setCustomerTab('history'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+                      else if (link.action === 'profile') { setToastMessage('Profile settings are available in the top-right menu.'); setTimeout(() => setToastMessage(''), 3000); }
+                      else { setToastMessage(`For help, contact ${bContactEmail} or call ${bContactPhone}`); setTimeout(() => setToastMessage(''), 4000); }
+                    }}
+                    className="hover:text-white cursor-pointer transition flex items-center gap-1.5"
+                  >
+                    <span className="text-gray-600">&gt;</span> {link.label}
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -1070,15 +1101,15 @@ export default function CustomerApp({
               <ul className="space-y-2.5 text-[11px] text-gray-400">
                 <li className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                  0431 123 4567
+                  {bContactPhone}
                 </li>
                 <li className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                  support@biteandbyte.in
+                  {bContactEmail}
                 </li>
                 <li className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                  Trichy, Tamil Nadu, India
+                  {bContactAddress}
                 </li>
               </ul>
             </div>
@@ -1086,7 +1117,7 @@ export default function CustomerApp({
         </div>
         <div className="border-t border-gray-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row items-center justify-between text-[10px] text-gray-500 font-sans gap-2">
-            <span>&copy; 2026 Bite &amp; Byte. All Rights Reserved.</span>
+            <span dangerouslySetInnerHTML={{ __html: bFooterCopyright }} />
             <div className="flex items-center gap-4">
               <span className="hover:text-white cursor-pointer transition">Privacy Policy</span>
               <span>|</span>

@@ -93,6 +93,24 @@ export interface Review {
   subCanteenId?: string;
 }
 
+export interface CollegeBranding {
+  heroTitle?: string;
+  heroSubtitle?: string;
+  heroTagline?: string;
+  featureBadges?: string[];
+  menuTitle?: string;
+  menuSubtitle?: string;
+  menuColumns?: number;
+  showCategoryTabs?: boolean;
+  showReviews?: boolean;
+  showSentiment?: boolean;
+  contactPhone?: string;
+  contactEmail?: string;
+  contactAddress?: string;
+  footerCopyright?: string;
+  footerLinks?: { label: string; action: string }[];
+}
+
 export interface College {
   id: string;
   name: string;
@@ -101,6 +119,7 @@ export interface College {
   bannerUrl?: string;
   bannerSubtitle?: string;
   bannerFeatures?: string[];
+  branding?: CollegeBranding;
   status: 'active' | 'inactive';
 }
 

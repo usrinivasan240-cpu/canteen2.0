@@ -992,6 +992,28 @@ app.put('/api/colleges/:id/banner', async (req, res) => {
   res.json({ success: true });
 });
 
+// College Branding - Full A-to-Z customer page customization
+app.put('/api/colleges/:id/branding', async (req, res) => {
+  const { id } = req.params;
+  const branding = req.body;
+  if (!branding || typeof branding !== 'object') {
+    return res.status(400).json({ success: false, error: 'Branding object is required' });
+  }
+  if (db) {
+    try {
+      await db.collection('colleges').doc(id).set({ branding }, { merge: true });
+      console.log(`Branding updated for college: ${id}`);
+    } catch (e) {
+      console.error('Branding save error:', e);
+      return res.status(500).json({ success: false, error: 'DB update failed' });
+    }
+  }
+  const idx = collegesState.findIndex(c => c.id === id);
+  if (idx !== -1) collegesState[idx] = { ...collegesState[idx], branding };
+  firestoreCache.delete('colleges');
+  res.json({ success: true, branding });
+});
+
 app.delete('/api/colleges/:id', async (req, res) => {
   const { id } = req.params;
   if (db) {
