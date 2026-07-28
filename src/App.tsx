@@ -28,8 +28,30 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name: string; role: 'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'; collegeId?: string; canteenId?: string; subCanteenId?: string } | null>(null);
   const [selectedCanteenId, setSelectedCanteenId] = useState<string>('canteen_001');
   const [colleges, setColleges] = useState<College[]>([]);
+  const [userOrders, setUserOrders] = useState<Order[]>([]);
 
   const userEmail = currentUser ? currentUser.email : '';
+
+  const fetchUserOrders = async () => {
+    if (!currentUser?.id) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/user/orders?userId=${currentUser.id}&canteenId=${selectedCanteenId}`);
+      const data = await resp.json();
+      if (data.success && Array.isArray(data.orders)) {
+        setUserOrders(data.orders);
+      }
+    } catch (e) {
+      console.error('Failed to fetch user orders:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      fetchUserOrders();
+      const interval = setInterval(fetchUserOrders, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [currentUser?.id, selectedCanteenId]);
 
   const fetchCanteenData = async (canteenId?: string) => {
     try {
@@ -121,6 +143,7 @@ export default function App() {
       }
 
       await fetchCanteenData(); // resync lists
+      fetchUserOrders(); // refresh user-specific order history
       return data;
     } catch (e) {
       console.error(e);
@@ -300,7 +323,7 @@ export default function App() {
           <CustomerApp
             canteenName={canteen ? canteen.name : 'Bite & Byte'}
             menuItems={canteen?.items || []}
-            orders={canteen?.orders || []}
+            orders={userOrders}
             reviews={canteen?.reviews || []}
             onOrderPlaced={handleOrderPlaced}
             onAddReview={handleAddReview}
@@ -315,7 +338,7 @@ export default function App() {
         ) : (role === 'owner' || role === 'chef' || role === 'staff') ? (
           <CanteenAdmin
             menuItems={canteen?.items || []}
-            orders={canteen?.orders || []}
+            orders={userOrders}
             reviews={canteen?.reviews || []}
             ingredients={canteen?.ingredients || []}
             settings={canteen?.settings}
@@ -329,7 +352,7 @@ export default function App() {
           />
         ) : (
           <ServicePanel
-            orders={canteen?.orders || []}
+            orders={userOrders}
             menuItems={canteen?.items || []}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             onFetchCanteen={fetchCanteenData}

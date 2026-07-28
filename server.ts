@@ -1501,6 +1501,53 @@ app.get('/api/canteen', async (req, res) => {
   res.json({ success: true, canteen: getCanteenState(canteenId) });
 });
 
+// 1b. Get User's Orders (Customer history)
+app.get('/api/user/orders', async (req, res) => {
+  const userId = req.query.userId as string;
+  const canteenId = req.query.canteenId as string;
+  if (!userId) {
+    return res.json({ success: true, orders: [] });
+  }
+  if (db) {
+    try {
+      let orders: Order[] = [];
+      if (canteenId) {
+        try {
+          const snap = await db.collection('orders').where('userId', '==', userId).where('canteenId', '==', canteenId).orderBy('createdAt', 'desc').limit(50).get();
+          orders = snap.docs.map(doc => {
+            const o = doc.data() as Order;
+            if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
+            return o;
+          });
+        } catch (idxErr) {
+          console.warn('Composite index missing, falling back to userId-only query:', idxErr);
+          const snap = await db.collection('orders').where('userId', '==', userId).orderBy('createdAt', 'desc').limit(100).get();
+          orders = snap.docs
+            .map(doc => {
+              const o = doc.data() as Order;
+              if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
+              return o;
+            })
+            .filter(o => !canteenId || o.canteenId === canteenId)
+            .slice(0, 50);
+        }
+      } else {
+        const snap = await db.collection('orders').where('userId', '==', userId).orderBy('createdAt', 'desc').limit(50).get();
+        orders = snap.docs.map(doc => {
+          const o = doc.data() as Order;
+          if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
+          return o;
+        });
+      }
+      return res.json({ success: true, orders });
+    } catch (err) {
+      console.error('Failed to fetch user orders:', err);
+    }
+  }
+  const allOrders = canteenState.orders.filter(o => o.userId === userId).slice(0, 50);
+  res.json({ success: true, orders: allOrders });
+});
+
 // 2. Add / Edit Menu Items (Owner)
 app.post('/api/canteen/menu', async (req, res) => {
   const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe, requiresChef, canteenId } = req.body;
