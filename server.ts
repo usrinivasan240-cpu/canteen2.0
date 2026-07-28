@@ -1448,43 +1448,74 @@ app.get('/api/canteen', async (req, res) => {
   await checkExpiredOrders();
   if (db) {
     try {
-      const [itemsSnap, ordersSnap, reviewsSnap, ingSnap, settingsSnap, cRef] = await Promise.all([
-        db.collection('items').where('canteenId', '==', canteenId).get(),
-        db.collection('orders').where('canteenId', '==', canteenId).orderBy('createdAt', 'desc').limit(50).get(),
-        db.collection('reviews').where('canteenId', '==', canteenId).orderBy('createdAt', 'desc').limit(20).get(),
-        db.collection('ingredients').where('canteenId', '==', canteenId).get(),
-        db.collection('settings').doc(`settings_${canteenId}`).get(),
-        db.collection('canteens').doc(canteenId).get()
-      ]);
-
-      let items = itemsSnap.docs.map(doc => doc.data() as MenuItem);
-      // Fallback: if no items match canteenId, try getting items without canteenId (legacy data)
-      if (items.length === 0) {
-        const legacySnap = await db.collection('items').where('canteenId', '==', 'canteen_001').limit(100).get();
-        items = legacySnap.docs.map(doc => doc.data() as MenuItem);
-        // If still empty, try fetching all items (legacy data without canteenId)
+      // Each query wrapped individually - one failure won't kill all
+      let items: MenuItem[] = [];
+      try {
+        const itemsSnap = await db.collection('items').where('canteenId', '==', canteenId).get();
+        items = itemsSnap.docs.map(doc => doc.data() as MenuItem);
+        if (items.length === 0) {
+          const legacySnap = await db.collection('items').where('canteenId', '==', 'canteen_001').limit(100).get();
+          items = legacySnap.docs.map(doc => doc.data() as MenuItem);
+        }
         if (items.length === 0) {
           const allSnap = await db.collection('items').limit(200).get();
           items = allSnap.docs.map(doc => doc.data() as MenuItem);
         }
+      } catch (e) { console.warn('Items query failed:', e); }
+
+      let orders: Order[] = [];
+      try {
+        const ordersSnap = await db.collection('orders').where('canteenId', '==', canteenId).orderBy('createdAt', 'desc').limit(50).get();
+        orders = ordersSnap.docs.map(doc => {
+          const o = doc.data() as Order;
+          if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
+          return o;
+        });
+      } catch (e) {
+        console.warn('Orders query failed, trying without orderBy:', e);
+        try {
+          const ordersSnap = await db.collection('orders').where('canteenId', '==', canteenId).limit(50).get();
+          orders = ordersSnap.docs.map(doc => {
+            const o = doc.data() as Order;
+            if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
+            return o;
+          }).sort((a, b) => b.createdAt - a.createdAt);
+        } catch (e2) { console.warn('Orders fallback also failed:', e2); }
       }
-      let orders = ordersSnap.docs.map(doc => {
-        const o = doc.data() as Order;
-        if (!o.qrPayload) {
-          o.qrPayload = generateSignedQR(o.id);
-        }
-        return o;
-      });
-      let reviews = reviewsSnap.docs.map(doc => doc.data() as Review);
-      const ingredients = ingSnap.empty ? INITIAL_INGREDIENTS.map(ing => ({ ...ing, canteenId })) : ingSnap.docs.map(doc => doc.data() as Ingredient);
-      const settings = settingsSnap.exists ? settingsSnap.data() as CanteenSettings : { ...canteenSettings, canteenId };
+
+      let reviews: Review[] = [];
+      try {
+        const reviewsSnap = await db.collection('reviews').where('canteenId', '==', canteenId).orderBy('createdAt', 'desc').limit(20).get();
+        reviews = reviewsSnap.docs.map(doc => doc.data() as Review);
+      } catch (e) {
+        console.warn('Reviews query failed:', e);
+        try {
+          const reviewsSnap = await db.collection('reviews').where('canteenId', '==', canteenId).limit(20).get();
+          reviews = reviewsSnap.docs.map(doc => doc.data() as Review);
+        } catch (e2) {}
+      }
+
+      let ingredients: Ingredient[] = INITIAL_INGREDIENTS.map(ing => ({ ...ing, canteenId }));
+      try {
+        const ingSnap = await db.collection('ingredients').where('canteenId', '==', canteenId).get();
+        if (!ingSnap.empty) ingredients = ingSnap.docs.map(doc => doc.data() as Ingredient);
+      } catch (e) { console.warn('Ingredients query failed:', e); }
+
+      let settings: CanteenSettings = { ...canteenSettings, canteenId };
+      try {
+        const settingsSnap = await db.collection('settings').doc(`settings_${canteenId}`).get();
+        if (settingsSnap.exists) settings = settingsSnap.data() as CanteenSettings;
+      } catch (e) { console.warn('Settings query failed:', e); }
 
       let canteenName = 'Bite & Byte';
       let ownerName = 'Chef Watson';
-      if (cRef.exists) {
-        canteenName = cRef.data()?.name || canteenName;
-        ownerName = cRef.data()?.ownerName || ownerName;
-      }
+      try {
+        const cRef = await db.collection('canteens').doc(canteenId).get();
+        if (cRef.exists) {
+          canteenName = cRef.data()?.name || canteenName;
+          ownerName = cRef.data()?.ownerName || ownerName;
+        }
+      } catch (e) { console.warn('Canteen doc query failed:', e); }
 
       const result = {
         id: canteenId,
