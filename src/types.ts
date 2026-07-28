@@ -50,15 +50,16 @@ export interface Order {
   paymentStatus: PaymentStatus;
   paymentMethod: string;
   qrCode: string;
+  qrPayload?: string;
   status: OrderStatus;
   timestamp: string;
   createdAt: number;
   pickupTimeText?: string;
   paytmOrderId?: string;
   paytmTransactionId?: string;
-  pickupSlot?: string; // e.g. "12:45 PM"
-  prepStartTime?: number; // unix timestamp
-  expiryTime?: number; // unix timestamp
+  pickupSlot?: string;
+  prepStartTime?: number;
+  expiryTime?: number;
   canteenId?: string;
   subCanteenId?: string;
   collegeId?: string;

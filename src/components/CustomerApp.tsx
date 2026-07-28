@@ -99,6 +99,29 @@ export default function CustomerApp({
 
   const userCollege = colleges.find(c => c.id === selectedCollegeId);
   const branding = (userCollege as any)?.branding || {};
+
+  // Filter canteens and subcounters by college
+  const collegeCanteens = canteens.filter(c => c.collegeId === selectedCollegeId);
+  const canteenSubCounters = subCanteens.filter(s => s.canteenId === selectedCanteenId);
+  const hasMultipleCanteens = collegeCanteens.length > 1;
+  const hasMultipleSubCounters = canteenSubCounters.length > 1;
+
+  // Auto-select single canteen
+  useEffect(() => {
+    if (collegeCanteens.length === 1 && selectedCanteenId !== collegeCanteens[0].id) {
+      setSelectedCanteenId(collegeCanteens[0].id);
+      onCanteenChange(collegeCanteens[0].id);
+    }
+  }, [collegeCanteens.length]);
+
+  // Auto-select single subcounter
+  useEffect(() => {
+    if (canteenSubCounters.length === 1 && selectedSubCanteenId !== canteenSubCounters[0].id) {
+      setSelectedSubCanteenId(canteenSubCounters[0].id);
+    } else if (canteenSubCounters.length === 0) {
+      setSelectedSubCanteenId('');
+    }
+  }, [canteenSubCounters.length]);
   const bHeroTitle = branding.heroTitle || 'Bite &amp; Byte';
   const bHeroSubtitle = branding.heroSubtitle || `Official ${userCollege?.name || ''} Canteen Platform`;
   const bHeroTagline = branding.heroTagline || 'Order Faster · Skip the Queue · Smart Pickup';
@@ -330,7 +353,7 @@ export default function CustomerApp({
       const res = await onOrderPlaced(orderItems, selectedSlot, selectedCanteenId, selectedSubCanteenId);
       if (res && res.success) {
         setSuccessOrder(res.order);
-        setQrPayload(res.qrPayload || res.order.id);
+        setQrPayload(res.order.qrPayload || res.qrPayload || res.order.id);
         setCart({}); // clear cart
         setShowGPayModal(false); // dismiss G Pay
         showToast("Payment processed via Google Pay!");
@@ -472,16 +495,44 @@ export default function CustomerApp({
 
       {/* SUB-CANTEEN SELECTOR + SEARCH (compact) */}
       <div className={`flex flex-col sm:flex-row gap-3 ${sectionSpacingClass}`}>
-        <select
-          value={selectedSubCanteenId}
-          onChange={(e) => setSelectedSubCanteenId(e.target.value)}
-          className="bg-white border border-red-100 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500 min-w-[200px]"
-        >
-          <option value="">All Counters</option>
-          {subCanteens.filter(s => s.canteenId === selectedCanteenId).map(s => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
+        {hasMultipleCanteens && (
+          <select
+            value={selectedCanteenId}
+            onChange={(e) => {
+              setSelectedCanteenId(e.target.value);
+              onCanteenChange(e.target.value);
+              setSelectedSubCanteenId('');
+            }}
+            className="bg-white border border-red-100 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500 min-w-[200px]"
+          >
+            {collegeCanteens.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
+        {hasMultipleCanteens === false && collegeCanteens.length === 1 && (
+          <div className="flex items-center gap-2 bg-red-50/60 border border-red-100 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-700 min-w-[200px]">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            {collegeCanteens[0].name}
+          </div>
+        )}
+        {hasMultipleSubCounters && (
+          <select
+            value={selectedSubCanteenId}
+            onChange={(e) => setSelectedSubCanteenId(e.target.value)}
+            className="bg-white border border-red-100 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500 min-w-[200px]"
+          >
+            {canteenSubCounters.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        )}
+        {hasMultipleSubCounters === false && canteenSubCounters.length === 1 && (
+          <div className="flex items-center gap-2 bg-red-50/60 border border-red-100 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-700 min-w-[200px]">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            {canteenSubCounters[0].name}
+          </div>
+        )}
         <input
           type="text"
           placeholder="Search menus, food items, categories..."
@@ -1008,7 +1059,7 @@ export default function CustomerApp({
                             <div className="flex items-center space-x-3 shrink-0 self-end md:self-auto">
                               <span className="font-mono font-bold text-gray-950 text-sm">₹{o.totalPrice.toFixed(2)}</span>
                               <button
-                                onClick={() => { setSuccessOrder(o); setQrPayload(o.qrCode || o.id); }}
+                                onClick={() => { setSuccessOrder(o); setQrPayload(o.qrPayload || o.qrCode || o.id); }}
                                 className="bg-red-50 hover:bg-red-100 text-amber-700 border border-red-200 rounded-xl px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider transition flex items-center space-x-1 cursor-pointer"
                               >
                                 <QrCode className="h-3.5 w-3.5" />

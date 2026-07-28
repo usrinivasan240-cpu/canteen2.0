@@ -1823,6 +1823,7 @@ app.post('/api/canteen/order', async (req, res) => {
 
       const checksum = await (PaytmChecksum as any).generateSignature(paytmParams, paytmMerchantKey);
 
+      const signedQrPayload = generateSignedQR(orderId);
       const newOrder: Order = {
         id: orderId,
         userId: userId || 'user_guest',
@@ -1832,6 +1833,7 @@ app.post('/api/canteen/order', async (req, res) => {
         paymentStatus: 'pending',
         paymentMethod: 'Paytm Gateway',
         qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
+        qrPayload: signedQrPayload,
         status: 'pending',
         timestamp: new Date().toISOString(),
         createdAt: Date.now(),
@@ -1901,6 +1903,7 @@ app.post('/api/canteen/order', async (req, res) => {
     return itemMenu ? itemMenu.requiresChef !== false : true;
   });
 
+  const signedQrPayload = generateSignedQR(orderId);
   const newOrder: Order = {
     id: orderId,
     userId: userId || 'user_guest',
@@ -1910,6 +1913,7 @@ app.post('/api/canteen/order', async (req, res) => {
     paymentStatus: 'paid', 
     paymentMethod: paymentMethod || 'Mock UPI Checkout',
     qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
+    qrPayload: signedQrPayload,
     status: containsChefItems ? 'scheduled' : 'ready',
     timestamp: new Date().toISOString(),
     createdAt: Date.now(),
