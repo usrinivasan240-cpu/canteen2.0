@@ -1622,6 +1622,150 @@ export default function ServicePanel({
                             className="w-full bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
                           />
                         </div>
+
+                        {/* ALIGNMENT & LAYOUT CONTROLS */}
+                        <div className="space-y-2 border-t border-red-50 pt-3">
+                          <label className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Alignment &amp; Layout</label>
+
+                          {/* Hero Layout */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Hero Layout</label>
+                              <select
+                                defaultValue={b.heroLayout || 'logo-left'}
+                                onChange={(e) => saveBranding('heroLayout', e.target.value)}
+                                className="w-full bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value="logo-left">Logo Left, Banner Right</option>
+                                <option value="logo-right">Logo Right, Banner Left</option>
+                                <option value="logo-center">Logo Center, Banner Bottom</option>
+                                <option value="banner-left">Banner Left, Logo Right</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Banner Position</label>
+                              <select
+                                defaultValue={b.heroBannerPosition || 'right'}
+                                onChange={(e) => saveBranding('heroBannerPosition', e.target.value)}
+                                className="w-full bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value="right">Right Side</option>
+                                <option value="left">Left Side</option>
+                                <option value="background">Full Background</option>
+                                <option value="bottom">Below Content</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Logo Size & Padding */}
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Logo Size</label>
+                              <select
+                                defaultValue={b.heroLogoSize || 144}
+                                onChange={(e) => saveBranding('heroLogoSize', Number(e.target.value))}
+                                className="w-full bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value={96}>Small (96px)</option>
+                                <option value={120}>Medium (120px)</option>
+                                <option value={144}>Large (144px)</option>
+                                <option value={176}>X-Large (176px)</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Hero Padding</label>
+                              <select
+                                defaultValue={b.heroPadding || 'normal'}
+                                onChange={(e) => saveBranding('heroPadding', e.target.value)}
+                                className="w-full bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value="compact">Compact</option>
+                                <option value="normal">Normal</option>
+                                <option value="spacious">Spacious</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Card Style</label>
+                              <select
+                                defaultValue={b.headerStyle || 'rounded'}
+                                onChange={(e) => saveBranding('headerStyle', e.target.value)}
+                                className="w-full bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value="rounded">Rounded</option>
+                                <option value="flat">Flat</option>
+                                <option value="shadow">Shadow</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Menu Layout */}
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Menu Card Size</label>
+                              <select
+                                defaultValue={b.menuCardSize || 'medium'}
+                                onChange={(e) => saveBranding('menuCardSize', e.target.value)}
+                                className="w-full bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value="small">Small</option>
+                                <option value="medium">Medium</option>
+                                <option value="large">Large</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Menu Gap</label>
+                              <select
+                                defaultValue={b.menuGap || 'normal'}
+                                onChange={(e) => saveBranding('menuGap', e.target.value)}
+                                className="w-full bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value="tight">Tight</option>
+                                <option value="normal">Normal</option>
+                                <option value="loose">Loose</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Menu Alignment</label>
+                              <select
+                                defaultValue={b.menuAlignment || 'left'}
+                                onChange={(e) => saveBranding('menuAlignment', e.target.value)}
+                                className="w-full bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value="left">Left</option>
+                                <option value="center">Center</option>
+                                <option value="justify">Justify</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Footer & Section Spacing */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Footer Layout</label>
+                              <select
+                                defaultValue={b.footerLayout || '3-col'}
+                                onChange={(e) => saveBranding('footerLayout', e.target.value)}
+                                className="w-full bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value="3-col">3 Columns</option>
+                                <option value="2-col">2 Columns</option>
+                                <option value="1-col">1 Column (Stacked)</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block">Section Spacing</label>
+                              <select
+                                defaultValue={b.sectionSpacing || 'normal'}
+                                onChange={(e) => saveBranding('sectionSpacing', e.target.value)}
+                                className="w-full bg-red-50/30 text-xs px-3 py-1.5 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+                              >
+                                <option value="compact">Compact</option>
+                                <option value="normal">Normal</option>
+                                <option value="spacious">Spacious</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}

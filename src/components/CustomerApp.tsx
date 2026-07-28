@@ -120,6 +120,23 @@ export default function CustomerApp({
     { label: 'Help &amp; Support', action: 'help' }
   ];
 
+  // Alignment & layout controls
+  const bHeroLayout = branding.heroLayout || 'logo-left';
+  const bHeroBannerPosition = branding.heroBannerPosition || 'right';
+  const bHeroLogoSize = branding.heroLogoSize || 144;
+  const bHeroPadding = branding.heroPadding || 'normal';
+  const bMenuCardSize = branding.menuCardSize || 'medium';
+  const bMenuGap = branding.menuGap || 'normal';
+  const bMenuAlignment = branding.menuAlignment || 'left';
+  const bFooterLayout = branding.footerLayout || '3-col';
+  const bSectionSpacing = branding.sectionSpacing || 'normal';
+
+  const heroPaddingClass = bHeroPadding === 'compact' ? 'p-4 md:p-5' : bHeroPadding === 'spacious' ? 'p-8 md:p-10' : 'p-6 md:p-8';
+  const heroLogoPx = bHeroLogoSize <= 96 ? 'w-20 h-20 md:w-24 md:h-24' : bHeroLogoSize <= 120 ? 'w-24 h-24 md:w-28 md:h-28' : bHeroLogoSize <= 176 ? 'w-32 h-32 md:w-40 md:h-40' : 'w-28 h-28 md:w-36 md:h-36';
+  const menuGapClass = bMenuGap === 'tight' ? 'gap-2' : bMenuGap === 'loose' ? 'gap-6' : 'gap-4';
+  const menuCardClass = bMenuCardSize === 'small' ? 'p-3' : bMenuCardSize === 'large' ? 'p-6' : 'p-4';
+  const sectionSpacingClass = bSectionSpacing === 'compact' ? 'mb-6' : bSectionSpacing === 'spacious' ? 'mb-14' : 'mb-8';
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -373,55 +390,88 @@ export default function CustomerApp({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-      {/* HERO BANNER - Reference Design Match */}
-      <div className="relative rounded-3xl overflow-hidden mb-8 bg-white border border-gray-100 shadow-sm">
-        <div className="flex flex-col md:flex-row items-stretch min-h-[220px]">
-          {/* Left Side - Logo + Content */}
-          <div className="flex items-center gap-5 p-6 md:p-8 md:w-[45%]">
-            {/* College Logo */}
-            <div className="shrink-0">
-              {userCollege?.logoUrl ? (
-                <img src={userCollege.logoUrl} alt={userCollege.name} className="w-28 h-28 md:w-36 md:h-36 rounded-full object-contain border-2 border-gray-100 shadow-md bg-white" />
+      {/* HERO BANNER - Dynamic Layout */}
+      <div className={`relative rounded-3xl overflow-hidden ${sectionSpacingClass} bg-white border border-gray-100 shadow-sm`}>
+        {/* Banner as background */}
+        {bHeroBannerPosition === 'background' ? (
+          <div className="relative">
+            {userCollege?.bannerUrl ? (
+              <img src={userCollege.bannerUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" />
+            ) : null}
+            <div className={`flex flex-col items-center ${heroPaddingClass} relative z-10`}>
+              <div className="shrink-0 mb-4">
+                {userCollege?.logoUrl ? (
+                  <img src={userCollege.logoUrl} alt={userCollege.name} className={`${heroLogoPx} rounded-full object-contain border-2 border-gray-100 shadow-md bg-white`} />
+                ) : (
+                  <div className={`${heroLogoPx} rounded-full bg-red-50 flex items-center justify-center text-4xl md:text-5xl font-bold text-red-700 border-2 border-gray-100 shadow-md`}>
+                    {userCollege?.name?.charAt(0) || 'B'}
+                  </div>
+                )}
+              </div>
+              <div className="text-center flex-1 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-0.5">Welcome to</p>
+                <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight text-gray-900" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
+                <p className="text-sm text-gray-600 font-sans mt-0.5" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
+                <p className="text-[11px] text-gray-400 font-sans mt-0.5 italic">{bHeroTagline}</p>
+                <div className="flex flex-wrap gap-2 mt-3 justify-center">
+                  {bFeatureBadges.map((feat: string, i: number) => (
+                    <span key={i} className="bg-white text-amber-700 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 shadow-xs">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                      {feat}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Side-by-side layouts */
+          <div className={`flex flex-col ${bHeroBannerPosition === 'left' || (bHeroLayout === 'logo-right' && bHeroBannerPosition !== 'bottom') ? 'md:flex-row-reverse' : bHeroLayout === 'banner-left' ? 'md:flex-row-reverse' : 'md:flex-row'} items-stretch min-h-[220px]`}>
+            {/* Logo + Content side */}
+            <div className={`flex items-center gap-5 ${heroPaddingClass} md:w-[45%] ${bMenuAlignment === 'center' ? 'text-center' : 'text-left'}`}>
+              <div className="shrink-0">
+                {userCollege?.logoUrl ? (
+                  <img src={userCollege.logoUrl} alt={userCollege.name} className={`${heroLogoPx} rounded-full object-contain border-2 border-gray-100 shadow-md bg-white`} />
+                ) : (
+                  <div className={`${heroLogoPx} rounded-full bg-red-50 flex items-center justify-center text-4xl md:text-5xl font-bold text-red-700 border-2 border-gray-100 shadow-md`}>
+                    {userCollege?.name?.charAt(0) || 'B'}
+                  </div>
+                )}
+              </div>
+              <div className={`${bMenuAlignment === 'center' ? 'text-center' : 'text-left'} flex-1 min-w-0`}>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-0.5">Welcome to</p>
+                <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight text-gray-900" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
+                <p className="text-sm text-gray-600 font-sans mt-0.5" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
+                <p className="text-[11px] text-gray-400 font-sans mt-0.5 italic">{bHeroTagline}</p>
+                <div className={`flex flex-wrap gap-2 mt-3 ${bMenuAlignment === 'center' ? 'justify-center' : ''}`}>
+                  {bFeatureBadges.map((feat: string, i: number) => (
+                    <span key={i} className="bg-white text-amber-700 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 shadow-xs">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                      {feat}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {/* Banner Image side */}
+            <div className={`md:w-[55%] relative min-h-[160px] md:min-h-0 ${bHeroBannerPosition === 'bottom' ? 'w-full min-h-[200px]' : ''}`}>
+              {userCollege?.bannerUrl ? (
+                <img src={userCollege.bannerUrl} alt={userCollege.name} className="w-full h-full object-cover absolute inset-0" />
               ) : (
-                <div className="w-28 h-28 md:w-36 md:h-36 rounded-full bg-red-50 flex items-center justify-center text-4xl md:text-5xl font-bold text-red-700 border-2 border-gray-100 shadow-md">
-                  {userCollege?.name?.charAt(0) || 'B'}
+                <div className="w-full h-full absolute inset-0 bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 flex items-center justify-center">
+                  <div className="text-center opacity-40">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-red-300 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    <p className="text-[10px] font-bold text-gray-400">College Banner</p>
+                  </div>
                 </div>
               )}
             </div>
-            {/* Text Content */}
-            <div className="text-left flex-1 min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-0.5">Welcome to</p>
-              <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight text-gray-900" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
-              <p className="text-sm text-gray-600 font-sans mt-0.5" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
-              <p className="text-[11px] text-gray-400 font-sans mt-0.5 italic">{bHeroTagline}</p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {bFeatureBadges.map((feat: string, i: number) => (
-                  <span key={i} className="bg-white text-amber-700 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 shadow-xs">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    {feat}
-                  </span>
-                ))}
-              </div>
-            </div>
           </div>
-          {/* Right Side - Banner Image */}
-          <div className="md:w-[55%] relative min-h-[160px] md:min-h-0">
-            {userCollege?.bannerUrl ? (
-              <img src={userCollege.bannerUrl} alt={userCollege.name} className="w-full h-full object-cover absolute inset-0" />
-            ) : (
-              <div className="w-full h-full absolute inset-0 bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 flex items-center justify-center">
-                <div className="text-center opacity-40">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-red-300 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                  <p className="text-[10px] font-bold text-gray-400">College Banner</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* SUB-CANTEEN SELECTOR + SEARCH (compact) */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      <div className={`flex flex-col sm:flex-row gap-3 ${sectionSpacingClass}`}>
         <select
           value={selectedSubCanteenId}
           onChange={(e) => setSelectedSubCanteenId(e.target.value)}
@@ -443,7 +493,7 @@ export default function CustomerApp({
       
       {/* Tab Switcher */}
       {!successOrder && (
-        <div className="flex border-b border-red-100 mb-8 gap-6 text-left">
+        <div className={`flex border-b border-red-100 ${sectionSpacingClass} gap-6 text-left`}>
           <button
             type="button"
             onClick={() => setCustomerTab('menu')}
@@ -588,7 +638,7 @@ export default function CustomerApp({
                   </div>
 
                   {/* CARDS GRID */}
-                  <div className={`grid gap-4`} style={{ gridTemplateColumns: `repeat(${bMenuColumns}, minmax(0, 1fr))` }}>
+                  <div className={`grid ${menuGapClass}`} style={{ gridTemplateColumns: `repeat(${bMenuColumns}, minmax(0, 1fr))`, justifyItems: bMenuAlignment === 'center' ? 'center' : bMenuAlignment === 'justify' ? 'stretch' : 'start' }}>
                     {filteredItems.map(item => {
                       const cartCount = cart[item.id] || 0;
                       return (
@@ -622,7 +672,7 @@ export default function CustomerApp({
                           </div>
 
                           {/* Body info */}
-                          <div className="p-4 flex-1 flex flex-col justify-between gap-3">
+                          <div className={`${menuCardClass} flex-1 flex flex-col justify-between gap-3`}>
                             <div className="space-y-1">
                               <div className="flex justify-between items-start gap-2">
                                 <h4 className="font-display font-semibold text-sm text-gray-900 tracking-tight leading-tight capitalize">{item.name}</h4>
@@ -1063,9 +1113,9 @@ export default function CustomerApp({
       )}
 
       {/* BRANDED FOOTER */}
-      <footer className="mt-12 bg-gray-900 text-white">
+      <footer className={`mt-12 bg-gray-900 text-white`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+          <div className={`grid grid-cols-1 ${bFooterLayout === '3-col' ? 'md:grid-cols-3' : bFooterLayout === '2-col' ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-10`}>
             {/* Brand */}
             <div className="space-y-4">
               <div className="flex items-center gap-3">
