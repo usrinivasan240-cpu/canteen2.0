@@ -236,7 +236,10 @@ export default function CustomerApp({
     if (successOrder) {
       const match = orders.find(o => o.id === successOrder.id);
       if (match) {
-        setSuccessOrder(match);
+        setSuccessOrder(prev => ({
+          ...match,
+          qrPayload: match.qrPayload || prev?.qrPayload || match.id
+        }));
       }
     }
   }, [orders]);
@@ -244,7 +247,7 @@ export default function CustomerApp({
   // Generate QR code data URL locally when order is placed
   useEffect(() => {
     if (successOrder) {
-      const payload = qrPayload || successOrder.id;
+      const payload = qrPayload || successOrder.qrPayload || successOrder.id;
       QRCode.toDataURL(payload, {
         width: 180,
         margin: 2,

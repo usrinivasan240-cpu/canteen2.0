@@ -1463,7 +1463,13 @@ app.get('/api/canteen', async (req, res) => {
         const legacySnap = await db.collection('items').where('canteenId', '==', 'canteen_001').limit(100).get();
         items = legacySnap.docs.map(doc => doc.data() as MenuItem);
       }
-      let orders = ordersSnap.docs.map(doc => doc.data() as Order);
+      let orders = ordersSnap.docs.map(doc => {
+        const o = doc.data() as Order;
+        if (!o.qrPayload) {
+          o.qrPayload = generateSignedQR(o.id);
+        }
+        return o;
+      });
       let reviews = reviewsSnap.docs.map(doc => doc.data() as Review);
       const ingredients = ingSnap.empty ? INITIAL_INGREDIENTS.map(ing => ({ ...ing, canteenId })) : ingSnap.docs.map(doc => doc.data() as Ingredient);
       const settings = settingsSnap.exists ? settingsSnap.data() as CanteenSettings : { ...canteenSettings, canteenId };
