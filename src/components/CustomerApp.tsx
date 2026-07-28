@@ -157,6 +157,9 @@ export default function CustomerApp({
   const heroPaddingClass = bHeroPadding === 'compact' ? 'p-4 md:p-5' : bHeroPadding === 'spacious' ? 'p-8 md:p-10' : 'p-6 md:p-8';
   const heroLogoPx = bHeroLogoSize <= 96 ? 'w-20 h-20 md:w-24 md:h-24' : bHeroLogoSize <= 120 ? 'w-24 h-24 md:w-28 md:h-28' : bHeroLogoSize <= 176 ? 'w-32 h-32 md:w-40 md:h-40' : 'w-28 h-28 md:w-36 md:h-36';
   const menuGapClass = bMenuGap === 'tight' ? 'gap-2' : bMenuGap === 'loose' ? 'gap-6' : 'gap-4';
+  const menuColStyle = typeof window !== 'undefined' && window.innerWidth >= 640
+    ? { gridTemplateColumns: `repeat(${bMenuColumns}, minmax(0, 1fr))` }
+    : {};
   const menuCardClass = bMenuCardSize === 'small' ? 'p-3' : bMenuCardSize === 'large' ? 'p-6' : 'p-4';
   const sectionSpacingClass = bSectionSpacing === 'compact' ? 'mb-6' : bSectionSpacing === 'spacious' ? 'mb-14' : 'mb-8';
 
@@ -454,25 +457,25 @@ export default function CustomerApp({
           /* Side-by-side layouts */
           <div className={`flex flex-col ${bHeroBannerPosition === 'left' || (bHeroLayout === 'logo-right' && bHeroBannerPosition !== 'bottom') ? 'md:flex-row-reverse' : bHeroLayout === 'banner-left' ? 'md:flex-row-reverse' : 'md:flex-row'} items-stretch min-h-[220px]`}>
             {/* Logo + Content side */}
-            <div className={`flex items-center gap-5 ${heroPaddingClass} md:w-[45%] ${bMenuAlignment === 'center' ? 'text-center' : 'text-left'}`}>
+            <div className={`flex items-center gap-3 md:gap-5 ${heroPaddingClass} md:w-[45%] ${bMenuAlignment === 'center' ? 'text-center' : 'text-left'}`}>
               <div className="shrink-0">
                 {userCollege?.logoUrl ? (
-                  <img src={userCollege.logoUrl} alt={userCollege.name} className={`${heroLogoPx} rounded-full object-contain border-2 border-gray-100 shadow-md bg-white`} />
+                  <img src={userCollege.logoUrl} alt={userCollege.name} className="w-16 h-16 md:w-36 md:h-36 rounded-full object-contain border-2 border-gray-100 shadow-md bg-white" />
                 ) : (
-                  <div className={`${heroLogoPx} rounded-full bg-red-50 flex items-center justify-center text-4xl md:text-5xl font-bold text-red-700 border-2 border-gray-100 shadow-md`}>
+                  <div className="w-16 h-16 md:w-36 md:h-36 rounded-full bg-red-50 flex items-center justify-center text-2xl md:text-5xl font-bold text-red-700 border-2 border-gray-100 shadow-md">
                     {userCollege?.name?.charAt(0) || 'B'}
                   </div>
                 )}
               </div>
               <div className={`${bMenuAlignment === 'center' ? 'text-center' : 'text-left'} flex-1 min-w-0`}>
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-0.5">Welcome to</p>
-                <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight text-gray-900" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
-                <p className="text-sm text-gray-600 font-sans mt-0.5" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
-                <p className="text-[11px] text-gray-400 font-sans mt-0.5 italic">{bHeroTagline}</p>
-                <div className={`flex flex-wrap gap-2 mt-3 ${bMenuAlignment === 'center' ? 'justify-center' : ''}`}>
+                <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-0.5">Welcome to</p>
+                <h1 className="font-display font-black text-lg md:text-3xl tracking-tight leading-tight text-gray-900" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
+                <p className="text-[11px] md:text-sm text-gray-600 font-sans mt-0.5" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
+                <p className="text-[10px] md:text-[11px] text-gray-400 font-sans mt-0.5 italic hidden md:block">{bHeroTagline}</p>
+                <div className={`flex flex-wrap gap-1.5 md:gap-2 mt-2 md:mt-3 ${bMenuAlignment === 'center' ? 'justify-center' : ''}`}>
                   {bFeatureBadges.map((feat: string, i: number) => (
-                    <span key={i} className="bg-white text-amber-700 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 shadow-xs">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    <span key={i} className="bg-white text-amber-700 text-[9px] md:text-[10px] font-bold px-2 md:px-3 py-1 md:py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 shadow-xs">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 md:h-3 md:w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                       {feat}
                     </span>
                   ))}
@@ -660,7 +663,7 @@ export default function CustomerApp({
             </div>
           ) : customerTab === 'menu' ? (
             /* ACTIVE MENU & CART split columns */
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8 text-left">
               
               {/* MENU COLUMN (LEFT) */}
               <div className="lg:col-span-8 space-y-8">
@@ -692,7 +695,7 @@ export default function CustomerApp({
                   </div>
 
                   {/* CARDS GRID */}
-                  <div className={`grid ${menuGapClass}`} style={{ gridTemplateColumns: `repeat(${bMenuColumns}, minmax(0, 1fr))`, justifyItems: bMenuAlignment === 'center' ? 'center' : bMenuAlignment === 'justify' ? 'stretch' : 'start' }}>
+                  <div className={`grid grid-cols-1 sm:grid-cols-2 ${menuGapClass}`} style={menuColStyle}>
                     {filteredItems.map(item => {
                       const cartCount = cart[item.id] || 0;
                       return (
