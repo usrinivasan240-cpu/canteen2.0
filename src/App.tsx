@@ -185,7 +185,7 @@ export default function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, canteenId: currentUser?.canteenId || selectedCanteenId })
       });
       const data = await resp.json();
       if (data.success) {
