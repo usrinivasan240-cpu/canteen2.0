@@ -373,41 +373,49 @@ export default function CustomerApp({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-      {/* HERO BANNER - College Branded */}
-      <div className="relative rounded-3xl overflow-hidden mb-8 bg-gradient-to-r from-red-900 via-red-800 to-red-800 text-white shadow-xl">
-        {/* Banner background image if set */}
-        {userCollege?.bannerUrl && (
-          <div className="absolute inset-0">
-            <img src={userCollege.bannerUrl} alt="" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-red-900/70" />
+      {/* HERO BANNER - Reference Design Match */}
+      <div className="relative rounded-3xl overflow-hidden mb-8 bg-white border border-gray-100 shadow-sm">
+        <div className="flex flex-col md:flex-row items-stretch min-h-[220px]">
+          {/* Left Side - Logo + Content */}
+          <div className="flex items-center gap-5 p-6 md:p-8 md:w-[45%]">
+            {/* College Logo */}
+            <div className="shrink-0">
+              {userCollege?.logoUrl ? (
+                <img src={userCollege.logoUrl} alt={userCollege.name} className="w-28 h-28 md:w-36 md:h-36 rounded-full object-contain border-2 border-gray-100 shadow-md bg-white" />
+              ) : (
+                <div className="w-28 h-28 md:w-36 md:h-36 rounded-full bg-red-50 flex items-center justify-center text-4xl md:text-5xl font-bold text-red-700 border-2 border-gray-100 shadow-md">
+                  {userCollege?.name?.charAt(0) || 'B'}
+                </div>
+              )}
+            </div>
+            {/* Text Content */}
+            <div className="text-left flex-1 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-0.5">Welcome to</p>
+              <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight text-gray-900" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
+              <p className="text-sm text-gray-600 font-sans mt-0.5" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
+              <p className="text-[11px] text-gray-400 font-sans mt-0.5 italic">{bHeroTagline}</p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {bFeatureBadges.map((feat: string, i: number) => (
+                  <span key={i} className="bg-white text-amber-700 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 shadow-xs">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    {feat}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
-        )}
-        {/* Background pattern overlay (only when no banner image) */}
-        {!userCollege?.bannerUrl && <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")'}} />}
-        <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 p-6 md:p-10">
-          {/* Large College Logo */}
-          <div className="shrink-0">
-            {userCollege?.logoUrl ? (
-              <img src={userCollege.logoUrl} alt={userCollege.name} className="w-32 h-32 md:w-44 md:h-44 rounded-2xl object-contain border-3 border-white/30 shadow-2xl bg-white/10 p-2" />
+          {/* Right Side - Banner Image */}
+          <div className="md:w-[55%] relative min-h-[160px] md:min-h-0">
+            {userCollege?.bannerUrl ? (
+              <img src={userCollege.bannerUrl} alt={userCollege.name} className="w-full h-full object-cover absolute inset-0" />
             ) : (
-              <div className="w-32 h-32 md:w-44 md:h-44 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-5xl md:text-6xl font-bold border-2 border-white/30 shadow-2xl">
-                {userCollege?.name?.charAt(0) || 'V'}
+              <div className="w-full h-full absolute inset-0 bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 flex items-center justify-center">
+                <div className="text-center opacity-40">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-red-300 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <p className="text-[10px] font-bold text-gray-400">College Banner</p>
+                </div>
               </div>
             )}
-          </div>
-          <div className="text-center md:text-left flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300 mb-1">Welcome to</p>
-            <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
-            <p className="text-sm text-white/80 font-sans mt-1" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
-            <p className="text-[11px] text-white/50 font-sans mt-0.5 italic">{bHeroTagline}</p>
-            <div className="flex flex-wrap gap-2 mt-3 justify-center md:justify-start">
-              {bFeatureBadges.map((feat: string, i: number) => (
-                <span key={i} className="bg-white/15 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  {feat}
-                </span>
-              ))}
-            </div>
           </div>
         </div>
       </div>
