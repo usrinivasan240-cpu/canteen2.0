@@ -109,6 +109,16 @@ export interface CollegeBranding {
   contactAddress?: string;
   footerCopyright?: string;
   footerLinks?: { label: string; action: string }[];
+  heroLayout?: 'logo-left' | 'logo-center' | 'logo-right' | 'banner-left';
+  heroLogoSize?: number;
+  heroPadding?: string;
+  heroBannerPosition?: 'right' | 'left' | 'background' | 'bottom';
+  menuCardSize?: 'small' | 'medium' | 'large';
+  menuGap?: string;
+  menuAlignment?: 'left' | 'center' | 'justify';
+  footerLayout?: '3-col' | '2-col' | '1-col';
+  sectionSpacing?: string;
+  headerStyle?: 'rounded' | 'flat' | 'shadow';
 }
 
 export interface College {
