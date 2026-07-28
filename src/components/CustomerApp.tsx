@@ -87,10 +87,16 @@ export default function CustomerApp({
   const [loadingAi, setLoadingAi] = useState<boolean>(false);
   const [currentTimeSlot, setCurrentTimeSlot] = useState<string>('Noon (Lunch hour)');
 
-  // Hierarchical College, Canteen, SubCanteen states
-  const [colleges, setColleges] = useState<College[]>([]);
-  const [canteens, setCanteens] = useState<Canteen[]>([]);
-  const [subCanteens, setSubCanteens] = useState<SubCanteen[]>([]);
+  // Hierarchical College, Canteen, SubCanteen states - hydrate from cache
+  const [colleges, setColleges] = useState<College[]>(() => {
+    try { const c = localStorage.getItem('bb_colleges'); return c ? JSON.parse(c) : []; } catch { return []; }
+  });
+  const [canteens, setCanteens] = useState<Canteen[]>(() => {
+    try { const c = localStorage.getItem('bb_canteens'); return c ? JSON.parse(c) : []; } catch { return []; }
+  });
+  const [subCanteens, setSubCanteens] = useState<SubCanteen[]>(() => {
+    try { const c = localStorage.getItem('bb_subcanteens'); return c ? JSON.parse(c) : []; } catch { return []; }
+  });
   
   const [selectedCollegeId, setSelectedCollegeId] = useState<string>(userCollegeId || 'college_001');
   const [selectedCanteenId, setSelectedCanteenId] = useState<string>(userCanteenId || 'canteen_001');
@@ -166,6 +172,21 @@ export default function CustomerApp({
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Auto-select from cached data first (instant)
+        const userCantId = userCanteenId || 'canteen_001';
+        setSelectedCanteenId(userCantId);
+        onCanteenChange(userCantId);
+        if (userCollegeId) {
+          setSelectedCollegeId(userCollegeId);
+        }
+        // Auto-select first sub from cache
+        try {
+          const cachedSub = JSON.parse(localStorage.getItem('bb_subcanteens') || '[]');
+          const userSub = cachedSub.find((s: any) => s.canteenId === userCantId);
+          if (userSub) setSelectedSubCanteenId(userSub.id);
+        } catch {}
+
+        // Then fetch fresh data
         const [colResp, cantResp, subResp] = await Promise.all([
           fetch(`${API_BASE}/api/colleges`),
           fetch(`${API_BASE}/api/canteens`),
@@ -174,16 +195,20 @@ export default function CustomerApp({
         const colData = await colResp.json();
         const cantData = await cantResp.json();
         const subData = await subResp.json();
-        if (colData.success) setColleges(colData.colleges);
-        if (cantData.success) setCanteens(cantData.canteens);
-        if (subData.success) setSubCanteens(subData.subCanteens);
+        if (colData.success) {
+          setColleges(colData.colleges);
+          try { localStorage.setItem('bb_colleges', JSON.stringify(colData.colleges)); } catch {}
+        }
+        if (cantData.success) {
+          setCanteens(cantData.canteens);
+          try { localStorage.setItem('bb_canteens', JSON.stringify(cantData.canteens)); } catch {}
+        }
+        if (subData.success) {
+          setSubCanteens(subData.subCanteens);
+          try { localStorage.setItem('bb_subcanteens', JSON.stringify(subData.subCanteens)); } catch {}
+        }
 
-        // Auto-select canteen from user profile
-        const userCantId = userCanteenId || 'canteen_001';
-        setSelectedCanteenId(userCantId);
-        onCanteenChange(userCantId);
-
-        // Auto-select college from user profile or derived from canteen
+        // Re-select if user profile has it
         if (userCollegeId) {
           setSelectedCollegeId(userCollegeId);
         } else if (cantData.success && cantData.canteens) {
@@ -191,10 +216,16 @@ export default function CustomerApp({
           if (cant) setSelectedCollegeId(cant.collegeId);
         }
 
-        // Auto-select first sub-canteen for user's canteen
         if (subData.success && subData.subCanteens) {
           const userSub = subData.subCanteens.find((s: any) => s.canteenId === userCantId);
           if (userSub) setSelectedSubCanteenId(userSub.id);
+        }
+
+        // Preload college logo + banner images
+        if (colData.success && colData.colleges) {
+          const userCol = colData.colleges.find((c: any) => c.id === (userCollegeId || ''));
+          if (userCol?.logoUrl) { const img = new Image(); img.src = userCol.logoUrl; }
+          if (userCol?.bannerUrl) { const img = new Image(); img.src = userCol.bannerUrl; }
         }
       } catch (e) {
         console.error("Failed to fetch hierarchy lists", e);
@@ -703,7 +734,7 @@ export default function CustomerApp({
                           {/* Image Box */}
                           <div className="aspect-video relative overflow-hidden bg-red-50">
                             {item.imageUrl ? (
-                              <img src={item.imageUrl} alt={item.name} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-all" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+                              <img src={item.imageUrl} alt={item.name} referrerPolicy="no-referrer" loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-all" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
                             ) : null}
                             <div className={`w-full h-full flex items-center justify-center text-3xl ${item.imageUrl ? 'hidden' : ''}`}>🍲</div>
                             

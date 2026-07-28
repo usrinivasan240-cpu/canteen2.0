@@ -22,12 +22,16 @@ import { API_BASE } from './config';
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [role, setRole] = useState<'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'>('customer');
-  const [canteen, setCanteen] = useState<Canteen | null>(null);
+  const [canteen, setCanteen] = useState<Canteen | null>(() => {
+    try { const c = localStorage.getItem('bb_canteen'); return c ? JSON.parse(c) : null; } catch { return null; }
+  });
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name: string; role: 'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'; collegeId?: string; canteenId?: string; subCanteenId?: string } | null>(null);
   const [selectedCanteenId, setSelectedCanteenId] = useState<string>('canteen_001');
-  const [colleges, setColleges] = useState<College[]>([]);
+  const [colleges, setColleges] = useState<College[]>(() => {
+    try { const c = localStorage.getItem('bb_colleges'); return c ? JSON.parse(c) : []; } catch { return []; }
+  });
   const [userOrders, setUserOrders] = useState<Order[]>([]);
 
   const userEmail = currentUser ? currentUser.email : '';
@@ -39,6 +43,7 @@ export default function App() {
       const data = await resp.json();
       if (data.success && Array.isArray(data.orders)) {
         setUserOrders(data.orders);
+        try { localStorage.setItem('bb_orders', JSON.stringify(data.orders)); } catch {}
       }
     } catch (e) {
       console.error('Failed to fetch user orders:', e);
@@ -46,6 +51,11 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Hydrate from cache immediately
+    try {
+      const cached = localStorage.getItem('bb_orders');
+      if (cached) setUserOrders(JSON.parse(cached));
+    } catch {}
     if (currentUser?.id) {
       fetchUserOrders();
       const interval = setInterval(fetchUserOrders, 30000);
@@ -59,11 +69,10 @@ export default function App() {
       const resp = await fetch(`${API_BASE}/api/canteen?canteenId=${activeCanteenId}`);
       const data = await resp.json();
       if (data.success && data.canteen) {
-        // Only overwrite if the new data has items (prevent polling from wiping data)
         if (data.canteen.items && data.canteen.items.length > 0) {
           setCanteen(data.canteen);
+          try { localStorage.setItem('bb_canteen', JSON.stringify(data.canteen)); } catch {}
         } else if (canteen && canteen.items && canteen.items.length > 0) {
-          // Keep existing data if new fetch has empty items
         } else {
           setCanteen(data.canteen);
         }
@@ -81,16 +90,18 @@ export default function App() {
 
   useEffect(() => {
     fetchCanteenData(selectedCanteenId);
-    // poll order statuses incrementally to update customer alerts
     const interval = setInterval(() => fetchCanteenData(selectedCanteenId), 60000);
     return () => clearInterval(interval);
   }, [selectedCanteenId]);
 
-  // Fetch colleges for header display
+  // Fetch colleges - hydrate from cache first, then refresh
   useEffect(() => {
     if (isLoggedIn) {
       fetch(`${API_BASE}/api/colleges`).then(r => r.json()).then(d => {
-        if (d.success && d.colleges) setColleges(d.colleges);
+        if (d.success && d.colleges) {
+          setColleges(d.colleges);
+          try { localStorage.setItem('bb_colleges', JSON.stringify(d.colleges)); } catch {}
+        }
       }).catch(() => {});
     }
   }, [isLoggedIn]);
