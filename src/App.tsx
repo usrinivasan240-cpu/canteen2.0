@@ -189,7 +189,12 @@ export default function App() {
       });
       const data = await resp.json();
       if (data.success) {
-        await fetchCanteenData();
+        // Silent refresh - don't trigger loading state
+        try {
+          const r = await fetch(`${API_BASE}/api/canteen?canteenId=${currentUser?.canteenId || selectedCanteenId}`);
+          const d = await r.json();
+          if (d.success && d.canteen) setCanteen(d.canteen);
+        } catch {}
       }
       return data;
     } catch (e) {

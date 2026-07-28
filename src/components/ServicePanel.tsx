@@ -57,6 +57,18 @@ export default function ServicePanel({
     }
   };
 
+  const silentRefreshCanteen = async (canteenId: string) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteen?canteenId=${canteenId}`);
+      const data = await resp.json();
+      if (data.success && data.canteen) {
+        setViewingCanteenData(data.canteen);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const isSuperAdmin = currentUser?.role === 'superadmin';
   const [activeTab, setActiveTab] = useState<'users' | 'colleges' | 'canteens'>(isSuperAdmin ? 'canteens' : 'users');
   const [selectedCollegeFilter, setSelectedCollegeFilter] = useState<string>('all');
@@ -1343,13 +1355,13 @@ export default function ServicePanel({
                           body: JSON.stringify({ ...payload, canteenId: viewingCanteenId })
                         });
                         const d = await resp.json();
-                        if (d.success) handleLoadCanteenDashboard(viewingCanteenId);
+                        if (d.success) silentRefreshCanteen(viewingCanteenId);
                         return d;
                       }}
                       onDeleteMenuItem={async (id) => {
                         const resp = await fetch(`${API_BASE}/api/canteen/menu/${id}`, { method: 'DELETE' });
                         const d = await resp.json();
-                        if (d.success) handleLoadCanteenDashboard(viewingCanteenId);
+                        if (d.success) silentRefreshCanteen(viewingCanteenId);
                         return d;
                       }}
                       onUpdateOrderStatus={async (id, status) => {
@@ -1359,10 +1371,10 @@ export default function ServicePanel({
                           body: JSON.stringify({ id, status })
                         });
                         const d = await resp.json();
-                        if (d.success) handleLoadCanteenDashboard(viewingCanteenId);
+                        if (d.success) silentRefreshCanteen(viewingCanteenId);
                         return d;
                       }}
-                      onFetchCanteen={() => handleLoadCanteenDashboard(viewingCanteenId)}
+                      onFetchCanteen={() => silentRefreshCanteen(viewingCanteenId)}
                       onLogout={() => {
                         setViewingCanteenId(null);
                         setViewingCanteenData(null);

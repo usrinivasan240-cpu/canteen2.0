@@ -57,7 +57,7 @@ export default function CanteenAdmin({
     : rawOrders;
 
   const [activeTab, setActiveTab] = useState<'chef' | 'counter' | 'owner'>(
-    userRole === 'chef' ? 'chef' : userRole === 'staff' ? 'counter' : 'chef'
+    userRole === 'chef' ? 'chef' : userRole === 'staff' ? 'counter' : 'owner'
   );
   const [ownerSubTab, setOwnerSubTab] = useState<'orders_mgr' | 'pos' | 'menu' | 'inventory' | 'revenue' | 'settings' | 'reviews' | 'ai'>('orders_mgr');
   
@@ -130,8 +130,10 @@ export default function CanteenAdmin({
   
   // Menu form state
   const [showItemModal, setShowItemModal] = useState<boolean>(false);
+  const [showConfirmSave, setShowConfirmSave] = useState<boolean>(false);
+  const [pendingSavePayload, setPendingSavePayload] = useState<any>(null);
   const [itemFormError, setItemFormError] = useState<string>('');
-  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [formName, setFormName] = useState<string>('');
   const [formPrice, setFormPrice] = useState<string>('');
   const [formStock, setFormStock] = useState<string>('');
@@ -304,17 +306,31 @@ export default function CanteenAdmin({
       recipe: formRecipe.filter(r => r.amountGrams > 0)
     };
 
+    setPendingSavePayload(payload);
+    setShowConfirmSave(true);
+  };
+
+  const handleConfirmSave = async () => {
+    if (!pendingSavePayload) return;
+    setIsSaving(true);
+    setItemFormError('');
     try {
-      const res = await onAddMenuItem(payload);
+      const res = await onAddMenuItem(pendingSavePayload);
       if (res && res.success) {
         setShowItemModal(false);
+        setShowConfirmSave(false);
+        setPendingSavePayload(null);
         setItemFormError('');
         onFetchCanteen();
       } else {
         setItemFormError(res?.error || 'Failed to save item. Please try again.');
+        setShowConfirmSave(false);
       }
     } catch (err) {
       setItemFormError('Network error. Please check your connection and try again.');
+      setShowConfirmSave(false);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -2330,6 +2346,86 @@ export default function CanteenAdmin({
                 Save Food Details
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM SAVE DIALOG */}
+      {showConfirmSave && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => !isSaving && setShowConfirmSave(false)}>
+          <div className="bg-white rounded-3xl border border-red-100 shadow-2xl w-full max-w-md p-6 text-left" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-sm text-gray-900">Confirm Save</h3>
+                <p className="text-[10px] text-gray-400">Review changes before saving to database</p>
+              </div>
+            </div>
+
+            {pendingSavePayload && (
+              <div className="bg-red-50/50 border border-red-100/50 rounded-xl p-4 mb-4 space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500 font-semibold">Item Name</span>
+                  <span className="font-bold text-gray-900">{pendingSavePayload.name}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500 font-semibold">Category</span>
+                  <span className="font-bold text-gray-900">{pendingSavePayload.category}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500 font-semibold">Price</span>
+                  <span className="font-bold text-amber-700">₹{pendingSavePayload.price.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500 font-semibold">Stock</span>
+                  <span className="font-bold text-gray-900">{pendingSavePayload.stock}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500 font-semibold">Prep Time</span>
+                  <span className="font-bold text-gray-900">{pendingSavePayload.prepTime} mins</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500 font-semibold">Daily Limit</span>
+                  <span className="font-bold text-gray-900">{pendingSavePayload.dailyLimit}</span>
+                </div>
+                {pendingSavePayload.imageUrl && (
+                  <div className="pt-2 border-t border-red-100/50">
+                    <img src={pendingSavePayload.imageUrl} alt="Preview" className="w-full h-20 object-cover rounded-lg" referrerPolicy="no-referrer" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setShowConfirmSave(false); setPendingSavePayload(null); }}
+                disabled={isSaving}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-2.5 text-xs font-bold transition cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSave}
+                disabled={isSaving}
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-2.5 text-xs font-bold transition shadow-md cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSaving ? (
+                  <>
+                    <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    Confirm &amp; Save
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
