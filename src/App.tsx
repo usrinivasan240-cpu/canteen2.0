@@ -20,14 +20,20 @@ import { MenuItem, Order, Review, Canteen, College } from './types';
 import { API_BASE } from './config';
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [role, setRole] = useState<'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'>('customer');
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    try { return localStorage.getItem('bb_loggedIn') === 'true'; } catch { return false; }
+  });
+  const [role, setRole] = useState<'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'>(() => {
+    try { return (localStorage.getItem('bb_role') as any) || 'customer'; } catch { return 'customer'; }
+  });
   const [canteen, setCanteen] = useState<Canteen | null>(() => {
     try { const c = localStorage.getItem('bb_canteen'); return c ? JSON.parse(c) : null; } catch { return null; }
   });
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name: string; role: 'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'; collegeId?: string; canteenId?: string; subCanteenId?: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name: string; role: 'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'; collegeId?: string; canteenId?: string; subCanteenId?: string } | null>(() => {
+    try { const u = localStorage.getItem('bb_user'); return u ? JSON.parse(u) : null; } catch { return null; }
+  });
   const [selectedCanteenId, setSelectedCanteenId] = useState<string>('canteen_001');
   const [colleges, setColleges] = useState<College[]>(() => {
     try { const c = localStorage.getItem('bb_colleges'); return c ? JSON.parse(c) : []; } catch { return []; }
@@ -268,15 +274,25 @@ export default function App() {
   const handleLoginSuccess = (user: any) => {
     setCurrentUser(user);
     setRole(user.role);
-    // Auto-assign canteen from user's profile
     const userCanteenId = user.canteenId || 'canteen_001';
     setSelectedCanteenId(userCanteenId);
     setIsLoggedIn(true);
+    try {
+      localStorage.setItem('bb_user', JSON.stringify(user));
+      localStorage.setItem('bb_role', user.role);
+      localStorage.setItem('bb_loggedIn', 'true');
+    } catch {}
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     setIsLoggedIn(false);
+    try {
+      localStorage.removeItem('bb_user');
+      localStorage.removeItem('bb_role');
+      localStorage.removeItem('bb_loggedIn');
+      localStorage.removeItem('bb_orders');
+    } catch {}
   };
 
   if (loading) {
