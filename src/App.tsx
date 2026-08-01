@@ -16,6 +16,8 @@ import CanteenAdmin from './components/CanteenAdmin';
 import ServicePanel from './components/ServicePanel';
 import LoginScreen from './components/LoginScreen';
 import UpdatePopup from './components/UpdatePopup';
+import LegalPages from './components/LegalPages';
+import LegalFooter from './components/LegalFooter';
 import { MenuItem, Order, Review, Canteen, College } from './types';
 import { API_BASE } from './config';
 
@@ -39,6 +41,7 @@ export default function App() {
     try { const c = localStorage.getItem('bb_colleges'); return c ? JSON.parse(c) : []; } catch { return []; }
   });
   const [userOrders, setUserOrders] = useState<Order[]>([]);
+  const [legalPage, setLegalPage] = useState<string | null>(null);
 
   const userEmail = currentUser ? currentUser.email : '';
 
@@ -312,6 +315,16 @@ export default function App() {
     );
   }
 
+  // 0. LEGAL PAGE VIEW (full-screen override)
+  if (legalPage) {
+    return (
+      <LegalPages
+        page={legalPage as any}
+        onBack={() => setLegalPage(null)}
+      />
+    );
+  }
+
   // 1. GATED ENTRY FOR LOGIN
   if (!isLoggedIn) {
     return (
@@ -319,6 +332,7 @@ export default function App() {
         <UpdatePopup />
         <LoginScreen
           onLoginSuccess={handleLoginSuccess}
+          onNavigateLegal={(page) => setLegalPage(page)}
         />
       </>
     );
@@ -412,6 +426,9 @@ export default function App() {
           </div>
         </footer>
       )}
+
+      {/* LEGAL FOOTER - Always visible */}
+      <LegalFooter onNavigate={(page) => setLegalPage(page)} />
 
     </div>
   );

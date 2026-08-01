@@ -1,0 +1,693 @@
+# ============================================================
+# BITE & BYTE - ROLE & ACCESS DIAGRAM
+# Visual Map of All Roles, Connections & Access
+# ============================================================
+
+
+# ============================================================
+# SECTION 1: ROLE HIERARCHY (Top-Down Access)
+# ============================================================
+
+                    ┌─────────────────────┐
+                    │     SUPERADMIN      │
+                    │   (Full Access)     │
+                    │   Manages: ALL      │
+                    └─────────┬───────────┘
+                              │
+            ┌─────────────────┼─────────────────┐
+            │                 │                 │
+            ▼                 ▼                 ▼
+    ┌───────────────┐ ┌───────────────┐ ┌───────────────┐
+    │   COLLEGES    │ │   CANTEENS    │ │    USERS      │
+    │ (create/edit) │ │ (create/edit) │ │ (create/edit) │
+    │   (delete)    │ │   (delete)    │ │   (delete)    │
+    └───────┬───────┘ └───────┬───────┘ └───────┬───────┘
+            │                 │                 │
+            │                 │        ┌────────┴────────┐
+            │                 │        │                 │
+            │                 ▼        ▼                 ▼
+            │         ┌───────────┐ ┌───────┐ ┌───────────┐
+            │         │   OWNER   │ │ ADMIN │ │  CHEF/    │
+            │         │ (canteen  │ │(limited│ │  STAFF    │
+            │         │  manager) │ │ access)│ │(kitchen/  │
+            │         └─────┬─────┘ └───────┘ │  counter) │
+            │               │                 └─────┬─────┘
+            │       ┌───────┼───────┐               │
+            │       │       │       │               │
+            │       ▼       ▼       ▼               ▼
+            │   ┌───────┐ ┌─────┐ ┌───────┐ ┌───────────┐
+            │   │ MENU  │ │ORDER│ │REVIEWS│ │  ORDERS   │
+            │   │ ITEMS │ │MGR  │ │  MGR  │ │ (view/    │
+            │   └───┬───┘ └──┬──┘ └───┬───┘ │  update)  │
+            │       │        │        │      └───────────┘
+            │       │        │        │
+            ▼       ▼        ▼        ▼
+    ┌───────────────────────────────────────────────┐
+    │                   CUSTOMER                    │
+            │   Browse Menu │ Place Order │ View History │
+            └───────────────────────────────────────┘
+
+
+# ============================================================
+# SECTION 2: ROLE ACCESS MATRIX (What Each Role Can Do)
+# ============================================================
+
+ Feature / Action          │ SUPERADMIN │ OWNER │ ADMIN │ CHEF │ STAFF │ CUSTOMER
+ ──────────────────────────┼────────────┼───────┼───────┼──────┼───────┼──────────
+ Manage Colleges           │     ✅     │  ❌   │  ❌   │  ❌  │  ❌   │   ❌
+ Manage Canteens           │     ✅     │  ❌   │  ❌   │  ❌  │  ❌   │   ❌
+ Manage SubCanteens        │     ✅     │  ❌   │  ❌   │  ❌  │  ❌   │   ❌
+ Manage Users              │     ✅     │  ❌   │  ❌   │  ❌  │  ❌   │   ❌
+ Assign Roles              │     ✅     │  ❌   │  ❌   │  ❌  │  ❌   │   ❌
+ Branding Editor           │     ✅     │  ❌   │  ❌   │  ❌  │  ❌   │   ❌
+ Alignment Editor          │     ✅     │  ❌   │  ❌   │  ❌  │  ❌   │   ❌
+ AI Recommendations        │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ ──────────────────────────┼────────────┼───────┼───────┼──────┼───────┼──────────
+ Add/Edit Menu Items       │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ Delete Menu Items         │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ Add/Edit Ingredients      │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ Delete Ingredients        │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ Reset Canteen             │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ Update Canteen Settings   │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ Update Canteen Name       │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ ──────────────────────────┼────────────┼───────┼───────┼──────┼───────┼──────────
+ View Orders (All)         │     ✅     │  ✅   │  ✅   │  ❌  │  ❌   │   ❌
+ Update Order Status       │     ✅     │  ✅   │  ✅   │  ✅  │  ✅   │   ❌
+ Batch Update Orders       │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ View Walk-in Bills        │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ Create Walk-in Bills      │     ✅     │  ✅   │  ❌   │  ❌  │  ❌   │   ❌
+ ──────────────────────────┼────────────┼───────┼───────┼──────┼───────┼──────────
+ Place Orders              │     ❌     │  ❌   │  ❌   │  ❌  │  ❌   │   ✅
+ View Own Orders           │     ❌     │  ❌   │  ❌   │  ❌  │  ❌   │   ✅
+ Browse Menu               │     ❌     │  ❌   │  ❌   │  ❌  │  ❌   │   ✅
+ Submit Reviews            │     ❌     │  ❌   │  ❌   │  ❌  │  ❌   │   ✅
+ Verify QR Code            │     ✅     │  ✅   │  ❌   │  ❌  │  ✅   │   ✅
+
+
+# ============================================================
+# SECTION 3: DATA ACCESS FLOW (Who Sees What Data)
+# ============================================================
+
+ ┌──────────────────────────────────────────────────────────────┐
+ │                       FIRESTORE DB                           │
+ │                                                              │
+ │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
+ │  │ colleges │  │ canteens │  │  users   │  │  items   │    │
+ │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘    │
+ │       │             │             │             │            │
+ │  ┌────┴─────┐  ┌────┴─────┐  ┌────┴─────┐  ┌────┴─────┐    │
+ │  │subcanteen│  │ settings │  │otp_store │  │reviews   │    │
+ │  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
+ │                                                              │
+ │  ┌──────────┐  ┌──────────┐  ┌──────────┐                   │
+ │  │  orders  │  │ingredien.│  │walkin_bill│                   │
+ │  └──────────┘  └──────────┘  └──────────┘                   │
+ └──────────────────────────────────────────────────────────────┘
+
+ ┌─────────────────────────────────────────────────────────────┐
+ │                    DATA ACCESS BY ROLE                       │
+ ├─────────────────────────────────────────────────────────────┤
+ │                                                             │
+ │  SUPERADMIN ──────► sees ALL data across ALL colleges       │
+ │                                                             │
+ │  OWNER ───────────► sees ONLY own canteen's data            │
+ │                      items, orders, reviews, ingredients,   │
+ │                      settings, walkin_bills                  │
+ │                                                             │
+ │  ADMIN ───────────► sees orders only (limited)              │
+ │                                                             │
+ │  CHEF ────────────► sees own canteen's items + orders       │
+ │                                                             │
+ │  STAFF ───────────► sees own canteen's items + orders       │
+ │                      + QR verification                       │
+ │                                                             │
+ │  CUSTOMER ────────► sees own college's canteen menu         │
+ │                      + own orders only                       │
+ │                      + reviews                               │
+ └─────────────────────────────────────────────────────────────┘
+
+
+# ============================================================
+# SECTION 4: ORDER WORKFLOW DIAGRAM
+# ============================================================
+
+ ┌──────────┐         ┌──────────┐         ┌──────────┐
+ │ CUSTOMER │         │  SERVER  │         │  PAYTM   │
+ └────┬─────┘         └────┬─────┘         └────┬─────┘
+      │                    │                    │
+      │  1. Browse Menu    │                    │
+      │ ─────────────────► │                    │
+      │                    │                    │
+      │  2. Add to Cart    │                    │
+      │  (client-side)     │                    │
+      │                    │                    │
+      │  3. Place Order    │                    │
+      │  + Select Slot     │                    │
+      │ ─────────────────► │                    │
+      │                    │                    │
+      │                    │ 4. Validate:       │
+      │                    │    - Stock?        │
+      │                    │    - Daily limit?  │
+      │                    │    - Slot full?    │
+      │                    │    - Ingredients?  │
+      │                    │                    │
+      │                    │ 5. Generate        │
+      │                    │    Paytm checksum  │
+      │                    │ ─────────────────► │
+      │                    │                    │
+      │  6. Return form    │                    │
+      │     data to client │                    │
+      │ ◄───────────────── │                    │
+      │                    │                    │
+      │  7. Auto-submit    │                    │
+      │     form to Paytm  │                    │
+      │ ──────────────────────────────────────► │
+      │                    │                    │
+      │                    │  8. Paytm calls    │
+      │                    │     /callback      │
+      │                    │ ◄───────────────── │
+      │                    │                    │
+      │                    │  9. Verify checksum│
+      │                    │     Update order   │
+      │                    │     status         │
+      │                    │                    │
+      │  10. Show order    │                    │
+      │      confirmation  │                    │
+      │ ◄───────────────── │                    │
+      │                    │                    │
+
+
+# ============================================================
+# SECTION 5: ORDER STATUS FLOW
+# ============================================================
+
+                    ┌─────────┐
+         ┌────────►│ PENDING │◄────────┐
+         │         └────┬────┘         │
+         │              │              │
+         │              ▼              │
+         │         ┌─────────┐         │
+         │         │PREPARING│         │
+         │         └────┬────┘         │
+         │              │              │
+         │              ▼              │
+         │         ┌─────────┐         │
+         │         │  READY  │         │
+         │         └────┬────┘         │
+         │              │              │
+         │              ▼              │
+         │         ┌──────────┐        │
+         │         │ COLLECTED│        │
+         │         └──────────┘        │
+         │                             │
+    ┌────┴─────┐                 ┌─────┴──────┐
+    │CANCELLED │                 │  EXPIRED   │
+    └──────────┘                 │(auto after │
+                                 │ noShowMin) │
+                                 └────────────┘
+
+  WHO CAN SET EACH STATUS:
+    PENDING   → (auto-created)
+    PREPARING → owner, chef, superadmin
+    READY     → owner, chef, superadmin
+    COLLECTED → staff, superadmin
+    CANCELLED → owner, chef, superadmin
+    EXPIRED   → (auto after noShowMinutes)
+
+
+# ============================================================
+# SECTION 6: PAYMENT STATUS FLOW
+# ============================================================
+
+      ┌──────────┐
+      │ PENDING  │
+      └────┬─────┘
+           │
+     ┌─────┴─────┐
+     │           │
+     ▼           ▼
+┌─────────┐ ┌────────┐
+│  PAID   │ │ FAILED │
+└─────────┘ └────────┘
+
+  Paytm Path:  pending → paid (after Paytm callback verification)
+  Mock Path:   pending → paid (instant, for testing)
+  Failed Path: pending → failed (Paytm rejection)
+
+
+# ============================================================
+# SECTION 7: AUTHENTICATION FLOW
+# ============================================================
+
+ ┌──────────┐     ┌──────────┐     ┌──────────┐
+ │  USER    │     │  SERVER  │     │ FIRESTORE│
+ └────┬─────┘     └────┬─────┘     └────┬─────┘
+      │                │                │
+      │ ┌──────────────────────────────┐│
+      │ │      CUSTOMER LOGIN          ││
+      │ └──────────────────────────────┘│
+      │                │                │
+      │ 1. Enter email │                │
+      │ ─────────────► │                │
+      │                │ 2. Check user  │
+      │                │ ─────────────► │
+      │                │                │
+      │                │ 3. Generate OTP│
+      │                │    (4 digits)  │
+      │                │ ─────────────► │
+      │                │                │ (store in otp_store)
+      │                │                │
+      │                │ 4. Send email  │
+      │                │    with OTP    │
+      │                │                │
+      │ 5. Enter OTP   │                │
+      │ ─────────────► │                │
+      │                │ 6. Verify OTP  │
+      │                │ ─────────────► │
+      │                │                │
+      │                │ 7. Return user │
+      │ ◄───────────── │    object      │
+      │                │                │
+      │ 8. Save to     │                │
+      │    localStorage│                │
+      │                │                │
+      │ ┌──────────────────────────────┐│
+      │ │   OWNER/CHEF/STAFF LOGIN     ││
+      │ └──────────────────────────────┘│
+      │                │                │
+      │ 1. Email+Pass  │                │
+      │ ─────────────► │                │
+      │                │ 2. Check user  │
+      │                │ ─────────────► │
+      │                │                │
+      │                │ 3. Compare pass│
+      │                │    (bcrypt)    │
+      │                │                │
+      │                │ 4. Return user │
+      │ ◄───────────── │    object      │
+      │                │                │
+
+
+# ============================================================
+# SECTION 8: LOGIN STATE PERSISTENCE
+# ============================================================
+
+  ┌─────────────────────────────────────────────────────────┐
+  │                  ON LOGIN SUCCESS                        │
+  │                                                         │
+  │  localStorage.setItem('bb_user',     userObject)        │
+  │  localStorage.setItem('bb_role',     roleString)        │
+  │  localStorage.setItem('bb_loggedIn', 'true')            │
+  └─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │                  ON PAGE REFRESH                         │
+  │                                                         │
+  │  useState(() => {                                       │
+  │    return localStorage.getItem('bb_loggedIn') === 'true' │
+  │  })  → isLoggedIn                                       │
+  │                                                         │
+  │  useState(() => {                                       │
+  │    return JSON.parse(localStorage.getItem('bb_user'))    │
+  │  })  → currentUser                                      │
+  │                                                         │
+  │  useState(() => {                                       │
+  │    return localStorage.getItem('bb_role')               │
+  │  })  → role                                             │
+  └─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │              DATA FETCHES FIRE                          │
+  │                                                         │
+  │  currentUser.id exists? ─── YES ──► fetchUserOrders()   │
+  │                         │                               │
+  │                         └── NO ──► (no orders fetched)  │
+  │                                                         │
+  │  Role determines which view is shown:                   │
+  │    'customer'  → CustomerApp                            │
+  │    'owner'     → CanteenAdmin (owner tab)               │
+  │    'chef'      → CanteenAdmin (chef tab)                │
+  │    'staff'     → CanteenAdmin (staff tab)               │
+  │    'superadmin'→ ServicePanel                           │
+  └─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │                  ON LOGOUT                               │
+  │                                                         │
+  │  localStorage.removeItem('bb_user')                     │
+  │  localStorage.removeItem('bb_role')                     │
+  │  localStorage.removeItem('bb_loggedIn')                 │
+  │  localStorage.removeItem('bb_orders')                   │
+  │                                                         │
+  │  setCurrentUser(null)                                   │
+  │  setIsLoggedIn(false)                                   │
+  └─────────────────────────────────────────────────────────┘
+
+
+# ============================================================
+# SECTION 9: COLLEGE → CANTEEN → SUBCOUNTER FILTERING
+# ============================================================
+
+  ┌─────────────────────────────────────────────────────────┐
+  │              COLLEGE FILTERING CHAIN                     │
+  │                                                         │
+  │  colleges ─────► Filter by collegeId ──► user sees only │
+  │                  (user's collegeId)      their college  │
+  │                                                         │
+  │  canteens ─────► Filter by collegeId ──► user sees only │
+  │                  (selected college)       canteens in    │
+  │                                          their college  │
+  │                                                         │
+  │  subcanteens ──► Filter by canteenId ──► user sees only │
+  │                  (selected canteen)       subcounters in │
+  │                                          that canteen   │
+  │                                                         │
+  │  Auto-hide: If only 1 canteen/subcounter exists,        │
+  │             selector is hidden and auto-selected        │
+  └─────────────────────────────────────────────────────────┘
+
+  Customer sees:
+    College Dropdown ──► Canteen Dropdown ──► SubCounter Dropdown
+         │                    │                     │
+         ▼                    ▼                     ▼
+    (auto-selected       (auto-selected         (auto-selected
+     if only 1)           if only 1)             if only 1)
+
+  Owner/Chef/Staff sees:
+    NO dropdowns - they are hard-linked to their canteenId
+    via the user record in Firestore
+
+
+# ============================================================
+# SECTION 10: CACHED DATA FLOW (Page Load Optimization)
+# ============================================================
+
+  ┌─────────────────────────────────────────────────────────┐
+  │               FIRST PAGE LOAD                            │
+  │                                                         │
+  │  1. App.tsx initializes from localStorage:              │
+  │     bb_user ──► currentUser (instant)                   │
+  │     bb_role ──► role (instant)                          │
+  │     bb_loggedIn ──► isLoggedIn (instant)                │
+  │                                                         │
+  │  2. Page renders IMMEDIATELY from cached data           │
+  │     (no blank screen, no loading spinner)               │
+  │                                                         │
+  │  3. Background refresh fires:                           │
+  │     fetchCanteenData() ──► GET /api/canteen             │
+  │     fetchUserOrders() ──► GET /api/user/orders          │
+  │     fetchColleges() ──► GET /api/colleges               │
+  │                                                         │
+  │  4. Fresh data overwrites cache:                        │
+  │     localStorage.setItem('bb_canteen', freshData)       │
+  │     localStorage.setItem('bb_orders', freshOrders)      │
+  │     localStorage.setItem('bb_colleges', freshColleges)  │
+  └─────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────┐
+  │               SUBSEQUENT PAGE LOADS                      │
+  │                                                         │
+  │  1. App renders instantly from localStorage             │
+  │  2. Background fetch updates data silently              │
+  │  3. UI updates when fresh data arrives                  │
+  │  4. User perceives INSTANT load time                   │
+  └─────────────────────────────────────────────────────────┘
+
+  Cache Keys:
+    bb_user        → Current user object
+    bb_role        → User role string
+    bb_loggedIn    → "true" flag
+    bb_canteen     → Canteen data (items, orders, reviews, ingredients)
+    bb_orders      → User's personal orders
+    bb_colleges    → Colleges list
+    bb_canteens    → Canteens list
+    bb_subcanteens → Subcanteens list
+
+
+# ============================================================
+# SECTION 11: ROLE SIMILARITY MAP
+# ============================================================
+
+  ┌─────────────────────────────────────────────────────────┐
+  │            ROLES GROUPED BY SIMILARITY                   │
+  ├─────────────────────────────────────────────────────────┤
+  │                                                         │
+  │  GROUP A: SUPERADMIN                                    │
+  │  ┌─────────────────────────────────────────────┐        │
+  │  │ - Manages EVERYTHING                        │        │
+  │  │ - Sees ALL colleges, canteens, users        │        │
+  │  │ - Full CRUD on every entity                 │        │
+  │  │ - No restrictions                           │        │
+  │  │ - Own UI layout (ServicePanel)              │        │
+  │  └─────────────────────────────────────────────┘        │
+  │                                                         │
+  │  GROUP B: OWNER + CHEF + STAFF                          │
+  │  ┌─────────────────────────────────────────────┐        │
+  │  │ - All scoped to ONE canteen                 │        │
+  │  │ - See only their canteen's data             │        │
+  │  │ - Login via email+password                  │        │
+  │  │ - Share the same UI (CanteenAdmin)          │        │
+  │  │                                             │        │
+  │  │   OWNER = Full canteen management           │        │
+  │  │   CHEF  = Kitchen/order prep only           │        │
+  │  │   STAFF = Counter/QR verification only      │        │
+  │  └─────────────────────────────────────────────┘        │
+  │                                                         │
+  │  GROUP C: ADMIN                                        │
+  │  ┌─────────────────────────────────────────────┐        │
+  │  │ - Limited access                           │        │
+  │  │ - Can view orders + update status          │        │
+  │  │ - Cannot manage menu or ingredients        │        │
+  │  │ - Login via email+password                 │        │
+  │  └─────────────────────────────────────────────┘        │
+  │                                                         │
+  │  GROUP D: CUSTOMER                                      │
+  │  ┌─────────────────────────────────────────────┐        │
+  │  │ - End user / student                        │        │
+  │  │ - Login via email+OTP (no password)        │        │
+  │  │ - Scoped to their college                  │        │
+  │  │ - Can only see own orders                  │        │
+  │  │ - Can browse, order, review                │        │
+  │  │ - Own UI layout (CustomerApp)              │        │
+  │  └─────────────────────────────────────────────┘        │
+  │                                                         │
+  └─────────────────────────────────────────────────────────┘
+
+
+# ============================================================
+# SECTION 12: ROLE FEATURE COMPARISON (Visual)
+# ============================================================
+
+  ┌────────────────────┬─────────┬───────┬───────┬──────┬───────┬──────────┐
+  │ FEATURE            │SUPERADM │ OWNER │ ADMIN │ CHEF │ STAFF │ CUSTOMER │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ Login Method       │ Email+  │ Email+│ Email+│Email+│ Email+│ Email+   │
+  │                    │ Pass    │ Pass  │ Pass  │Pass  │ Pass  │ OTP      │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ Scope              │ ALL     │ 1     │ ALL   │ 1    │ 1     │ 1        │
+  │                    │ colleges│canteen│(lim.) │canteen│canteen│ college  │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ UI Layout          │Service  │Canteen│Canteen│Canteen│Canteen│ Customer │
+  │                    │ Panel   │Admin  │Admin  │Admin │Admin  │ App      │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ Default Tab        │Dashboard│ Menu  │Orders │Orders│Orders │ Menu     │
+  │                    │         │Manager│       │Board │Board  │          │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ Menu Management    │   ✅    │  ✅   │  ❌   │  ❌  │  ❌   │   ❌     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ Order Management   │   ✅    │  ✅   │  ✅   │  ✅  │  ✅   │   ❌     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ Place Orders       │   ❌    │  ❌   │  ❌   │  ❌  │  ❌   │   ✅     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ View Own Orders    │   ❌    │  ❌   │  ❌   │  ❌  │  ❌   │   ✅     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ Reviews            │   ✅    │  ✅   │  ❌   │  ❌  │  ❌   │   ✅     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ AI Features        │   ✅    │  ✅   │  ❌   │  ❌  │  ❌   │   ❌     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ College Management │   ✅    │  ❌   │  ❌   │  ❌  │  ❌   │   ❌     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ User Management    │   ✅    │  ❌   │  ❌   │  ❌  │  ❌   │   ❌     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ Branding/Alignment │   ✅    │  ❌   │  ❌   │  ❌  │  ❌   │   ❌     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ Walk-in POS        │   ✅    │  ✅   │  ❌   │  ❌  │  ❌   │   ❌     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ QR Verification    │   ✅    │  ✅   │  ❌   │  ❌  │  ✅   │   ✅     │
+  ├────────────────────┼─────────┼───────┼───────┼──────┼───────┼──────────┤
+  │ Reset Canteen      │   ✅    │  ✅   │  ❌   │  ❌  │  ❌   │   ❌     │
+  └────────────────────┴─────────┴───────┴───────┴──────┴───────┴──────────┘
+
+
+# ============================================================
+# SECTION 13: COMPONENT → ROLE MAPPING
+# ============================================================
+
+  ┌─────────────────────────────────────────────────────────┐
+  │                 COMPONENT TO ROLE MAP                    │
+  │                                                         │
+  │  App.tsx (Router)                                       │
+  │    │                                                    │
+  │    ├── role === 'customer'                              │
+  │    │     └──► CustomerApp.tsx                           │
+  │    │           - Menu browsing                          │
+  │    │           - Cart & ordering                        │
+  │    │           - Order history                          │
+  │    │           - Reviews                                │
+  │    │           - College/Canteen selectors              │
+  │    │                                                    │
+  │    ├── role === 'owner' | 'chef' | 'staff'              │
+  │    │     └──► CanteenAdmin.tsx                          │
+  │    │           ├── owner → Menu Manager tab             │
+  │    │           ├── chef  → Order Board tab              │
+  │    │           └── staff → Order Board tab              │
+  │    │           - Order status updates                   │
+  │    │           - Ingredient management (owner only)     │
+  │    │           - Walk-in POS (owner only)               │
+  │    │                                                    │
+  │    └── role === 'superadmin'                            │
+  │          └──► ServicePanel.tsx                           │
+  │                - Dashboard                              │
+  │                - College management                     │
+  │                - Branding/Alignment editors             │
+  │                - Canteen management                     │
+  │                - SubCounter management                  │
+  │                - User management                        │
+  │                - Menu management (any canteen)          │
+  │                - Order management (all canteens)        │
+  │                - AI recommendations                     │
+  │                - Walk-in bills                          │
+  └─────────────────────────────────────────────────────────┘
+
+
+# ============================================================
+# SECTION 14: ENTITY RELATIONSHIP DIAGRAM
+# ============================================================
+
+  ┌──────────────┐         ┌──────────────┐
+  │   colleges   │─── 1:N ─►│   canteens   │
+  │              │         │              │
+  │ id (PK)      │         │ id (PK)      │
+  │ name         │         │ name         │
+  │ location     │         │ collegeId(FK)│
+  │ logoUrl      │         │ ownerId (FK) │
+  │ bannerUrl    │         │ status       │
+  │ branding     │         │ logoUrl      │
+  │ status       │         │ paytmMerchant│
+  └──────┬───────┘         └──────┬───────┘
+         │                        │
+         │ 1:N                    │ 1:N
+         ▼                        ▼
+  ┌──────────────┐         ┌──────────────┐
+  │    users     │         │ subcanteens  │
+  │              │         │              │
+  │ id (PK)=email│         │ id (PK)      │
+  │ name         │         │ name         │
+  │ email        │         │ canteenId(FK)│
+  │ role         │         │ status       │
+  │ collegeId(FK)│         └──────┬───────┘
+  │ canteenId(FK)│                │
+  │ subCanteenId │                │ 1:N
+  │ status       │                ▼
+  └──────┬───────┘         ┌──────────────┐
+         │                 │    items     │
+         │                 │              │
+         │ 1:N             │ id (PK)      │
+         ▼                 │ name         │
+  ┌──────────────┐         │ price        │
+  │    orders    │         │ canteenId(FK)│
+  │              │         │ subCanteenId │
+  │ id (PK)      │         │ collegeId(FK)│
+  │ userId (FK)  │         │ category     │
+  │ items[]      │         │ available    │
+  │ totalPrice   │         │ stock        │
+  │ status       │         │ imageUrl     │
+  │ paymentStatus│         │ requiresChef │
+  │ qrPayload    │         └──────┬───────┘
+  │ canteenId(FK)│                │
+  │ subCanteenId │                │ 1:N
+  │ collegeId(FK)│                ▼
+  └──────────────┘         ┌──────────────┐
+                           │   reviews    │
+  ┌──────────────┐         │              │
+  │ ingredients  │         │ id (PK)      │
+  │              │         │ userId (FK)  │
+  │ id (PK)      │         │ menuItemId   │
+  │ name         │         │ rating       │
+  │ stockGrams   │         │ comment      │
+  │ canteenId(FK)│         │ sentiment    │
+  │ subCanteenId │         │ canteenId(FK)│
+  └──────────────┘         └──────────────┘
+
+  ┌──────────────┐         ┌──────────────┐
+  │  walkin_bills│         │   settings   │
+  │              │         │              │
+  │ id (PK)      │         │ id = settings│
+  │ billNumber   │         │   _{canteen} │
+  │ items[]      │         │ noShowMinutes│
+  │ grandTotal   │         │ slotCapacity │
+  │ paymentStatus│         │ canteenId    │
+  │ canteenId(FK)│         └──────────────┘
+  │ subCanteenId │
+  │ collegeId(FK)│         ┌──────────────┐
+  └──────────────┘         │  otp_store   │
+                           │              │
+                           │ id = email   │
+                           │ otp          │
+                           │ expiresAt    │
+                           │ attempts     │
+                           └──────────────┘
+
+
+# ============================================================
+# SECTION 15: SUMMARY - HOW ALL PIECES CONNECT
+# ============================================================
+
+  ┌─────────────────────────────────────────────────────────┐
+  │                                                         │
+  │  1. SUPERADMIN creates colleges and canteens            │
+  │                                                         │
+  │  2. SUPERADMIN assigns OWNER to each canteen            │
+  │     (sets ownerId on canteen document)                   │
+  │                                                         │
+  │  3. OWNER creates menu items, ingredients               │
+  │     Items are linked to canteenId                       │
+  │                                                         │
+  │  4. CUSTOMER signs up with email + OTP                  │
+  │     Auto-assigned to their college's canteen            │
+  │     (first active canteen matching their collegeId)     │
+  │                                                         │
+  │  5. CUSTOMER browses menu, places order                 │
+  │     Order linked to userId + canteenId + collegeId      │
+  │                                                         │
+  │  6. PAYMENT: Paytm processes, server verifies           │
+  │     Order status: pending → paid                        │
+  │                                                         │
+  │  7. CHEF sees order on board, marks "preparing"         │
+  │     Then marks "ready" when done                        │
+  │                                                         │
+  │  8. STAFF sees "ready" order, scans QR, marks           │
+  │     "collected"                                         │
+  │                                                         │
+  │  9. CUSTOMER sees status updates in real-time           │
+  │     Views QR code in order history                      │
+  │                                                         │
+  │  10. CUSTOMER submits review → linked to canteen        │
+  │      AI analyzes sentiment                              │
+  │                                                         │
+  │  11. SUPERADMIN monitors everything via dashboard       │
+  │      Can override, reset, manage any entity             │
+  │                                                         │
+  │  12. On page refresh: localStorage restores session     │
+  │      Orders fetched for logged-in user only             │
+  │      UI renders instantly from cache                    │
+  │                                                         │
+  └─────────────────────────────────────────────────────────┘
+
+
+# ============================================================
+# END OF DIAGRAMS
+# ============================================================

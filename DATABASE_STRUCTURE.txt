@@ -1,0 +1,713 @@
+# ============================================================
+# BITE & BYTE - CANTEEN MANAGEMENT SYSTEM
+# DATABASE STRUCTURE & ROLE-BASED WORKFLOW DOCUMENTATION
+# ============================================================
+# Generated: 2026-07-28
+# ============================================================
+
+
+# ============================================================
+# SECTION 1: FIRESTORE COLLECTIONS (Database Tables)
+# ============================================================
+
+## 1.1 colleges
+Purpose: Store college/university information
+Document ID: auto-generated
+Fields:
+  - id: string (e.g. "college_001")
+  - name: string (e.g. "University of Technology")
+  - location: string
+  - logoUrl: string (base64 compressed image)
+  - bannerUrl: string (base64 compressed image)
+  - bannerSubtitle: string
+  - bannerFeatures: string[]
+  - branding: CollegeBranding (nested object - full A-to-Z control)
+  - status: "active" | "inactive"
+  - seed: boolean (true = hardcoded fallback)
+
+## 1.2 canteens
+Purpose: Store canteen information, each belongs to a college
+Document ID: manual (e.g. "canteen_001")
+Fields:
+  - id: string
+  - name: string
+  - collegeId: string (FOREIGN KEY -> colleges.id)
+  - ownerId: string (FOREIGN KEY -> users.email)
+  - ownerName: string
+  - status: "active" | "inactive"
+  - location: string
+  - logoUrl: string (base64 compressed image)
+  - paytmMerchantId: string
+
+## 1.3 subcanteens
+Purpose: Store sub-counters/stalls within a canteen
+Document ID: auto-generated
+Fields:
+  - id: string (e.g. "sub_001")
+  - name: string (e.g. "South Indian Counter", "Juice Bar")
+  - canteenId: string (FOREIGN KEY -> canteens.id)
+  - status: "active" | "inactive"
+
+## 1.4 users
+Purpose: Store all user accounts (all roles)
+Document ID: email (normalized lowercase)
+Fields:
+  - id: string (= email)
+  - name: string
+  - email: string
+  - role: "superadmin" | "admin" | "owner" | "chef" | "staff" | "customer"
+  - phone: string
+  - registerNumber: string (student register number)
+  - collegeId: string (FOREIGN KEY -> colleges.id)
+  - canteenId: string (FOREIGN KEY -> canteens.id)
+  - subCanteenId: string (FOREIGN KEY -> subcanteens.id)
+  - status: "active" | "suspended"
+  - password: string (hashed, owner-only)
+  - posting: string
+  - createdAt: number (timestamp)
+
+## 1.5 items
+Purpose: Store menu items (food/drink catalog)
+Document ID: auto-generated or manual
+Fields:
+  - id: string
+  - name: string
+  - price: number
+  - stock: number
+  - rating: number
+  - ratingCount: number
+  - available: boolean
+  - category: string (e.g. "Main Course", "Beverages", "Snacks")
+  - description: string
+  - imageUrl: string (base64 compressed JPEG)
+  - tags: string[] (e.g. ["Spicy", "Vegetarian", "Best Seller"])
+  - prepTime: number (minutes)
+  - dailyLimit: number (max orders per day)
+  - bookedToday: number (current day order count)
+  - isPaused: boolean
+  - recipe: RecipeMap[] (ingredient mapping)
+  - canteenId: string (FOREIGN KEY -> canteens.id)
+  - subCanteenId: string (FOREIGN KEY -> subcanteens.id)
+  - collegeId: string (FOREIGN KEY -> colleges.id)
+  - requiresChef: boolean
+
+## 1.6 orders
+Purpose: Store all customer and walk-in orders
+Document ID: auto-generated
+Fields:
+  - id: string
+  - userId: string (FOREIGN KEY -> users.email)
+  - userName: string
+  - items: OrderItem[] (array of {itemId, name, price, quantity})
+  - totalPrice: number
+  - paymentStatus: "pending" | "paid" | "failed"
+  - paymentMethod: string ("paytm" | "cash" | "upi" | "card" | "mock")
+  - qrCode: string (display QR)
+  - qrPayload: string (signed HMAC for verification)
+  - status: OrderStatus (see below)
+  - timestamp: string (ISO date)
+  - createdAt: number (epoch ms)
+  - pickupTimeText: string
+  - paytmOrderId: string
+  - paytmTransactionId: string
+  - pickupSlot: string (e.g. "12:30-12:45")
+  - prepStartTime: number
+  - expiryTime: number
+  - canteenId: string (FOREIGN KEY -> canteens.id)
+  - subCanteenId: string (FOREIGN KEY -> subcanteens.id)
+  - collegeId: string (FOREIGN KEY -> colleges.id)
+
+  OrderStatus Flow:
+    pending -> preparing -> ready -> collected
+    pending -> cancelled
+    pending -> expired
+    scheduled -> preparing -> ready -> collected
+
+  PaymentStatus Flow:
+    pending -> paid (Paytm callback)
+    pending -> failed
+
+## 1.7 ingredients
+Purpose: Store ingredient inventory for recipe tracking
+Document ID: auto-generated
+Fields:
+  - id: string
+  - name: string (e.g. "Rice", "Tomato", "Oil")
+  - stockGrams: number
+  - unit: string
+  - canteenId: string (FOREIGN KEY -> canteens.id)
+  - subCanteenId: string (FOREIGN KEY -> subcanteens.id)
+
+## 1.8 reviews
+Purpose: Store customer reviews and ratings
+Document ID: auto-generated
+Fields:
+  - id: string
+  - userId: string (FOREIGN KEY -> users.email)
+  - userName: string
+  - rating: number (1-5)
+  - comment: string
+  - sentiment: "positive" | "neutral" | "negative"
+  - timestamp: string
+  - menuItemId: string (optional, review for specific item)
+  - menuItemName: string
+  - canteenId: string (FOREIGN KEY -> canteens.id)
+  - subCanteenId: string (FOREIGN KEY -> subcanteens.id)
+
+## 1.9 settings
+Purpose: Store canteen-specific settings (e.g. slot capacity, no-show timeout)
+Document ID: "settings_{canteenId}"
+Fields:
+  - noShowMinutes: number (default 30)
+  - defaultSlotCapacity: number (default 10)
+  - canteenId: string
+
+## 1.10 walkin_bills
+Purpose: Store walk-in POS bills (cashier-generated)
+Document ID: auto-generated
+Fields:
+  - id: string
+  - billNumber: string
+  - items: WalkinCartItem[]
+  - subtotal: number
+  - discount: number
+  - tax: number
+  - grandTotal: number
+  - paymentStatus: "paid" | "pending"
+  - paymentMethod: "cash" | "upi" | "card" | "netbanking" | "wallet" | "other"
+  - customerName: string
+  - customerPhone: string
+  - customerRegNo: string
+  - customerDept: string
+  - customerNotes: string
+  - pendingReason: string
+  - pendingExpectedTime: string
+  - cashierName: string
+  - canteenId: string
+  - subCanteenId: string
+  - collegeId: string
+  - timestamp: string
+  - createdAt: number
+  - synced: boolean
+  - type: "walkin"
+
+## 1.11 otp_store
+Purpose: Store OTPs for email verification (Firestore-backed, replaces in-memory)
+Document ID: normalized email
+Fields:
+  - otp: string (4-digit code)
+  - createdAt: number (epoch ms)
+  - expiresAt: number (epoch ms, +5 minutes)
+  - attempts: number (max 5)
+  - verified: boolean
+
+
+# ============================================================
+# SECTION 2: USER ROLES & ACCESS PERMISSIONS
+# ============================================================
+
+## Role: SUPERADMIN
+Who: System administrator, manages entire platform
+Login: email + password (pre-seeded in Firestore)
+Access Level: HIGHEST
+Can do:
+  - View all colleges, create/edit/delete colleges
+  - Upload college logo and banner
+  - Full branding editor per college (hero, menu, footer, contacts, visibility)
+  - Full alignment editor per college (hero layout, logo size, banner position, etc.)
+  - View all canteens across all colleges, create/edit/delete canteens
+  - View all subcanteens, create/delete subcanteens
+  - View all users, create/edit/delete users
+  - Assign roles to users (owner, chef, staff, admin, customer)
+  - View all orders across all canteens
+  - View all reviews
+  - Access AI recommendations
+  - Reset any canteen
+  - Full menu management (add/edit/delete items)
+  - Full ingredient management
+  - View walk-in bills
+  - Dashboard with real-time stats
+Cannot do:
+  - (nothing restricted)
+
+## Role: OWNER (Canteen Owner)
+Who: Owns/manages a specific canteen
+Login: email + password
+Access Level: HIGH
+Can do:
+  - View own canteen only
+  - Menu management: add/edit/delete menu items
+  - Ingredient management: add/edit/delete ingredients
+  - View all orders for own canteen
+  - Update order status (preparing, ready, collected, cancelled)
+  - Batch update order status
+  - View walk-in bills for own canteen
+  - Create walk-in POS bills
+  - View reviews for own canteen
+  - Access AI recommendations for own canteen
+  - Reset own canteen
+  - Update canteen settings (slot capacity, no-show timeout)
+  - Update canteen name
+  - Manage chef/staff users under own canteen
+Cannot do:
+  - Cannot manage colleges
+  - Cannot manage other canteens
+  - Cannot change user roles (only superadmin can)
+
+## Role: ADMIN
+Who: Administrative support (limited)
+Login: email + password
+Access Level: MODERATE
+Can do:
+  - View canteen data
+  - View orders
+  - Update order status
+Cannot do:
+  - Cannot manage menu items
+  - Cannot manage ingredients
+  - Cannot manage users
+  - Cannot manage colleges
+
+## Role: CHEF
+Who: Kitchen staff, prepares food
+Login: email + password
+Access Level: LOW-MODERATE
+Can do:
+  - View menu items for assigned canteen
+  - View orders (see what to prepare)
+  - Update order status (preparing -> ready)
+  - View ingredients
+Cannot do:
+  - Cannot add/edit/delete menu items
+  - Cannot add/edit/delete ingredients
+  - Cannot view financial data
+  - Cannot manage users
+
+## Role: STAFF
+Who: Counter staff, handles pickup/delivery
+Login: email + password
+Access Level: LOW-MODERATE
+Can do:
+  - View menu items for assigned canteen
+  - View orders (see what's ready)
+  - Update order status (ready -> collected)
+  - View QR codes for verification
+Cannot do:
+  - Cannot add/edit/delete menu items
+  - Cannot add/edit/delete ingredients
+  - Cannot view financial data
+  - Cannot manage users
+
+## Role: CUSTOMER
+Who: Students/staff placing orders
+Login: email + OTP (no password, email verification only)
+Access Level: BASIC
+Can do:
+  - Browse menu for their college's canteen
+  - Place orders (Paytm or mock payment)
+  - View order history (only own orders)
+  - View order status in real-time
+  - View QR code for pickup
+  - Verify QR code
+  - Submit reviews and ratings
+  - Switch between canteens in same college
+Cannot do:
+  - Cannot manage menu
+  - Cannot view other users' orders
+  - Cannot access admin panels
+
+
+# ============================================================
+# SECTION 3: ROLE-BASED UI ACCESS
+# ============================================================
+
+## Customer View (CustomerApp.tsx)
+  - Header: College logo, name, "Bite & Byte" branding
+  - Hero Section: Dynamic layout (logo-left/center/right), college banner
+  - College/Canteen/SubCounter selectors (filtered by user's collegeId)
+  - Menu Grid: Cards with image, name, price, stock, Add to Cart
+  - Cart: Sticky sidebar, quantity +/-, place order
+  - Order History: Tab showing own orders with status, QR code
+  - Reviews: Tab to view/submit reviews
+  - Logout button
+
+## Owner/Chef/Staff View (CanteenAdmin.tsx)
+  - Default tab for owner: "owner" (Menu Manager)
+  - Default tab for chef: "chef" (Order Board)
+  - Default tab for staff: "staff" (Order Board)
+
+  Owner Tabs:
+    - Menu Manager: Add/edit/delete menu items with save confirmation
+    - Ingredient Manager: Add/edit/delete ingredients
+    - Orders: View all orders, update status, batch operations
+    - Reviews: View customer reviews
+    - AI Insights: AI recommendations, inventory predictor, sales optimizations
+    - Walk-in POS: Create walk-in bills
+
+  Chef Tabs:
+    - Order Board: View orders to prepare, mark as "ready"
+
+  Staff Tabs:
+    - Order Board: View ready orders, mark as "collected"
+
+## Superadmin View (ServicePanel.tsx)
+  - Dashboard: Real-time stats (orders, revenue, ratings, items)
+  - College Management: Create/edit/delete colleges, upload logo/banner
+  - Branding Editor: Full A-to-Z control per college
+  - Alignment Editor: Hero layout, logo size, banner position, menu grid, footer
+  - Canteen Management: Create/edit/delete canteens
+  - SubCounter Management: Create/delete sub-counters
+  - User Management: Create/edit/delete users, assign roles, filter by college/canteen
+  - Menu Management: Add/edit/delete items for any canteen
+  - Ingredient Management: Add/edit/delete ingredients
+  - Order Management: View/update all orders
+  - Reviews: View all reviews
+  - AI Insights: AI recommendations for any canteen
+  - Walk-in Bills: View all walk-in bills
+
+
+# ============================================================
+# SECTION 4: LOGIN & AUTHENTICATION FLOW
+# ============================================================
+
+## Customer Login Flow:
+  1. User enters email address
+  2. System checks Firestore "users" collection
+  3. If user exists and role is "customer":
+     a. Generate 4-digit OTP (crypto.randomInt)
+     b. Store OTP in "otp_store" collection (expires in 5 min, max 5 attempts)
+     c. Send OTP via email (nodemailer/SMTP)
+     d. Show OTP input screen
+  4. User enters OTP
+  5. System verifies OTP against Firestore:
+     a. Check not expired
+     b. Check attempts < 5
+     c. Check OTP matches
+  6. On success:
+     a. Create/update user record in "users" collection
+     b. Auto-assign canteen from user's collegeId (first active canteen)
+     c. Return user object with role, collegeId, canteenId
+  7. Session persisted in localStorage:
+     - bb_user: full user object
+     - bb_role: role string
+     - bb_loggedIn: "true"
+     - bb_orders: cached orders
+
+## Owner/Chef/Staff/Admin Login Flow:
+  1. User enters email + password
+  2. System checks Firestore "users" collection
+  3. If user exists and password matches (bcrypt compare):
+     a. Return user object with role, canteenId, subCanteenId
+  4. If user doesn't exist:
+     a. Auto-create default user with "customer" role
+     b. Return error (must register properly)
+  5. Session persisted same as customer
+
+## Superadmin Login Flow:
+  1. Same as owner/chef/staff login
+  2. Pre-seeded in Firestore with email/password
+  3. Role = "superadmin" grants access to all features
+
+
+# ============================================================
+# SECTION 5: ORDER PLACEMENT WORKFLOW
+# ============================================================
+
+## Online Order Flow:
+  1. Customer browses menu (filtered by collegeId/canteenId)
+  2. Adds items to cart (client-side state)
+  3. Selects pickup slot (e.g. "12:30-12:45")
+  4. Clicks "Place Order"
+  5. Server validates:
+     a. All items in stock
+     b. Daily limit not exceeded
+     c. Pickup slot not full (based on settings.defaultSlotCapacity)
+     d. Ingredients available
+  6. Payment:
+     a. Paytm: Server generates checksum -> client POSTs form -> Paytm gateway
+        -> Paytm calls back /api/paytm/callback -> server verifies -> redirect
+     b. Mock: Server creates order directly with status "paid"
+  7. On payment success:
+     a. Order created in "orders" collection
+     b. Item stock decremented, bookedToday incremented
+     c. Ingredient stock decremented
+     d. qrPayload (signed HMAC) stored with order
+     e. Order returned to client with QR code
+  8. Customer sees order in "Order History" tab with QR code
+
+## Walk-in Order Flow (POS):
+  1. Cashier (owner/staff) opens Walk-in POS
+  2. Adds items to walk-in cart
+  3. Enters customer details (optional)
+  4. Selects payment method (cash/upi/card/etc.)
+  5. Creates walk-in bill in "walkin_bills" collection
+  6. Optionally creates corresponding order in "orders" collection
+  7. Bill stored locally, synced to Firestore
+
+## Order Status Flow:
+  pending -> preparing -> ready -> collected
+  pending -> cancelled (by staff/chef)
+  pending -> expired (after noShowMinutes timeout)
+
+  Status updates:
+  - Owner/Chef: Can set preparing, ready, cancelled
+  - Staff: Can set collected
+  - Customer: Can view status in real-time
+
+
+# ============================================================
+# SECTION 6: QR CODE VERIFICATION WORKFLOW
+# ============================================================
+
+  1. When order is placed, server generates qrPayload:
+     - HmacSHA256(orderId + "|" + timestamp + "|" + secret, SECRET_KEY)
+     - Base64 encoded
+  2. Customer sees QR code in Order History tab
+  3. Staff scans/verifies QR:
+     a. GET /api/canteen/qr/verify?qr=<payload>
+     b. Server decodes payload, checks HMAC signature
+     c. Checks order exists and is "ready" status
+     d. Returns order details
+  4. Staff confirms pickup:
+     a. POST /api/canteen/qr/verify with body {qr, action: "collect"}
+     b. Order status updated to "collected"
+  5. Backfill: Server auto-generates qrPayload for old orders missing it
+
+
+# ============================================================
+# SECTION 7: API ENDPOINTS & ACCESS CONTROL
+# ============================================================
+
+## Public Endpoints (No Auth):
+  GET  /api/test                     - Health check
+  GET  /api/app-version              - Get current version
+  POST /api/auth/register            - Register new user
+  POST /api/auth/login               - Login (email+password)
+  POST /api/auth/generate-otp        - Generate OTP for customer
+  POST /api/auth/verify-otp          - Verify OTP
+  GET  /api/colleges                 - List all colleges
+  GET  /api/canteens                 - List all canteens
+  GET  /api/subcanteens              - List all subcanteens
+  GET  /api/canteen                  - Get full canteen data (items, orders, reviews, ingredients, settings)
+  GET  /api/user/orders              - Get user's orders (filtered by userId)
+  GET  /api/canteen/qr/verify        - Verify QR code
+  POST /api/canteen/order            - Place order
+  POST /api/paytm/callback           - Paytm payment callback
+  POST /api/canteen/review           - Submit review
+  GET  /api/canteen/walkin-bill/lookup - Lookup walk-in bill
+
+## Owner/Chef/Staff Endpoints (Require role=owner|chef|staff):
+  POST /api/canteen/menu             - Add/update menu item
+  DELETE /api/canteen/menu/:id       - Delete menu item
+  POST /api/canteen/ingredients      - Add/update ingredient
+  DELETE /api/canteen/ingredients/:id - Delete ingredient
+  POST /api/canteen/order/status     - Update order status
+  POST /api/canteen/order/update-slot - Update pickup slot
+  POST /api/canteen/order/batch-status - Batch update order status
+  POST /api/canteen/walkin-bill      - Create walk-in bill
+  GET  /api/canteen/walkin-bills     - List walk-in bills
+  POST /api/canteen/walkin-bill/mark-paid - Mark walk-in bill as paid
+  POST /api/canteen/qr/verify (action=collect) - Mark order as collected
+  POST /api/canteen/settings         - Update canteen settings
+  POST /api/canteen/ingredients/batch - Batch add ingredients
+  POST /api/canteen/reset            - Reset canteen data
+  POST /api/canteen/update-name      - Update canteen name
+
+## Superadmin-Only Endpoints:
+  POST /api/colleges                 - Create college
+  PUT  /api/colleges/:id/logo        - Update college logo
+  PUT  /api/colleges/:id/banner      - Update college banner
+  PUT  /api/colleges/:id/branding    - Update college branding
+  DELETE /api/colleges/:id           - Delete college
+  POST /api/canteens                 - Create canteen
+  PUT  /api/canteens/:id             - Update canteen
+  DELETE /api/canteens/:id           - Delete canteen
+  POST /api/subcanteens              - Create subcanteen
+  DELETE /api/subcanteens/:id        - Delete subcanteen
+  GET  /api/users                    - List all users
+  POST /api/users                    - Create/update user
+  DELETE /api/users/:email           - Delete user
+  PUT  /api/users/:email/role        - Update user role
+  POST /api/ai/recommend             - AI recommendations
+
+
+# ============================================================
+# SECTION 8: DATA RELATIONSHIPS (Entity Diagram)
+# ============================================================
+
+  colleges (1) ----< (many) canteens
+  canteens (1) ----< (many) subcanteens
+  canteens (1) ----< (many) items
+  canteens (1) ----< (many) orders
+  canteens (1) ----< (many) reviews
+  canteens (1) ----< (many) ingredients
+  canteens (1) ----< (1) settings
+  canteens (1) ----< (many) walkin_bills
+  subcanteens (1) ----< (many) items
+  subcanteens (1) ----< (many) orders
+  users (1) ----< (many) orders
+  users (1) ----< (many) reviews
+  colleges (1) ----< (many) users (via collegeId)
+  items (1) ----< (many) reviews (via menuItemId)
+
+  Foreign Keys:
+    items.canteenId       -> canteens.id
+    items.subCanteenId    -> subcanteens.id
+    items.collegeId       -> colleges.id
+    orders.canteenId      -> canteens.id
+    orders.subCanteenId   -> subcanteens.id
+    orders.collegeId      -> colleges.id
+    orders.userId         -> users.email
+    reviews.canteenId     -> canteens.id
+    reviews.subCanteenId  -> subcanteens.id
+    reviews.userId        -> users.email
+    reviews.menuItemId    -> items.id
+    subcanteens.canteenId -> canteens.id
+    canteens.collegeId    -> colleges.id
+    canteens.ownerId      -> users.email
+    users.collegeId       -> colleges.id
+    users.canteenId       -> canteens.id
+    users.subCanteenId    -> subcanteens.id
+
+
+# ============================================================
+# SECTION 9: LOCALSTORAGE CACHE KEYS
+# ============================================================
+
+  bb_user          - Current user object (persisted on login, cleared on logout)
+  bb_role          - Current user role string
+  bb_loggedIn      - "true" flag
+  bb_canteen       - Cached canteen data (items, orders, reviews, ingredients, settings)
+  bb_colleges      - Cached colleges list
+  bb_canteens      - Cached canteens list
+  bb_subcanteens   - Cached subcanteens list
+  bb_orders        - Cached user orders (per-user only)
+
+
+# ============================================================
+# SECTION 10: COMPOSITE FIRESTORE INDEXES
+# ============================================================
+
+  Required indexes (in firestore.indexes.json):
+    orders: userId + canteenId + createdAt   (per-user order history)
+    orders: userId + createdAt               (user orders across canteens)
+    orders: canteenId + createdAt            (canteen order list)
+    orders: canteenId + status + createdAt   (active orders board)
+    orders: canteenId + pickupSlot           (slot capacity check)
+    orders: collegeId                        (college-wide orders)
+    orders: subCanteenId                     (sub-counter orders)
+    orders: paytmOrderId                     (Paytm callback lookup)
+    items: canteenId                         (menu by canteen)
+    items: canteenId + available             (available items)
+    reviews: canteenId + createdAt           (canteen reviews)
+    subcanteens: canteenId                   (subcanteens by canteen)
+
+
+# ============================================================
+# SECTION 11: BRANDING & ALIGNMENT CONFIGURATION
+# ============================================================
+
+  Each college has a `branding` object (CollegeBranding) in Firestore:
+
+  Content Settings:
+    heroTitle: string          - Main heading
+    heroSubtitle: string       - Sub-heading
+    heroTagline: string        - Tagline below logo
+    featureBadges: string[]    - Badge labels
+    menuTitle: string          - Menu section title
+    menuSubtitle: string       - Menu section subtitle
+    menuColumns: number        - Grid columns (1-4)
+    showCategoryTabs: boolean  - Show/hide category tabs
+    showReviews: boolean       - Show/hide reviews section
+    showSentiment: boolean     - Show/hide sentiment badges
+    contactPhone: string       - Footer contact
+    contactEmail: string       - Footer contact
+    contactAddress: string     - Footer address
+    footerCopyright: string    - Copyright text
+    footerLinks: {label, action}[] - Footer navigation links
+
+  Layout Settings:
+    heroLayout: "logo-left" | "logo-center" | "logo-right" | "banner-left"
+    heroLogoSize: number       - Logo diameter (96-176px)
+    heroPadding: string        - Section padding
+    heroBannerPosition: "right" | "left" | "background" | "bottom"
+    menuCardSize: "small" | "medium" | "large"
+    menuGap: string            - Gap between menu cards
+    menuAlignment: "left" | "center" | "justify"
+    footerLayout: "3-col" | "2-col" | "1-col"
+    sectionSpacing: string     - Gap between sections
+    headerStyle: "rounded" | "flat" | "shadow"
+
+
+# ============================================================
+# SECTION 12: PAYMENT FLOW (PAYTM)
+# ============================================================
+
+  1. Customer places order -> Client calls POST /api/canteen/order
+  2. Server generates unique orderId, creates order in Firestore (status=pending)
+  3. Server generates Paytm checksum (HMAC SHA256) with merchant credentials
+  4. Server returns checksum + Paytm params to client
+  5. Client creates hidden HTML form, auto-submits to Paytm gateway
+  6. Customer completes payment on Paytm page
+  7. Paytm redirects back to app OR calls /api/paytm/callback
+  8. Server verifies checksum, updates order status:
+     - Transaction successful: paymentStatus="paid", updates item stock/ingredients
+     - Transaction failed: paymentStatus="failed"
+  9. Order confirmation shown to customer
+
+  Environment Variables:
+    PAYTM_MERCHANT_ID    - Paytm merchant ID
+    PAYTM_MERCHANT_KEY   - Paytm merchant secret key
+    PAYTM_MERCHANT_WEBSITE - Paytm website name
+    PAYTM_ENVIRONMENT    - "staging" or "production"
+    PAYTM_CALLBACK_URL   - Server callback URL
+
+
+# ============================================================
+# SECTION 13: SEED DATA & FALLBACKS
+# ============================================================
+
+  Hardcoded Colleges (used when Firestore returns empty):
+    - Government Engineering College, Theni
+    - Government Polytechnic College, Madurai
+    - Government Arts College, Madurai
+    - Fatima Michael College of Engineering, Madurai
+    - LRC Institute of Technology, Madurai
+    - Dhanalakshmi College of Engineering, Madurai
+    - Pioneer College of Engineering, Madurai
+
+  College seeding:
+    - On server startup, colleges are auto-seeded to Firestore if empty
+    - On GET /api/colleges, if Firestore empty, returns hardcoded list
+    - On GET /api/colleges, if Firestore has data, merges with hardcoded (no duplicates)
+
+  Menu items:
+    - Items are NOT auto-seeded
+    - Must be created by superadmin/owner via API
+    - Items without canteenId are treated as legacy (fallback to canteen_001)
+
+  Default canteen:
+    - If user has no canteenId assigned, defaults to "canteen_001"
+    - New canteens get auto-created settings + empty ingredients
+
+
+# ============================================================
+# SECTION 14: KEY TECHNICAL NOTES
+# ============================================================
+
+  - User document ID = normalized email (lowercase, trimmed)
+  - OTP stored in Firestore (not in-memory) to survive serverless cold starts
+  - Images compressed server-side via sharp (max 600px, JPEG 70%)
+  - Menu items stored as base64 in Firestore (not external URLs)
+  - QR payload = HMAC SHA256 signed string (not actual QR image)
+  - Orders auto-expire after noShowMinutes (default 30 min)
+  - Composite indexes required for complex queries (userId + canteenId)
+  - Session persistence via localStorage (bb_user, bb_role, bb_loggedIn)
+  - Canteen data cached in localStorage for instant page load
+  - College/canteen/subcanteen data cached in localStorage
+  - Image preloading via new Image() for banners/logos
+  - Lazy loading via IntersectionObserver for menu item images
+
+# ============================================================
+# END OF DOCUMENTATION
+# ============================================================

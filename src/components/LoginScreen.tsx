@@ -5,9 +5,10 @@ import { College } from '../types';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: { id: string; email: string; name: string; role: 'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'; collegeId?: string; canteenId?: string; subCanteenId?: string }) => void;
+  onNavigateLegal?: (page: string) => void;
 }
 
-export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
+export default function LoginScreen({ onLoginSuccess, onNavigateLegal }: LoginScreenProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,6 +29,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [phoneInput, setPhoneInput] = useState('');
   const [registerNumberInput, setRegisterNumberInput] = useState('');
   const [selectedCollegeId, setSelectedCollegeId] = useState('');
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreeRefund, setAgreeRefund] = useState(false);
 
   useEffect(() => {
     const fetchColleges = async () => {
@@ -59,6 +63,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setRegisterNumberInput('');
     setSelectedCollegeId('');
     setError('');
+    setAgreePrivacy(false);
+    setAgreeTerms(false);
+    setAgreeRefund(false);
   };
 
   const handleVerifyOtp = async () => {
@@ -344,9 +351,68 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </div>
           </div>
 
+          {isSignUp && (
+            <div className="space-y-2.5 pt-1">
+              <label className="flex items-start gap-2.5 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={agreePrivacy}
+                  onChange={(e) => setAgreePrivacy(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-red-200 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <span className="text-xs text-gray-600 leading-snug">
+                  I have read and agree to the{' '}
+                  <button
+                    type="button"
+                    onClick={() => onNavigateLegal?.('privacy')}
+                    className="text-amber-600 hover:text-amber-700 font-semibold underline underline-offset-2 cursor-pointer"
+                  >
+                    Privacy Policy
+                  </button>
+                </span>
+              </label>
+              <label className="flex items-start gap-2.5 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={agreeTerms}
+                  onChange={(e) => setAgreeTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-red-200 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <span className="text-xs text-gray-600 leading-snug">
+                  I have read and agree to the{' '}
+                  <button
+                    type="button"
+                    onClick={() => onNavigateLegal?.('terms')}
+                    className="text-amber-600 hover:text-amber-700 font-semibold underline underline-offset-2 cursor-pointer"
+                  >
+                    Terms &amp; Conditions
+                  </button>
+                </span>
+              </label>
+              <label className="flex items-start gap-2.5 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={agreeRefund}
+                  onChange={(e) => setAgreeRefund(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-red-200 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <span className="text-xs text-gray-600 leading-snug">
+                  I have read and agree to the{' '}
+                  <button
+                    type="button"
+                    onClick={() => onNavigateLegal?.('refund')}
+                    className="text-amber-600 hover:text-amber-700 font-semibold underline underline-offset-2 cursor-pointer"
+                  >
+                    Refund &amp; Cancellation Policy
+                  </button>
+                </span>
+              </label>
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (isSignUp && (!agreePrivacy || !agreeTerms || !agreeRefund))}
             className="w-full mt-5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl text-xs py-3.5 font-semibold transition-all shadow-md flex items-center justify-center space-x-2 disabled:bg-amber-400/80 cursor-pointer font-display"
           >
             {loading ? (
