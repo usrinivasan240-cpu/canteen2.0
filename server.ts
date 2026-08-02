@@ -2260,7 +2260,8 @@ app.post('/api/payment/paytm-initiate', async (req, res) => {
 
     console.log(`[Paytm Initiate] orderId=${orderId} amount=₹${formattedAmount} customer=${customerId}`);
 
-    // Build body for /theia/api/v1/initiateTransaction
+    // Build the full payload for /theia/api/v1/initiateTransaction
+    // Paytm expects checksum over ENTIRE payload JSON (body + head with empty signature)
     const paytmBody = {
       mid: paytmMerchantId,
       orderId,
@@ -2269,12 +2270,19 @@ app.post('/api/payment/paytm-initiate', async (req, res) => {
       userInfo: { custId: customerId },
     };
 
-    // Generate checksum: HMAC-SHA256 of JSON body, base64 encoded
-    const bodyString = JSON.stringify(paytmBody);
-    const checksum = crypto.createHmac('sha256', paytmMerchantKey).update(bodyString).digest('base64');
-    console.log(`[Paytm Initiate] Checksum generated`);
+    // Step 1: Create payload with empty head signature
+    const fullPayload = {
+      body: paytmBody,
+      head: { signature: '' },
+    };
 
-    const fullPayload = { body: paytmBody, head: { signature: checksum } };
+    // Step 2: Generate checksum over the ENTIRE JSON string (body + head)
+    const payloadString = JSON.stringify(fullPayload);
+    const checksum = await PaytmChecksum.generateSignature(payloadString, paytmMerchantKey);
+
+    // Step 3: Set the signature
+    fullPayload.head.signature = checksum;
+    console.log(`[Paytm Initiate] Checksum generated`);
 
     // Call Paytm's Initiate Transaction API
     const apiUrl = `${paytmGatewayUrl.replace('/order/process', '')}/theia/api/v1/initiateTransaction?mid=${paytmMerchantId}&orderId=${orderId}`;
