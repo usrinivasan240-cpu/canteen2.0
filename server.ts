@@ -2266,13 +2266,11 @@ app.post('/api/payment/paytm-initiate', async (req, res) => {
       orderId,
       txnAmount: { value: formattedAmount, currency: 'INR' },
       userInfo: { custId: customerId },
-      enableIgnoreMerchantCallback: 'Y',
     };
 
-    // Generate checksum over body JSON string
-    const bodyString = JSON.stringify(paytmBody);
-    const checksum = await PaytmChecksum.generateSignature(bodyString, paytmMerchantKey);
-    console.log(`[Paytm Initiate] Checksum generated`);
+    // Generate checksum over body object (NOT JSON string — same as existing order flow)
+    const checksum = await PaytmChecksum.generateSignature(paytmBody, paytmMerchantKey);
+    console.log(`[Paytm Initiate] Checksum generated:`, typeof checksum, checksum?.substring?.(0, 20));
 
     const fullPayload = { body: paytmBody, head: { signature: checksum } };
 
