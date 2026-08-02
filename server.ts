@@ -2160,16 +2160,19 @@ app.post('/api/paytm/callback', async (req, res) => {
   }
 });
 
-// 4b-alt. Paytm may also GET redirect with query params
+// 4b-alt. Paytm redirects browser via GET (302) after payment
+// The server-to-server POST callback handles the actual payment verification
+// This GET handler just shows the result to the user
 app.get('/api/paytm/callback', async (req, res) => {
-  const params = { ...req.query } as Record<string, string>;
-  console.log('Paytm GET callback:', JSON.stringify({ keys: Object.keys(params), TXN_STATUS: params.TXN_STATUS, ORDER_ID: params.ORDER_ID }));
+  const allParams: Record<string, string> = { ...req.query as Record<string, string> };
+  console.log('Paytm GET redirect URL:', req.originalUrl);
+  console.log('Paytm GET redirect params:', JSON.stringify(allParams));
 
-  const orderId = params.ORDER_ID || params.ORDERID || '';
-  const txnStatus = params.TXN_STATUS || params.STATUS || '';
+  const orderId = allParams.ORDER_ID || allParams.ORDERID || allParams.orderId || '';
+  const txnStatus = allParams.TXN_STATUS || allParams.STATUS || '';
 
+  // If Paytm sent params with TXN_SUCCESS, update the order
   if (txnStatus === 'TXN_SUCCESS' && orderId) {
-    // Try to update order even without checksum
     let targetOrder: Order | undefined;
     if (db) {
       const snap = await db.collection('orders').where('paytmOrderId', '==', orderId).get();
@@ -2191,12 +2194,24 @@ app.get('/api/paytm/callback', async (req, res) => {
     return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
   }
 
+  // If has order ID (even without TXN_SUCCESS), check if POST callback already marked it as paid
   if (orderId) {
-    // Has order ID but no TXN_SUCCESS — still redirect with the order info
+    let targetOrder: Order | undefined;
+    if (db) {
+      const snap = await db.collection('orders').where('paytmOrderId', '==', orderId).get();
+      if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
+    } else {
+      targetOrder = canteenState.orders.find(o => o.paytmOrderId === orderId);
+    }
+
+    if (targetOrder && targetOrder.paymentStatus === 'paid') {
+      return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
+    }
     return res.redirect(`${APP_UPDATE_URL}?payment=failed&orderId=${orderId}&error=Payment+not+confirmed`);
   }
 
-  return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=No+payment+data`);
+  // No params — POST callback should have handled it. Show generic page.
+  return res.redirect(`${APP_UPDATE_URL}?payment=pending&orderId=&error=Check+order+history+for+payment+status`);
 });
 
 // 4c. QR Code Verification Endpoint (Staff scanning customer QR)

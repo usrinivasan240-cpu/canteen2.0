@@ -116,15 +116,16 @@ export default function App() {
   }, [isLoggedIn]);
 
   // Handle Paytm callback redirect
-  const [paytmSuccess, setPaytmSuccess] = useState<{ orderId: string; status: string } | null>(null);
+  const [paytmSuccess, setPaytmSuccess] = useState<{ orderId: string; status: string; error?: string } | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
     const orderId = params.get('orderId');
-    if (paymentStatus && orderId) {
+    const error = params.get('error');
+    if (paymentStatus) {
       fetchUserOrders();
-      setPaytmSuccess({ orderId, status: paymentStatus });
+      setPaytmSuccess({ orderId: orderId || 'N/A', status: paymentStatus, error: error || undefined });
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
