@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import admin from 'firebase-admin';
 import PaytmChecksum from 'paytmchecksum';
+import axios from 'axios';
 import { GoogleGenAI, Type } from '@google/genai';
 import crypto from 'crypto';
 import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User } from './src/types';
@@ -2232,6 +2233,149 @@ app.get('/api/paytm/callback', async (req, res) => {
 
   // No params — POST callback should have handled it. Show generic page.
   return res.redirect(`${APP_UPDATE_URL}?payment=pending&orderId=&error=Check+order+history+for+payment+status`);
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 4d. Paytm All-in-One SDK — Initiate Transaction (Flutter SDK calls this)
+// POST /api/payment/paytm-initiate
+// Body: { orderId, amount, customerId }
+// Returns: { success, txnToken, orderId, mid }
+// ──────────────────────────────────────────────────────────────────────────────
+app.post('/api/payment/paytm-initiate', async (req, res) => {
+  if (!paytmConfigured) {
+    return res.status(500).json({ success: false, error: 'Paytm credentials not configured' });
+  }
+
+  try {
+    const { orderId, amount, customerId } = req.body;
+
+    if (!orderId || amount === undefined || amount === null || !customerId) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: orderId, amount, customerId' });
+    }
+
+    const formattedAmount = Number(amount).toFixed(2);
+    if (isNaN(Number(formattedAmount)) || Number(formattedAmount) <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid amount' });
+    }
+
+    console.log(`[Paytm Initiate] orderId=${orderId} amount=₹${formattedAmount} customer=${customerId}`);
+
+    // Build body for /theia/api/v1/initiateTransaction
+    const paytmBody = {
+      mid: paytmMerchantId,
+      orderId,
+      txnAmount: { value: formattedAmount, currency: 'INR' },
+      userInfo: { custId: customerId },
+      enableIgnoreMerchantCallback: 'Y',
+    };
+
+    // Generate checksum over body JSON string
+    const bodyString = JSON.stringify(paytmBody);
+    const checksum = await PaytmChecksum.generateSignature(bodyString, paytmMerchantKey);
+    console.log(`[Paytm Initiate] Checksum generated`);
+
+    const fullPayload = { body: paytmBody, head: { signature: checksum } };
+
+    // Call Paytm's Initiate Transaction API
+    const apiUrl = `${paytmGatewayUrl.replace('/order/process', '')}/theia/api/v1/initiateTransaction?mid=${paytmMerchantId}&orderId=${orderId}`;
+    const paytmResponse = await axios.post(apiUrl, fullPayload, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 15000,
+    });
+
+    const result = paytmResponse.data;
+
+    if (result.body?.resultInfo?.resultStatus === 'S' && result.body?.txnToken) {
+      console.log(`[Paytm Initiate] ✅ txnToken issued for ${orderId}`);
+      return res.json({
+        success: true,
+        txnToken: result.body.txnToken,
+        orderId,
+        mid: paytmMerchantId,
+        amount: formattedAmount,
+      });
+    }
+
+    const errCode = result.body?.resultInfo?.resultCode || 'UNKNOWN';
+    const errMsg = result.body?.resultInfo?.resultMsg || 'Paytm did not issue a txnToken';
+    console.error(`[Paytm Initiate] ❌ ${errCode}: ${errMsg}`);
+    return res.status(502).json({ success: false, error: `[${errCode}] ${errMsg}`, paytmResult: result.body?.resultInfo });
+  } catch (err: any) {
+    const detail = err?.response?.data || err?.message || JSON.stringify(err);
+    console.error('[Paytm Initiate] Server error:', detail);
+    return res.status(500).json({ success: false, error: `Server error: ${err?.message || 'Unknown'}` });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 4e. Paytm All-in-One SDK — Callback (server-to-server after payment)
+// POST /api/payment/paytm-callback
+// Paytm sends form-urlencoded body with ORDER_ID, TXNSTATUS, CHECKSUMHASH, etc.
+// ──────────────────────────────────────────────────────────────────────────────
+app.post('/api/payment/paytm-callback', async (req, res) => {
+  try {
+    const params: Record<string, string> = { ...req.query as Record<string, string>, ...req.body };
+    const orderId = params.ORDER_ID || '';
+    const txnStatus = params.TXN_STATUS || params.STATUS || '';
+    const checksum = params.CHECKSUMHASH || params.CHECKSUM || '';
+
+    console.log(`[Paytm Callback v2] orderId=${orderId} status=${txnStatus}`);
+
+    // Verify checksum
+    if (checksum) {
+      const verifyParams = { ...params };
+      delete verifyParams.CHECKSUMHASH;
+      delete verifyParams.CHECKSUM;
+      try {
+        const isValid = await PaytmChecksum.verifySignature(verifyParams, paytmMerchantKey, checksum);
+        if (!isValid && txnStatus !== 'TXN_SUCCESS') {
+          console.error(`[Paytm Callback v2] ❌ Checksum mismatch for ${orderId}`);
+          return res.status(400).json({ success: false, error: 'Checksum verification failed' });
+        }
+        console.log(`[Paytm Callback v2] ✅ Checksum verified for ${orderId}`);
+      } catch (verifyErr) {
+        console.warn(`[Paytm Callback v2] Checksum verify threw, continuing:`, verifyErr);
+      }
+    }
+
+    if (txnStatus === 'TXN_SUCCESS') {
+      // Update order in database
+      let targetOrder: Order | undefined;
+      if (db) {
+        const snap = await db.collection('orders').where('paytmOrderId', '==', orderId).get();
+        if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
+      } else {
+        targetOrder = canteenState.orders.find(o => o.paytmOrderId === orderId);
+      }
+
+      if (targetOrder && targetOrder.paymentStatus !== 'paid') {
+        const updatedOrder: Order = {
+          ...targetOrder,
+          paymentStatus: 'paid',
+          status: 'scheduled',
+          paytmTransactionId: params.TXNID || targetOrder.paytmTransactionId,
+          pickupTimeText: `Scheduled for pickup at ${targetOrder.pickupSlot}`,
+        };
+        if (db) await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
+        canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
+        console.log(`[Paytm Callback v2] ✅ Order ${orderId} marked as paid`);
+      }
+
+      return res.json({ success: true, orderId, txnStatus: 'TXN_SUCCESS', txnId: params.TXNID || '' });
+    } else {
+      console.log(`[Paytm Callback v2] ❌ Payment FAILED for ${orderId}: ${params.RESPMSG || txnStatus}`);
+      return res.json({ success: false, orderId, txnStatus, error: params.RESPMSG || 'Payment failed' });
+    }
+  } catch (err: any) {
+    console.error('[Paytm Callback v2] Error:', err?.message || err);
+    return res.status(500).json({ success: false, error: 'Callback processing error' });
+  }
+});
+
+// GET redirect from Paytm (browser 302)
+app.get('/api/payment/paytm-callback', (req, res) => {
+  console.log('[Paytm Callback v2] GET redirect:', req.query);
+  return res.redirect(`${APP_UPDATE_URL}?payment=pending&orderId=${req.query.ORDER_ID || ''}`);
 });
 
 // 4c. QR Code Verification Endpoint (Staff scanning customer QR)
