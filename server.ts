@@ -2273,8 +2273,15 @@ app.post('/api/payment/paytm-initiate', async (req, res) => {
 
     // Generate checksum over the body only (per Paytm docs: "Create the signature using the body parameter")
     const bodyString = JSON.stringify(paytmBody);
-    const checksum = await PaytmChecksum.generateSignature(bodyString, paytmMerchantKey);
-    console.log(`[Paytm Initiate] Checksum generated`);
+    let checksum: string;
+    try {
+      checksum = await PaytmChecksum.generateSignature(bodyString, paytmMerchantKey);
+      console.log(`[Paytm Initiate] Checksum via PaytmChecksum library`);
+    } catch (csErr) {
+      console.warn('[Paytm Initiate] PaytmChecksum.generateSignature failed, using fallback:', csErr);
+      checksum = crypto.createHmac('sha256', paytmMerchantKey).update(bodyString).digest('base64');
+      console.log(`[Paytm Initiate] Checksum via native crypto`);
+    }
 
     const fullPayload = { body: paytmBody, head: { signature: checksum } };
 
