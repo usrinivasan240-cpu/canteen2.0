@@ -158,25 +158,23 @@ export default function App() {
       }
 
       if (data.usePaytm) {
-        return new Promise((resolve) => {
-          const paytmForm = document.createElement('form');
-          paytmForm.setAttribute('method', 'POST');
-          paytmForm.setAttribute('action', data.paytmGatewayUrl);
+        const paytmForm = document.createElement('form');
+        paytmForm.setAttribute('method', 'POST');
+        paytmForm.setAttribute('action', data.paytmGatewayUrl);
+        paytmForm.style.display = 'none';
 
-          for (const [key, value] of Object.entries(data.paytmParams)) {
-            const input = document.createElement('input');
-            input.setAttribute('type', 'hidden');
-            input.setAttribute('name', key);
-            input.setAttribute('value', value as string);
-            paytmForm.appendChild(input);
-          }
+        for (const [key, value] of Object.entries(data.paytmParams)) {
+          const input = document.createElement('input');
+          input.setAttribute('type', 'hidden');
+          input.setAttribute('name', key);
+          input.setAttribute('value', value as string);
+          paytmForm.appendChild(input);
+        }
 
-          document.body.appendChild(paytmForm);
-          paytmForm.submit();
+        document.body.appendChild(paytmForm);
+        paytmForm.submit();
 
-          // Listen for callback from Paytm (page will redirect)
-          resolve({ success: true, order: data.order, redirecting: true });
-        });
+        return { success: true, order: data.order, redirecting: true };
       }
 
       await fetchCanteenData(); // resync lists

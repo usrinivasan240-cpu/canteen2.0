@@ -370,7 +370,7 @@ export default function CustomerApp({
 
   const handleTriggerGPay = () => {
     if (totalCartCount === 0) return;
-    setShowGPayModal(true);
+    handleCompleteGPay();
   };
 
   const handleCompleteGPay = async () => {
@@ -1084,9 +1084,18 @@ export default function CustomerApp({
               <span className="text-white font-bold text-lg tracking-tight">Paytm</span>
             </div>
             <div className="p-8 text-center space-y-4">
-              <div className="h-10 w-10 border-4 border-[#00baf2] border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-sm font-semibold text-gray-700">Redirecting to Paytm...</p>
-              <p className="text-xs text-gray-400">Please complete your payment securely</p>
+              {isSubmittingOrder ? (
+                <>
+                  <div className="h-10 w-10 border-4 border-[#00baf2] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-sm font-semibold text-gray-700">Connecting to Paytm...</p>
+                  <p className="text-xs text-gray-400">Please wait while we redirect you</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500">Something went wrong.</p>
+                  <button onClick={() => setShowGPayModal(false)} className="mt-2 px-4 py-2 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-200">Close</button>
+                </>
+              )}
             </div>
           </div>
         </div>
