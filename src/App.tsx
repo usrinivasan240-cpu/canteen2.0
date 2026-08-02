@@ -203,23 +203,39 @@ export default function App() {
           try { localStorage.setItem('bb_pendingPaytmOrderId', orderId); } catch {}
         }
 
-        const paytmForm = document.createElement('form');
-        paytmForm.setAttribute('method', 'POST');
-        paytmForm.setAttribute('action', data.paytmGatewayUrl);
-        paytmForm.style.display = 'none';
+        // Call our backend to get a txnToken for Paytm CheckoutJS SDK
+        try {
+          const initResp = await fetch(`${API_BASE}/api/payment/paytm-initiate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId: orderId,
+              amount: data.order?.totalPrice || 0,
+              customerId: currentUser?.id || 'guest',
+            }),
+          });
+          const initData = await initResp.json();
 
-        for (const [key, value] of Object.entries(data.paytmParams)) {
-          const input = document.createElement('input');
-          input.setAttribute('type', 'hidden');
-          input.setAttribute('name', key);
-          input.setAttribute('value', value as string);
-          paytmForm.appendChild(input);
+          if (!initData.success || !initData.txnToken) {
+            return { success: false, error: initData.error || 'Failed to get Paytm transaction token' };
+          }
+
+          await fetchCanteenData();
+          fetchUserOrders();
+
+          return {
+            success: true,
+            usePaytm: true,
+            txnToken: initData.txnToken,
+            orderId: initData.orderId,
+            mid: initData.mid,
+            amount: initData.amount,
+            order: data.order,
+          };
+        } catch (initErr) {
+          console.error('Paytm initiate error:', initErr);
+          return { success: false, error: 'Failed to connect to Paytm. Please try again.' };
         }
-
-        document.body.appendChild(paytmForm);
-        paytmForm.submit();
-
-        return { success: true, order: data.order, redirecting: true };
       }
 
       await fetchCanteenData(); // resync lists

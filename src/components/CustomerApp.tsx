@@ -400,11 +400,83 @@ export default function CustomerApp({
     try {
       const res = await onOrderPlaced(orderItems, selectedSlot, selectedCanteenId, selectedSubCanteenId);
       if (res && res.success) {
-        if (res.redirecting) {
+        // Paytm All-in-One SDK flow (CheckoutJS overlay)
+        if (res.usePaytm && res.txnToken) {
           setCart({});
-          showToast("Redirecting to Paytm...");
+          setShowGPayModal(false);
+
+          // Load Paytm CheckoutJS SDK dynamically
+          const loadSDK = (): Promise<void> => new Promise((resolve, reject) => {
+            if ((window as any).Paytm && (window as any).Paytm.CheckoutJS) { resolve(); return; }
+            const script = document.createElement('script');
+            script.src = `https://securegw-stage.paytm.in/merchantpgpui/checkoutjs/merchants/${res.mid}.js`;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Failed to load Paytm SDK'));
+            document.head.appendChild(script);
+          });
+
+          try {
+            showToast('Opening Paytm checkout...');
+            await loadSDK();
+
+            const paytmConfig = {
+              root: '',
+              flow: 'DEFAULT',
+              data: {
+                orderId: res.orderId,
+                token: res.txnToken,
+                tokenType: 'TXN_TOKEN',
+                amount: res.amount,
+              },
+              handler: {
+                notifyMerchant: (eventName: string, payload: any) => {
+                  console.log('[Paytm Web] Event:', eventName, payload);
+                },
+              },
+            };
+
+            const paytmJs = (window as any).Paytm.CheckoutJS;
+            await paytmJs.init(paytmConfig);
+            await paytmJs.open();
+
+            // After checkout closes, poll for payment status
+            const orderId = res.orderId;
+            let attempts = 0;
+            const poll = setInterval(async () => {
+              attempts++;
+              try {
+                const resp = await fetch(`${API_BASE}/api/paytm/status?orderId=${orderId}`);
+                const statusData = await resp.json();
+                if (statusData.success && statusData.paymentStatus === 'paid') {
+                  clearInterval(poll);
+                  try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
+                  fetchUserOrders?.();
+                  setSuccessOrder(res.order);
+                  setQrPayload(res.order.qrPayload || res.order.id);
+                  showToast('Payment successful! Order confirmed.');
+                } else if (attempts >= 10) {
+                  clearInterval(poll);
+                  try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
+                  fetchUserOrders?.();
+                  setSuccessOrder(res.order);
+                  setQrPayload(res.order.qrPayload || res.order.id);
+                  showToast('Payment submitted. Check Order History for status.');
+                }
+              } catch {
+                if (attempts >= 10) {
+                  clearInterval(poll);
+                  showToast('Could not verify payment. Check Order History.');
+                }
+              }
+            }, 3000);
+          } catch (sdkErr: any) {
+            console.error('[Paytm Web] SDK error:', sdkErr);
+            showToast('Payment cancelled or SDK error.');
+          }
           return;
         }
+
+        // Non-Paytm (instant checkout)
         setSuccessOrder(res.order);
         setQrPayload(res.order.qrPayload || res.qrPayload || res.order.id);
         setCart({}); // clear cart
