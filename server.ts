@@ -2268,9 +2268,10 @@ app.post('/api/payment/paytm-initiate', async (req, res) => {
       userInfo: { custId: customerId },
     };
 
-    // Generate checksum over body object (NOT JSON string — same as existing order flow)
-    const checksum = await PaytmChecksum.generateSignature(paytmBody, paytmMerchantKey);
-    console.log(`[Paytm Initiate] Checksum generated:`, typeof checksum, checksum?.substring?.(0, 20));
+    // Generate checksum over body JSON string
+    const bodyString = JSON.stringify(paytmBody);
+    const checksum = await PaytmChecksum.generateSignature(bodyString, paytmMerchantKey);
+    console.log(`[Paytm Initiate] Checksum generated:`, typeof checksum, String(checksum).substring(0, 30));
 
     const fullPayload = { body: paytmBody, head: { signature: checksum } };
 

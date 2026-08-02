@@ -76,8 +76,9 @@ router.post('/api/payment/paytm-initiate', async (req, res) => {
       },
     };
 
-    // ── Generate checksum (signature over body object, NOT JSON string) ───
-    const checksum = await PaytmChecksum.generateSignature(paytmBody, PAYTM_MKEY);
+    // ── Generate checksum (signature over body JSON string) ───────────────
+    const bodyString = JSON.stringify(paytmBody);
+    const checksum = await PaytmChecksum.generateSignature(bodyString, PAYTM_MKEY);
     console.log(`[Paytm Initiate] Checksum generated`);
 
     const fullPayload = {
