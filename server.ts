@@ -2264,6 +2264,7 @@ app.post('/api/payment/paytm-initiate', async (req, res) => {
     const paytmBody = {
       mid: paytmMerchantId,
       orderId,
+      websiteName: paytmMerchantWebsite,
       txnAmount: { value: formattedAmount, currency: 'INR' },
       userInfo: { custId: customerId },
     };
