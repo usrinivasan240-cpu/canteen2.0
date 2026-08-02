@@ -569,7 +569,7 @@ let subCanteensState: SubCanteen[] = [
 let canteensState: Canteen[] = [
   {
     id: 'canteen_001',
-    name: 'Bite & Byte',
+    name: 'esc(Q)',
     collegeId: 'college_001',
     ownerId: 'user_owner_default',
     ownerName: 'Chef Watson',
@@ -851,10 +851,10 @@ app.post('/api/auth/generate-otp', async (req, res) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          from: 'Bite & Byte <onboarding@resend.dev>',
+           from: 'esc(Q) <onboarding@resend.dev>',
           to: [SUPERADMIN_EMAIL],
-          subject: 'Bite & Byte - Superadmin Login OTP',
-          html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">Bite & Byte</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
+           subject: 'esc(Q) - Superadmin Login OTP',
+           html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">esc(Q)</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
         })
       });
       const emailResult = await emailResp.text();
@@ -1507,7 +1507,7 @@ app.get('/api/canteen', async (req, res) => {
         if (settingsSnap.exists) settings = settingsSnap.data() as CanteenSettings;
       } catch (e) { console.warn('Settings query failed:', e); }
 
-      let canteenName = 'Bite & Byte';
+       let canteenName = 'esc(Q)';
       let ownerName = 'Chef Watson';
       try {
         const cRef = await db.collection('canteens').doc(canteenId).get();
@@ -2210,6 +2210,17 @@ app.get('/api/canteen/qr/verify', async (req, res) => {
       return res.status(404).json({ success: false, verified: false, error: `No order found matching code "${orderId}".` });
     }
 
+    // Check if order is already collected/delivered
+    if (targetOrder.status === 'collected' || targetOrder.status === 'delivered') {
+      return res.json({
+        success: true,
+        verified: true,
+        alreadyCollected: true,
+        order: targetOrder,
+        message: `Order ${targetOrder.id} has already been collected.`
+      });
+    }
+
     return res.json({
       success: true,
       verified: true,
@@ -2374,6 +2385,30 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
     }
 
     console.log('--- QR VERIFY --- FOUND:', targetOrder.id, targetOrder.status);
+
+    // If action is collect, update status to collected
+    const action = req.body.action;
+    if (action === 'collect') {
+      if (targetOrder.status === 'collected' || targetOrder.status === 'delivered') {
+        return res.json({
+          success: true,
+          verified: true,
+          alreadyCollected: true,
+          order: targetOrder,
+          message: `Order ${targetOrder.id} has already been collected.`
+        });
+      }
+      // Update status to collected
+      if (db) {
+        try {
+          await db.collection('orders').doc(targetOrder.id).set({ status: 'collected' }, { merge: true });
+        } catch (e) {
+          console.error('Error updating order status:', e);
+        }
+      }
+      targetOrder.status = 'collected';
+    }
+
     return res.json({
       success: true,
       verified: true,
@@ -2643,7 +2678,7 @@ app.post('/api/canteen/reset', async (req, res) => {
   const targetCanteen = getCanteenState(canteenId);
   const resetCanteen: Canteen = {
     id: canteenId,
-    name: canteenId === 'canteen_001' ? 'Bite & Byte' : 'Default Canteen',
+     name: canteenId === 'canteen_001' ? 'esc(Q)' : 'Default Canteen',
     collegeId: targetCanteen.collegeId || 'college_001',
     ownerId: targetCanteen.ownerId || 'user_owner_default',
     status: targetCanteen.status || 'active',

@@ -128,7 +128,7 @@ export default function CustomerApp({
       setSelectedSubCanteenId('');
     }
   }, [canteenSubCounters.length]);
-  const bHeroTitle = branding.heroTitle || 'Bite &amp; Byte';
+   const bHeroTitle = branding.heroTitle || 'esc(Q)';
   const bHeroSubtitle = branding.heroSubtitle || `Official ${userCollege?.name || ''} Canteen Platform`;
   const bHeroTagline = branding.heroTagline || 'Order Faster · Skip the Queue · Smart Pickup';
   const bFeatureBadges = branding.featureBadges || ['Order Faster', 'Skip the Queue', 'Smart Pickup'];
@@ -138,10 +138,10 @@ export default function CustomerApp({
   const bShowCategoryTabs = branding.showCategoryTabs !== false;
   const bShowReviews = branding.showReviews !== false;
   const bShowSentiment = branding.showSentiment !== false;
-  const bContactPhone = branding.contactPhone || '0431 123 4567';
-  const bContactEmail = branding.contactEmail || 'support@biteandbyte.in';
-  const bContactAddress = branding.contactAddress || 'Trichy, Tamil Nadu, India';
-  const bFooterCopyright = branding.footerCopyright || `© 2026 Bite &amp; Byte. All Rights Reserved.`;
+   const bContactPhone = branding.contactPhone || '+91 9940918442';
+   const bContactEmail = branding.contactEmail || 'escqsupportemail@gmail.com';
+   const bContactAddress = branding.contactAddress || 'AUTO HUB SOLUTION (AHS), Tamil Nadu, India';
+   const bFooterCopyright = branding.footerCopyright || `\u00a9 2026 esc(Q). All Rights Reserved.`;
   const bFooterLinks = branding.footerLinks || [
     { label: 'Menu &amp; Order', action: 'menu' },
     { label: 'Order History', action: 'history' },
@@ -450,84 +450,33 @@ export default function CustomerApp({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-      {/* HERO BANNER - Dynamic Layout */}
+      {/* HERO - Logo + Content Only (No Banner) */}
       <div className={`relative rounded-3xl overflow-hidden ${sectionSpacingClass} bg-white border border-gray-100 shadow-sm`}>
-        {/* Banner as background */}
-        {bHeroBannerPosition === 'background' ? (
-          <div className="relative">
-            {userCollege?.bannerUrl ? (
-              <img src={userCollege.bannerUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" />
-            ) : null}
-            <div className={`flex flex-col items-center ${heroPaddingClass} relative z-10`}>
-              <div className="shrink-0 mb-4">
-                {userCollege?.logoUrl ? (
-                  <img src={userCollege.logoUrl} alt={userCollege.name} className={`${heroLogoPx} rounded-full object-contain border-2 border-gray-100 shadow-md bg-white`} />
-                ) : (
-                  <div className={`${heroLogoPx} rounded-full bg-red-50 flex items-center justify-center text-4xl md:text-5xl font-bold text-red-700 border-2 border-gray-100 shadow-md`}>
-                    {userCollege?.name?.charAt(0) || 'B'}
-                  </div>
-                )}
+        <div className={`flex items-center gap-3 md:gap-5 ${heroPaddingClass} min-h-[180px]`}>
+          <div className="shrink-0">
+            {userCollege?.logoUrl ? (
+              <img src={userCollege.logoUrl} alt={userCollege.name} className="w-16 h-16 md:w-36 md:h-36 rounded-full object-contain border-2 border-gray-100 shadow-md bg-white" />
+            ) : (
+              <div className="w-16 h-16 md:w-36 md:h-36 rounded-full bg-red-50 flex items-center justify-center text-2xl md:text-5xl font-bold text-red-700 border-2 border-gray-100 shadow-md">
+                {userCollege?.name?.charAt(0) || 'B'}
               </div>
-              <div className="text-center flex-1 min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-0.5">Welcome to</p>
-                <h1 className="font-display font-black text-2xl md:text-3xl tracking-tight leading-tight text-gray-900" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
-                <p className="text-sm text-gray-600 font-sans mt-0.5" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
-                <p className="text-[11px] text-gray-400 font-sans mt-0.5 italic">{bHeroTagline}</p>
-                <div className="flex flex-wrap gap-2 mt-3 justify-center">
-                  {bFeatureBadges.map((feat: string, i: number) => (
-                    <span key={i} className="bg-white text-amber-700 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 shadow-xs">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                      {feat}
-                    </span>
-                  ))}
-                </div>
-              </div>
+            )}
+          </div>
+          <div className={`${bMenuAlignment === 'center' ? 'text-center' : 'text-left'} flex-1 min-w-0`}>
+            <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-0.5">Welcome to</p>
+            <h1 className="font-display font-black text-lg md:text-3xl tracking-tight leading-tight text-gray-900" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
+            <p className="text-[11px] md:text-sm text-gray-600 font-sans mt-0.5" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
+            <p className="text-[10px] md:text-[11px] text-gray-400 font-sans mt-0.5 italic hidden md:block">{bHeroTagline}</p>
+            <div className={`flex flex-wrap gap-1.5 md:gap-2 mt-2 md:mt-3 ${bMenuAlignment === 'center' ? 'justify-center' : ''}`}>
+              {bFeatureBadges.map((feat: string, i: number) => (
+                <span key={i} className="bg-white text-amber-700 text-[9px] md:text-[10px] font-bold px-2 md:px-3 py-1 md:py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 shadow-xs">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 md:h-3 md:w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  {feat}
+                </span>
+              ))}
             </div>
           </div>
-        ) : (
-          /* Side-by-side layouts */
-          <div className={`flex flex-col ${bHeroBannerPosition === 'left' || (bHeroLayout === 'logo-right' && bHeroBannerPosition !== 'bottom') ? 'md:flex-row-reverse' : bHeroLayout === 'banner-left' ? 'md:flex-row-reverse' : 'md:flex-row'} items-stretch min-h-[220px]`}>
-            {/* Logo + Content side */}
-            <div className={`flex items-center gap-3 md:gap-5 ${heroPaddingClass} md:w-[45%] ${bMenuAlignment === 'center' ? 'text-center' : 'text-left'}`}>
-              <div className="shrink-0">
-                {userCollege?.logoUrl ? (
-                  <img src={userCollege.logoUrl} alt={userCollege.name} className="w-16 h-16 md:w-36 md:h-36 rounded-full object-contain border-2 border-gray-100 shadow-md bg-white" />
-                ) : (
-                  <div className="w-16 h-16 md:w-36 md:h-36 rounded-full bg-red-50 flex items-center justify-center text-2xl md:text-5xl font-bold text-red-700 border-2 border-gray-100 shadow-md">
-                    {userCollege?.name?.charAt(0) || 'B'}
-                  </div>
-                )}
-              </div>
-              <div className={`${bMenuAlignment === 'center' ? 'text-center' : 'text-left'} flex-1 min-w-0`}>
-                <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-0.5">Welcome to</p>
-                <h1 className="font-display font-black text-lg md:text-3xl tracking-tight leading-tight text-gray-900" dangerouslySetInnerHTML={{ __html: bHeroTitle }} />
-                <p className="text-[11px] md:text-sm text-gray-600 font-sans mt-0.5" dangerouslySetInnerHTML={{ __html: bHeroSubtitle }} />
-                <p className="text-[10px] md:text-[11px] text-gray-400 font-sans mt-0.5 italic hidden md:block">{bHeroTagline}</p>
-                <div className={`flex flex-wrap gap-1.5 md:gap-2 mt-2 md:mt-3 ${bMenuAlignment === 'center' ? 'justify-center' : ''}`}>
-                  {bFeatureBadges.map((feat: string, i: number) => (
-                    <span key={i} className="bg-white text-amber-700 text-[9px] md:text-[10px] font-bold px-2 md:px-3 py-1 md:py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 shadow-xs">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 md:h-3 md:w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                      {feat}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            {/* Banner Image side */}
-            <div className={`md:w-[55%] relative min-h-[160px] md:min-h-0 ${bHeroBannerPosition === 'bottom' ? 'w-full min-h-[200px]' : ''}`}>
-              {userCollege?.bannerUrl ? (
-                <img src={userCollege.bannerUrl} alt={userCollege.name} className="w-full h-full object-cover absolute inset-0" />
-              ) : (
-                <div className="w-full h-full absolute inset-0 bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 flex items-center justify-center">
-                  <div className="text-center opacity-40">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-red-300 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    <p className="text-[10px] font-bold text-gray-400">College Banner</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* SUB-CANTEEN SELECTOR + SEARCH (compact) */}
@@ -1216,7 +1165,7 @@ export default function CustomerApp({
                   <p className="text-[10px] text-gray-400 font-sans">Campus Smart Canteen Platform</p>
                 </div>
               </div>
-              <p className="text-[11px] text-gray-500 font-sans">Powered by {userCollege?.name || 'Bite & Byte'}</p>
+               <p className="text-[11px] text-gray-500 font-sans">Powered by {userCollege?.name || 'esc(Q)'}</p>
             </div>
 
             {/* Quick Links */}

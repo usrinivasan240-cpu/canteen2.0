@@ -309,7 +309,7 @@ export default function App() {
             <div className="h-4.5 w-4.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
           </div>
         </div>
-        <h2 className="font-display font-bold text-gray-950 text-xl tracking-tight">Booting Bite &amp; Byte</h2>
+         <h2 className="font-display font-bold text-gray-950 text-xl tracking-tight">Booting esc(Q)</h2>
         <p className="text-xs text-amber-600 mt-1 max-w-xs font-semibold">Connecting smart dining cloud network...</p>
       </div>
     );
@@ -367,7 +367,7 @@ export default function App() {
       <main className="flex-1">
         {role === 'customer' ? (
           <CustomerApp
-            canteenName={canteen ? canteen.name : 'Bite & Byte'}
+             canteenName={canteen ? canteen.name : 'esc(Q)'}
             menuItems={canteen?.items || []}
             orders={userOrders}
             reviews={canteen?.reviews || []}
@@ -413,7 +413,7 @@ export default function App() {
         <footer className="border-t border-gray-800 bg-gray-900 py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between text-xs text-gray-500 font-sans gap-3">
             <div className="flex items-center space-x-2">
-              <span className="font-bold text-white font-display text-sm">Bite & Byte</span>
+               <span className="font-bold text-white font-display text-sm">esc(Q)</span>
               <span>&copy; 2026 Campus Cafeteria Systems. All rights reserved.</span>
             </div>
             <div className="flex items-center space-x-4">
