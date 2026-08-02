@@ -2268,17 +2268,13 @@ app.post('/api/payment/paytm-initiate', async (req, res) => {
       websiteName: paytmMerchantWebsite,
       txnAmount: { value: formattedAmount, currency: 'INR' },
       userInfo: { custId: customerId },
+      callbackUrl: paytmCallbackUrl,
     };
 
-    // Generate checksum over the body only (per Paytm docs)
+    // Generate checksum over the body JSON string
     const bodyString = JSON.stringify(paytmBody);
-    
-    // Paytm checksum algorithm: sha256(body) + salt, then hmac-sha256(key, hash+salt)
-    const sha256Hash = crypto.createHash('sha256').update(bodyString).digest('hex');
-    const salt = crypto.randomBytes(2).toString('hex'); // 4-char salt
-    const hmacHash = crypto.createHmac('sha256', paytmMerchantKey).update(sha256Hash + salt).digest('hex');
-    const checksum = Buffer.from(hmacHash + salt).toString('base64');
-    console.log(`[Paytm Initiate] Checksum generated (manual algo)`);
+    const checksum = await PaytmChecksum.generateSignature(bodyString, paytmMerchantKey);
+    console.log(`[Paytm Initiate] Checksum generated:`, typeof checksum);
 
     const fullPayload = { body: paytmBody, head: { signature: checksum } };
 
