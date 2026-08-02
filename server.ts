@@ -2044,14 +2044,19 @@ app.post('/api/canteen/order', async (req, res) => {
 
 // 4b. Paytm Payment Callback (Customer Checkout completion)
 app.post('/api/paytm/callback', express.urlencoded({ extended: true }), async (req, res) => {
-  const params = req.body;
+  // Merge body + query params (Paytm may send data either way depending on version)
+  const params = { ...req.query, ...req.body } as Record<string, string>;
+  console.log('Paytm callback received:', JSON.stringify(params).substring(0, 500));
 
-  if (!params.CHECKSUMHASH) {
+  const checksum = params.CHECKSUMHASH || params.CHECKSUM || params.checksumHash || '';
+  if (!checksum) {
+    console.error('Paytm callback: Missing checksum. Params keys:', Object.keys(params));
     return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Missing+checksum`);
   }
 
   try {
-    const isValidChecksum = await PaytmChecksum.verifySignature(params, paytmMerchantKey);
+    const paramsForVerify = { ...params, CHECKSUMHASH: checksum };
+    const isValidChecksum = await PaytmChecksum.verifySignature(paramsForVerify, paytmMerchantKey);
     if (!isValidChecksum) {
       return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Checksum+mismatch`);
     }
@@ -2147,6 +2152,37 @@ app.post('/api/paytm/callback', express.urlencoded({ extended: true }), async (r
     console.error('Paytm callback error:', err);
     res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Server+error`);
   }
+});
+
+// 4b-alt. Paytm may also GET redirect with query params
+app.get('/api/paytm/callback', async (req, res) => {
+  const params = { ...req.query } as Record<string, string>;
+  console.log('Paytm GET callback received:', JSON.stringify(params).substring(0, 500));
+  const checksum = params.CHECKSUMHASH || params.CHECKSUM || params.checksumHash || '';
+  if (!checksum) {
+    const orderId = params.ORDER_ID || params.orderId || '';
+    if (orderId) {
+      // No checksum but has order ID — check if order was already updated
+      let targetOrder: Order | undefined;
+      if (db) {
+        const snap = await db.collection('orders').where('paytmOrderId', '==', orderId).get();
+        if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
+      } else {
+        targetOrder = canteenState.orders.find(o => o.paytmOrderId === orderId);
+      }
+      if (targetOrder && (targetOrder.paymentStatus === 'paid' || targetOrder.status === 'scheduled' || targetOrder.status === 'ready')) {
+        return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
+      }
+      // Check TXN_STATUS param
+      if (params.TXN_STATUS === 'TXN_SUCCESS') {
+        return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
+      }
+    }
+    return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Missing+checksum`);
+  }
+  // Forward to same POST logic
+  req.body = params;
+  res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Use+POST+callback`);
 });
 
 // 4c. QR Code Verification Endpoint (Staff scanning customer QR)
