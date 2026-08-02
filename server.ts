@@ -2269,10 +2269,10 @@ app.post('/api/payment/paytm-initiate', async (req, res) => {
       userInfo: { custId: customerId },
     };
 
-    // Generate checksum over body JSON string
+    // Generate checksum: HMAC-SHA256 of JSON body, base64 encoded
     const bodyString = JSON.stringify(paytmBody);
-    const checksum = await PaytmChecksum.generateSignature(bodyString, paytmMerchantKey);
-    console.log(`[Paytm Initiate] Checksum generated:`, typeof checksum, String(checksum).substring(0, 30));
+    const checksum = crypto.createHmac('sha256', paytmMerchantKey).update(bodyString).digest('base64');
+    console.log(`[Paytm Initiate] Checksum generated`);
 
     const fullPayload = { body: paytmBody, head: { signature: checksum } };
 
