@@ -63,8 +63,9 @@ router.post('/api/payment/paytm-initiate', async (req, res) => {
 
     console.log(`[Paytm Initiate] orderId=${orderId} amount=₹${formattedAmount} customer=${customerId}`);
 
-    // ── Build the full payload ───────────────────────────────────────────
-    const paytmBody = {
+    // ── Build the body for /theia/api/v1/initiateTransaction ────────────
+    const paytmBody: Record<string, any> = {
+      requestType: 'Payment',
       mid: PAYTM_MID,
       orderId: orderId,
       websiteName: PAYTM_WEBSITE,
@@ -75,21 +76,20 @@ router.post('/api/payment/paytm-initiate', async (req, res) => {
       userInfo: {
         custId: customerId,
       },
+      callbackUrl: PAYTM_CALLBACK_URL,
     };
 
-    // Step 1: Create payload with empty head signature
-    const fullPayload: any = {
-      body: paytmBody,
-      head: { signature: '' },
-    };
-
-    // Step 2: Generate checksum over the ENTIRE JSON string
-    const payloadString = JSON.stringify(fullPayload);
-    const checksum = await PaytmChecksum.generateSignature(payloadString, PAYTM_MKEY);
-
-    // Step 3: Set the signature
-    fullPayload.head.signature = checksum;
+    // ── Generate checksum over body only (per Paytm docs) ───────────────
+    const bodyString = JSON.stringify(paytmBody);
+    const checksum = await PaytmChecksum.generateSignature(bodyString, PAYTM_MKEY);
     console.log(`[Paytm Initiate] Checksum generated`);
+
+    const fullPayload = {
+      body: paytmBody,
+      head: {
+        signature: checksum,
+      },
+    };
 
     // ── Call Paytm's Initiate Transaction API ─────────────────────────────
     const apiUrl = `${PAYTM_BASE_URL}/theia/api/v1/initiateTransaction?mid=${PAYTM_MID}&orderId=${orderId}`;
