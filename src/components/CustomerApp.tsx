@@ -389,16 +389,23 @@ export default function CustomerApp({
     try {
       const res = await onOrderPlaced(orderItems, selectedSlot, selectedCanteenId, selectedSubCanteenId);
       if (res && res.success) {
+        if (res.redirecting) {
+          setCart({});
+          showToast("Redirecting to Paytm...");
+          return;
+        }
         setSuccessOrder(res.order);
         setQrPayload(res.order.qrPayload || res.qrPayload || res.order.id);
         setCart({}); // clear cart
-        setShowGPayModal(false); // dismiss G Pay
+        setShowGPayModal(false); // dismiss modal
         showToast("Payment processed via Paytm!");
       } else {
+        setShowGPayModal(false);
         alert(res?.error || "Failed to checkout. Out of stock.");
       }
     } catch (err) {
       console.error(err);
+      setShowGPayModal(false);
       alert("Checkout failure occurred on server.");
     } finally {
       setIsSubmittingOrder(false);
