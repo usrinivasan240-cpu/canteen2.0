@@ -20,6 +20,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Enable CORS for mobile Capacitor WebView clients (http://localhost and capacitor://)
 app.use((req, res, next) => {
@@ -2043,65 +2044,23 @@ app.post('/api/canteen/order', async (req, res) => {
 });
 
 // 4b. Paytm Payment Callback (Customer Checkout completion)
-// Paytm sends form-urlencoded POST — use multiple parsers as fallback
-const paytmCallbackParser = express.urlencoded({ extended: true, type: ['application/x-www-form-urlencoded', 'application/x-www-form'] });
-
-app.post('/api/paytm/callback', (req: any, res: any, next: any) => {
-  // Try urlencoded first
-  paytmCallbackParser(req, res, (err: any) => {
-    if (err || Object.keys(req.body || {}).length === 0) {
-      // Fallback: manually parse raw body
-      let rawData = '';
-      req.on('data', (chunk: any) => { rawData += chunk; });
-      req.on('end', () => {
-        try {
-          if (rawData && rawData.includes('=')) {
-            const pairs = rawData.split('&');
-            const parsed: Record<string, string> = {};
-            for (const pair of pairs) {
-              const [key, value] = pair.split('=');
-              if (key) parsed[decodeURIComponent(key)] = decodeURIComponent(value || '');
-            }
-            req.body = parsed;
-          }
-        } catch (e) {
-          console.error('Raw body parse error:', e);
-        }
-        next();
-      });
-    } else {
-      next();
-    }
-  });
-}, async (req: any, res: any) => {
-  // Merge body + query params (Paytm may send data either way)
+app.post('/api/paytm/callback', async (req, res) => {
   const params: Record<string, string> = { ...req.query, ...req.body };
-  console.log('Paytm callback params:', JSON.stringify({ keys: Object.keys(params), CHECKSUMHASH: params.CHECKSUMHASH ? 'present' : 'missing', TXN_STATUS: params.TXN_STATUS, ORDER_ID: params.ORDER_ID }).substring(0, 500));
+  console.log('Paytm callback keys:', Object.keys(params).join(', '), 'CHECKSUMHASH:', params.CHECKSUMHASH ? 'present' : 'missing');
 
   const orderId = params.ORDER_ID || '';
   const txnStatus = params.TXN_STATUS || '';
-  const checksum = params.CHECKSUMHASH || params.CHECKSUM || params.checksumHash || '';
+  const checksum = params.CHECKSUMHASH || params.CHECKSUM || '';
 
-  if (!checksum) {
-    // Fallback: if we have TXN_SUCCESS + ORDER_ID, process anyway
-    if (txnStatus === 'TXN_SUCCESS' && orderId) {
-      console.log('Paytm callback: no checksum but TXN_SUCCESS, processing order:', orderId);
-    } else {
-      console.error('Paytm callback failed. All params:', JSON.stringify(params));
-      return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Missing+checksum&keys=${Object.keys(params).join(',')}`);
-    }
+  if (!checksum && txnStatus !== 'TXN_SUCCESS') {
+    return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Missing+checksum&received=${Object.keys(params).join(',')}`);
   }
 
   try {
-    // Verify checksum if available
     if (checksum) {
-      const paramsForVerify = { ...params, CHECKSUMHASH: checksum };
-      const isValidChecksum = await PaytmChecksum.verifySignature(paramsForVerify, paytmMerchantKey);
-      if (!isValidChecksum) {
-        // For staging: if TXN_SUCCESS, still process (some test envs have checksum issues)
-        if (txnStatus !== 'TXN_SUCCESS') {
-          return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Checksum+mismatch`);
-        }
+      const isValidChecksum = await PaytmChecksum.verifySignature({ ...params, CHECKSUMHASH: checksum }, paytmMerchantKey);
+      if (!isValidChecksum && txnStatus !== 'TXN_SUCCESS') {
+        return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Checksum+mismatch`);
       }
     }
 
