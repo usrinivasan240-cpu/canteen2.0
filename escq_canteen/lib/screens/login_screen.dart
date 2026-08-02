@@ -97,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final colleges = context.watch<MenuProvider>().colleges;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF9FAFB),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -109,14 +109,14 @@ class _LoginScreenState extends State<LoginScreen> {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
                 ),
               ],
-              border: Border.all(color: const Color(0xFFFEE2E2)),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            padding: const EdgeInsets.all(32),
+            padding: const EdgeInsets.all(28),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -125,44 +125,44 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD97706),
+                    gradient: const LinearGradient(colors: [Color(0xFFDC2626), Color(0xFF991B1B)]),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFD97706).withOpacity(0.3),
+                        color: const Color(0xFFDC2626).withOpacity(0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.local_cafe, color: Colors.white, size: 32),
+                  child: const Icon(Icons.local_cafe, color: Colors.white, size: 30),
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'esc(Q)',
+                  'Esc(Q)',
                   style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF111827),
+                    letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 const Text(
                   'Your campus canteen, just a click away.',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFD97706),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF6B7280),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 // Sign In / Sign Up toggle
                 Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEE2E2),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFFECACA).withOpacity(0.5)),
+                    color: const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   padding: const EdgeInsets.all(4),
                   child: Row(
@@ -173,20 +173,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: !isSignUp ? const Color(0xFFD97706) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12),
+                              color: !isSignUp ? const Color(0xFFDC2626) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: !isSignUp ? [BoxShadow(color: const Color(0xFFDC2626).withOpacity(0.3), blurRadius: 6)] : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.login, size: 14, color: !isSignUp ? Colors.white : Colors.grey),
+                                Icon(Icons.login, size: 14, color: !isSignUp ? Colors.white : Color(0xFF6B7280)),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Sign In',
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: !isSignUp ? Colors.white : Colors.grey,
+                                    color: !isSignUp ? Colors.white : const Color(0xFF6B7280),
                                   ),
                                 ),
                               ],
@@ -200,20 +201,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: isSignUp ? const Color(0xFFD97706) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12),
+                              color: isSignUp ? const Color(0xFFDC2626) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: isSignUp ? [BoxShadow(color: const Color(0xFFDC2626).withOpacity(0.3), blurRadius: 6)] : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.person_add, size: 14, color: isSignUp ? Colors.white : Colors.grey),
+                                Icon(Icons.person_add, size: 14, color: isSignUp ? Colors.white : Color(0xFF6B7280)),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Sign Up',
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: isSignUp ? Colors.white : Colors.grey,
+                                    color: isSignUp ? Colors.white : const Color(0xFF6B7280),
                                   ),
                                 ),
                               ],
@@ -224,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 // Title
                 Align(
@@ -234,36 +236,36 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       Text(
                         isSignUp ? 'Create Account' : 'Welcome Back',
-                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.black87),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         isSignUp
                             ? 'Register as a student to start ordering meals.'
                             : 'Enter your credentials to access your account.',
-                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
 
                 // Form fields
                 if (isSignUp) ...[
                   _buildField(Icons.person, 'Full Name', nameCtrl, 'e.g. Raju Srinivasan'),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   _buildField(Icons.confirmation_number, 'Register Number', regNoCtrl, 'e.g. 21CS001'),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   _buildField(Icons.phone, 'Phone Number', phoneCtrl, 'e.g. 9940918442', isPhone: true),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   _buildCollegeDropdown(colleges),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                 ],
 
                 _buildField(Icons.email, 'Email Address', emailCtrl, 'e.g. rajus@gmail.com', isEmail: true),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 _buildPasswordField(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
 
                 // Agreement checkboxes (signup only)
                 if (isSignUp) ...[
@@ -272,7 +274,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   _buildCheckbox('I have read and agree to the Terms & Conditions', agreeTerms, (v) => setState(() => agreeTerms = v)),
                   const SizedBox(height: 6),
                   _buildCheckbox('I have read and agree to the Refund & Cancellation Policy', agreeRefund, (v) => setState(() => agreeRefund = v)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                 ],
 
                 // Submit button
@@ -281,11 +283,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: ElevatedButton(
                     onPressed: auth.loading ? null : _handleSubmit,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFD97706),
+                      backgroundColor: const Color(0xFFDC2626),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 4,
+                      elevation: 2,
                     ),
                     child: auth.loading
                         ? const SizedBox(
@@ -297,7 +299,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               Icon(isSignUp ? Icons.person_add : Icons.login, size: 16),
                               const SizedBox(width: 8),
-                              Text(isSignUp ? 'Create Account' : 'Sign In', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              Text(isSignUp ? 'Create Account' : 'Sign In', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                             ],
                           ),
                   ),
@@ -305,9 +307,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 if (!isSignUp) ...[
                   const SizedBox(height: 16),
-                  const Text(
-                    'Demo: watson777@gmail.com / password123',
-                    style: TextStyle(fontSize: 10, color: Colors.grey),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(10)),
+                    child: const Text(
+                      'Demo: watson777@gmail.com / password123',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
+                    ),
                   ),
                 ],
               ],
@@ -324,33 +330,33 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF374151)),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         TextField(
           controller: ctrl,
           keyboardType: isEmail ? TextInputType.emailAddress : (isPhone ? TextInputType.phone : TextInputType.text),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, size: 16, color: Colors.grey),
+            prefixIcon: Icon(icon, size: 18, color: const Color(0xFF6B7280)),
             hintText: hint,
-            hintStyle: const TextStyle(fontSize: 11),
+            hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
             filled: true,
-            fillColor: const Color(0xFFFEE2E2).withOpacity(0.3),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            fillColor: const Color(0xFFF9FAFB),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFFEE2E2)),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFFEE2E2)),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFD97706), width: 2),
+              borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2),
             ),
           ),
-          style: const TextStyle(fontSize: 12),
+          style: const TextStyle(fontSize: 13, color: Color(0xFF111827)),
         ),
       ],
     );
@@ -362,37 +368,37 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         const Text(
           'PASSWORD',
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF374151)),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         TextField(
           controller: passwordCtrl,
           obscureText: !showPassword,
           decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.lock, size: 16, color: Colors.grey),
+            prefixIcon: const Icon(Icons.lock, size: 18, color: Color(0xFF6B7280)),
             suffixIcon: GestureDetector(
               onTap: () => setState(() => showPassword = !showPassword),
-              child: Icon(showPassword ? Icons.visibility_off : Icons.visibility, size: 16, color: Colors.grey),
+              child: Icon(showPassword ? Icons.visibility_off : Icons.visibility, size: 18, color: const Color(0xFF6B7280)),
             ),
             hintText: isSignUp ? 'Create a password' : 'Enter your password',
-            hintStyle: const TextStyle(fontSize: 11),
+            hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
             filled: true,
-            fillColor: const Color(0xFFFEE2E2).withOpacity(0.3),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            fillColor: const Color(0xFFF9FAFB),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFFEE2E2)),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFFEE2E2)),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFD97706), width: 2),
+              borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2),
             ),
           ),
-          style: const TextStyle(fontSize: 12),
+          style: const TextStyle(fontSize: 13, color: Color(0xFF111827)),
         ),
       ],
     );
@@ -404,24 +410,24 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         const Text(
           'SELECT COLLEGE',
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF374151)),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFFEE2E2).withOpacity(0.3),
+            color: const Color(0xFFF9FAFB),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFFEE2E2)),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: selectedCollegeId.isNotEmpty ? selectedCollegeId : null,
               isExpanded: true,
-              hint: const Text('-- Choose your college --', style: TextStyle(fontSize: 11)),
+              hint: const Text('-- Choose your college --', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
               items: colleges.map<DropdownMenuItem<String>>((c) {
-                return DropdownMenuItem(value: c.id, child: Text(c.name, style: const TextStyle(fontSize: 11)));
+                return DropdownMenuItem(value: c.id, child: Text(c.name, style: const TextStyle(fontSize: 12, color: Color(0xFF111827))));
               }).toList(),
               onChanged: (v) => setState(() => selectedCollegeId = v ?? ''),
             ),
@@ -441,13 +447,13 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Checkbox(
               value: value,
               onChanged: (v) => onChanged(v ?? false),
-              activeColor: const Color(0xFFD97706),
-              side: const BorderSide(color: Color(0xFFFECACA)),
+              activeColor: const Color(0xFFDC2626),
+              side: const BorderSide(color: Color(0xFFD1D5DB)),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            child: Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
           ),
         ],
       ),

@@ -715,7 +715,7 @@ export default function ServicePanel({
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Banner Subtitle</label>
                         <input
                           type="text"
-                           defaultValue={c.bannerSubtitle || 'Official esc(Q) Platform'}
+                           defaultValue={c.bannerSubtitle || 'Official Esc(Q) Platform'}
                           onBlur={async (e) => {
                             try {
                               await fetch(`${API_BASE}/api/colleges/${c.id}/banner`, {
@@ -779,7 +779,7 @@ export default function ServicePanel({
                       value={cantName}
                       onChange={(e) => setCantName(e.target.value)}
                       required
-                           placeholder="e.g. esc(Q)"
+                           placeholder="e.g. Esc(Q)"
                       className="w-full bg-red-50/30 hover:bg-red-50/60 focus:bg-white text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-gray-800 font-semibold"
                     />
                   </div>
@@ -1490,9 +1490,9 @@ export default function ServicePanel({
                         <div className="space-y-2">
                           <label className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Hero Section</label>
                           <input
-                             defaultValue={b.heroTitle || 'esc(Q)'}
+                             defaultValue={b.heroTitle || 'Esc(Q)'}
                             onBlur={(e) => saveBranding('heroTitle', e.target.value)}
-                             placeholder="Hero Title (e.g. esc(Q))"
+                             placeholder="Hero Title (e.g. Esc(Q))"
                             className="w-full bg-red-50/30 text-xs px-3 py-2 border border-red-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
                           />
                           <input

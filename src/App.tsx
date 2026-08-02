@@ -115,6 +115,23 @@ export default function App() {
     }
   }, [isLoggedIn]);
 
+  // Handle Paytm callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    const orderId = params.get('orderId');
+    if (paymentStatus && orderId) {
+      if (paymentStatus === 'success') {
+        fetchUserOrders();
+        alert(`Payment successful! Order ID: ${orderId}`);
+      } else {
+        const error = params.get('error');
+        alert(`Payment failed: ${error || 'Unknown error'}`);
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // Derive user's college info
   const userCollege = colleges.find(c => c.id === currentUser?.collegeId);
 
@@ -309,7 +326,7 @@ export default function App() {
             <div className="h-4.5 w-4.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
           </div>
         </div>
-         <h2 className="font-display font-bold text-gray-950 text-xl tracking-tight">Booting esc(Q)</h2>
+         <h2 className="font-display font-bold text-gray-950 text-xl tracking-tight">Booting Esc(Q)</h2>
         <p className="text-xs text-amber-600 mt-1 max-w-xs font-semibold">Connecting smart dining cloud network...</p>
       </div>
     );
@@ -367,7 +384,7 @@ export default function App() {
       <main className="flex-1">
         {role === 'customer' ? (
           <CustomerApp
-             canteenName={canteen ? canteen.name : 'esc(Q)'}
+             canteenName={canteen ? canteen.name : 'Esc(Q)'}
             menuItems={canteen?.items || []}
             orders={userOrders}
             reviews={canteen?.reviews || []}
@@ -413,7 +430,7 @@ export default function App() {
         <footer className="border-t border-gray-800 bg-gray-900 py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between text-xs text-gray-500 font-sans gap-3">
             <div className="flex items-center space-x-2">
-               <span className="font-bold text-white font-display text-sm">esc(Q)</span>
+               <span className="font-bold text-white font-display text-sm">Esc(Q)</span>
               <span>&copy; 2026 Campus Cafeteria Systems. All rights reserved.</span>
             </div>
             <div className="flex items-center space-x-4">

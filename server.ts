@@ -569,7 +569,7 @@ let subCanteensState: SubCanteen[] = [
 let canteensState: Canteen[] = [
   {
     id: 'canteen_001',
-    name: 'esc(Q)',
+    name: 'Esc(Q)',
     collegeId: 'college_001',
     ownerId: 'user_owner_default',
     ownerName: 'Chef Watson',
@@ -851,10 +851,10 @@ app.post('/api/auth/generate-otp', async (req, res) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-           from: 'esc(Q) <onboarding@resend.dev>',
+           from: 'Esc(Q) <onboarding@resend.dev>',
           to: [SUPERADMIN_EMAIL],
-           subject: 'esc(Q) - Superadmin Login OTP',
-           html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">esc(Q)</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
+           subject: 'Esc(Q) - Superadmin Login OTP',
+           html: `<div style="font-family:sans-serif;text-align:center;padding:20px;max-width:400px;margin:0 auto"><div style="background:#7c3aed;color:white;padding:15px;border-radius:16px 16px 0 0"><h2 style="margin:0">Esc(Q)</h2></div><div style="background:#f8f7ff;padding:30px;border-radius:0 0 16px 16px;border:1px solid #e5e1f0"><p style="color:#555;font-size:14px">Your superadmin login OTP is:</p><div style="font-size:36px;letter-spacing:10px;color:#7c3aed;background:#f3f0ff;padding:20px;border-radius:12px;font-weight:bold;margin:15px 0">${code}</div><p style="color:#999;font-size:12px">Valid for 5 minutes. Do not share this code.</p></div></div>`
         })
       });
       const emailResult = await emailResp.text();
@@ -1507,7 +1507,7 @@ app.get('/api/canteen', async (req, res) => {
         if (settingsSnap.exists) settings = settingsSnap.data() as CanteenSettings;
       } catch (e) { console.warn('Settings query failed:', e); }
 
-       let canteenName = 'esc(Q)';
+       let canteenName = 'Esc(Q)';
       let ownerName = 'Chef Watson';
       try {
         const cRef = await db.collection('canteens').doc(canteenId).get();
@@ -2678,7 +2678,7 @@ app.post('/api/canteen/reset', async (req, res) => {
   const targetCanteen = getCanteenState(canteenId);
   const resetCanteen: Canteen = {
     id: canteenId,
-     name: canteenId === 'canteen_001' ? 'esc(Q)' : 'Default Canteen',
+     name: canteenId === 'canteen_001' ? 'Esc(Q)' : 'Default Canteen',
     collegeId: targetCanteen.collegeId || 'college_001',
     ownerId: targetCanteen.ownerId || 'user_owner_default',
     status: targetCanteen.status || 'active',

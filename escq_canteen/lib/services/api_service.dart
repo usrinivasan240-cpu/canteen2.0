@@ -115,7 +115,7 @@ class ApiService {
       'userId': userId,
       'userName': userName,
       'items': items,
-      'paymentMethod': 'Google Pay',
+      'paymentMethod': 'Paytm Gateway',
       'pickupSlot': pickupSlot,
       'canteenId': canteenId,
       if (subCanteenId != null) 'subCanteenId': subCanteenId,

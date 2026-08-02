@@ -100,7 +100,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('esc(Q)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    const Text('Esc(Q)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                     Text('Staff Panel · ${user?.role ?? ''}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
                   ],
                 ),

@@ -183,7 +183,7 @@ function AboutPage() {
           </svg>
         </div>
         <div>
-          <h1 style={titleStyle}>About esc(Q)</h1>
+          <h1 style={titleStyle}>About Esc(Q)</h1>
           <p style={subtitleStyle}>Smart Campus Canteen Platform</p>
         </div>
       </div>
@@ -191,7 +191,7 @@ function AboutPage() {
       <div style={dividerStyle} />
 
       <p style={bodyTextStyle}>
-        esc(Q) is a Smart Campus Canteen Platform developed and operated by AUTO HUB SOLUTION (AHS).
+        Esc(Q) is a Smart Campus Canteen Platform developed and operated by AUTO HUB SOLUTION (AHS).
         The platform enables students, faculty members, educational institutions, and participating canteens to browse digital menus,
         place food orders, make secure online payments, receive real-time order updates, and collect food efficiently through a digital ordering system.
       </p>
@@ -210,7 +210,7 @@ function AboutPage() {
         automation systems, AI-powered solutions, and digital platforms for educational institutions and businesses.
       </p>
       <p style={{ ...bodyTextStyle, marginTop: '12px' }}>
-        esc(Q) is one of the software products developed and maintained under AUTO HUB SOLUTION (AHS).
+        Esc(Q) is one of the software products developed and maintained under AUTO HUB SOLUTION (AHS).
       </p>
     </>
   );
@@ -275,7 +275,7 @@ function PrivacyPage() {
 
       <p style={bodyTextStyle}>
         This Privacy Policy describes how AUTO HUB SOLUTION (AHS) ("we," "us," or "our") collects, uses, stores, and protects
-        your personal information when you use the esc(Q) platform and related services.
+        your personal information when you use the Esc(Q) platform and related services.
       </p>
 
       <h3 style={sectionTitleStyle}>1. Information We Collect</h3>
@@ -354,13 +354,13 @@ function TermsPage() {
       <div style={dividerStyle} />
 
       <p style={bodyTextStyle}>
-        These Terms &amp; Conditions govern your use of the esc(Q) platform operated by AUTO HUB SOLUTION (AHS).
-        By accessing or using esc(Q), you agree to be bound by these terms.
+        These Terms &amp; Conditions govern your use of the Esc(Q) platform operated by AUTO HUB SOLUTION (AHS).
+        By accessing or using Esc(Q), you agree to be bound by these terms.
       </p>
 
       <h3 style={sectionTitleStyle}>1. Eligibility</h3>
       <p style={bodyTextStyle}>
-        esc(Q) is intended for students, faculty, and staff of educational institutions with active canteen partnerships.
+        Esc(Q) is intended for students, faculty, and staff of educational institutions with active canteen partnerships.
         Users must be at least 16 years of age to create an account.
       </p>
 
@@ -372,7 +372,7 @@ function TermsPage() {
 
       <h3 style={sectionTitleStyle}>3. Orders &amp; Payments</h3>
       <p style={bodyTextStyle}>
-        All orders placed through esc(Q) are subject to item availability. Prices displayed are inclusive of applicable taxes
+        All orders placed through Esc(Q) are subject to item availability. Prices displayed are inclusive of applicable taxes
         unless stated otherwise. Payments are processed through secure third-party payment gateways.
       </p>
 
@@ -390,13 +390,13 @@ function TermsPage() {
 
       <h3 style={sectionTitleStyle}>6. Intellectual Property</h3>
       <p style={bodyTextStyle}>
-        All content, logos, designs, and software on esc(Q) are the intellectual property of AUTO HUB SOLUTION (AHS).
+        All content, logos, designs, and software on Esc(Q) are the intellectual property of AUTO HUB SOLUTION (AHS).
         Unauthorized reproduction or distribution is prohibited.
       </p>
 
       <h3 style={sectionTitleStyle}>7. Limitation of Liability</h3>
       <p style={bodyTextStyle}>
-        esc(Q) acts as an intermediary between students and canteens. We are not liable for food quality, hygiene,
+        Esc(Q) acts as an intermediary between students and canteens. We are not liable for food quality, hygiene,
         or delivery delays caused by participating canteens. Our liability is limited to the transaction amount paid.
       </p>
 
@@ -434,7 +434,7 @@ function RefundPage() {
       <div style={dividerStyle} />
 
       <p style={bodyTextStyle}>
-        This policy outlines the conditions under which refunds and cancellations are processed on the esc(Q) platform,
+        This policy outlines the conditions under which refunds and cancellations are processed on the Esc(Q) platform,
         operated by AUTO HUB SOLUTION (AHS).
       </p>
 

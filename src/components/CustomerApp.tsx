@@ -128,7 +128,7 @@ export default function CustomerApp({
       setSelectedSubCanteenId('');
     }
   }, [canteenSubCounters.length]);
-   const bHeroTitle = branding.heroTitle || 'esc(Q)';
+   const bHeroTitle = branding.heroTitle || 'Esc(Q)';
   const bHeroSubtitle = branding.heroSubtitle || `Official ${userCollege?.name || ''} Canteen Platform`;
   const bHeroTagline = branding.heroTagline || 'Order Faster · Skip the Queue · Smart Pickup';
   const bFeatureBadges = branding.featureBadges || ['Order Faster', 'Skip the Queue', 'Smart Pickup'];
@@ -141,7 +141,7 @@ export default function CustomerApp({
    const bContactPhone = branding.contactPhone || '+91 9940918442';
    const bContactEmail = branding.contactEmail || 'escqsupportemail@gmail.com';
    const bContactAddress = branding.contactAddress || 'AUTO HUB SOLUTION (AHS), Tamil Nadu, India';
-   const bFooterCopyright = branding.footerCopyright || `\u00a9 2026 esc(Q). All Rights Reserved.`;
+   const bFooterCopyright = branding.footerCopyright || `\u00a9 2026 Esc(Q). All Rights Reserved.`;
   const bFooterLinks = branding.footerLinks || [
     { label: 'Menu &amp; Order', action: 'menu' },
     { label: 'Order History', action: 'history' },
@@ -393,7 +393,7 @@ export default function CustomerApp({
         setQrPayload(res.order.qrPayload || res.qrPayload || res.order.id);
         setCart({}); // clear cart
         setShowGPayModal(false); // dismiss G Pay
-        showToast("Payment processed via Google Pay!");
+        showToast("Payment processed via Paytm!");
       } else {
         alert(res?.error || "Failed to checkout. Out of stock.");
       }
@@ -953,15 +953,14 @@ export default function CustomerApp({
                         </div>
                       </div>
 
-                      {/* PAY WITH GOOGLE PAY BUTTON (Image 12) */}
+                      {/* PAY WITH PAYTM BUTTON */}
                       <button
                         type="button"
                         onClick={handleTriggerGPay}
-                        className="w-full bg-neutral-900 hover:bg-black text-white rounded-xl py-3.5 text-xs font-semibold shadow-md flex items-center justify-center space-x-2 transition cursor-pointer"
+                        className="w-full bg-[#00baf2] hover:bg-[#00a3d9] text-white rounded-xl py-3.5 text-xs font-semibold shadow-md flex items-center justify-center space-x-2 transition cursor-pointer"
                       >
-                        {/* G Pay Logo styling */}
-                        <span className="bg-white text-black px-1.5 py-0.5 rounded font-bold text-[9px] uppercase tracking-wide font-mono">G Pay</span>
-                        <span>Pay with G Pay</span>
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M2 6.5l2.5-2h5l1.5 2h9v13h-18z"/><text x="7" y="15" fontSize="7" fontWeight="bold" fill="white">P</text></svg>
+                        <span>Pay via Paytm</span>
                       </button>
                     </div>
                   )}
@@ -1070,79 +1069,17 @@ export default function CustomerApp({
         </div>
       )}
 
-      {/* 4. GOOGLE PAY GATEWAY MODAL (pay.google.com Simulation - Image 5) */}
+      {/* 4. PAYTM PROCESSING OVERLAY */}
       {showGPayModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#f0f4f9] rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden transition-all border border-neutral-200">
-            {/* pay.google.com header bar */}
-            <div className="bg-white px-5 py-3 border-b border-neutral-200 flex items-center justify-between">
-              <span className="text-[10px] font-mono text-gray-400 font-bold tracking-wider">pay.google.com</span>
-              <button
-                onClick={() => setShowGPayModal(false)}
-                className="p-1 rounded-full hover:bg-neutral-100 text-gray-400 hover:text-gray-600 transition"
-              >
-                <X className="h-4.5 w-4.5" />
-              </button>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden transition-all border border-neutral-200">
+            <div className="bg-[#00baf2] px-5 py-4 flex items-center justify-center">
+              <span className="text-white font-bold text-lg tracking-tight">Paytm</span>
             </div>
-
-            {/* Inner modal card container */}
-            <div className="p-6 space-y-5">
-              {/* Profile/Payee Header */}
-              <div className="flex items-center justify-between">
-                {/* G Pay brand */}
-                <div className="flex items-center space-x-2">
-                  <div className="px-2 py-1.5 bg-amber-600 text-white font-extrabold text-[10px] rounded tracking-wide font-mono">G Pay</div>
-                  <span className="text-xs font-bold text-gray-700">Google Pay</span>
-                </div>
-                {/* Simulated round avatar photo representing Raju/Watson */}
-                <div className="h-8 w-8 rounded-full overflow-hidden ring-2 ring-red-200">
-                  <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop" alt="User Profile" className="h-full w-full object-cover" />
-                </div>
-              </div>
-
-              {/* VISA CARD MOCKUP */}
-              <div className="bg-white p-4 rounded-xl border border-neutral-300/60 shadow-xs flex items-center justify-between hover:bg-neutral-50 transition cursor-pointer">
-                <div className="flex items-center space-x-2.5">
-                  <div className="px-2 py-1 bg-red-100 text-red-800 rounded font-semibold text-[10px] font-mono">VISA</div>
-                  <div>
-                    <span className="text-xs font-bold text-gray-800 block">Test Card</span>
-                    <span className="text-[10px] text-gray-400 font-mono">Visa •••• 1111</span>
-                  </div>
-                </div>
-                <ChevronRight className="h-4.5 w-4.5 text-gray-400" />
-              </div>
-
-              {/* WARNING BOX RED */}
-              <div className="bg-rose-50 border border-rose-100 p-3.5 rounded-xl text-[10px] text-rose-800 leading-relaxed font-sans font-medium text-left">
-                Your payment method won't be charged because you're in a test environment.
-              </div>
-
-              {/* CHARGE CALCULATION VIEW */}
-              <div className="flex justify-between items-end border-t border-neutral-200/80 pt-4 text-xs">
-                <div>
-                  <span className="text-gray-400 block font-semibold text-[10px] uppercase">Transaction Value</span>
-                  <span className="text-xs text-gray-500">Convenience fee applied</span>
-                </div>
-                <span className="text-xl font-display font-bold text-gray-900 font-mono">₹{totalAmount.toFixed(2)}</span>
-              </div>
-
-              {/* ACTION EXECUTION BUTTON */}
-              <button
-                type="button"
-                onClick={handleCompleteGPay}
-                disabled={isSubmittingOrder}
-                className="w-full bg-[#1a73e8] hover:bg-[#1557b0] active:bg-[#124b96] text-white rounded-xl py-3.5 text-xs font-bold transition shadow-md flex items-center justify-center space-x-2 cursor-pointer"
-              >
-                {isSubmittingOrder ? (
-                  <div className="h-4.5 w-4.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <span>Pay ₹{totalAmount.toFixed(2)}</span>
-                )}
-              </button>
-
-              <div className="text-center">
-                <span className="text-[9px] text-gray-400 font-semibold font-mono uppercase tracking-wide">SECURE ENCRYPTED HANDSHAKE</span>
-              </div>
+            <div className="p-8 text-center space-y-4">
+              <div className="h-10 w-10 border-4 border-[#00baf2] border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-sm font-semibold text-gray-700">Redirecting to Paytm...</p>
+              <p className="text-xs text-gray-400">Please complete your payment securely</p>
             </div>
           </div>
         </div>
@@ -1165,7 +1102,7 @@ export default function CustomerApp({
                   <p className="text-[10px] text-gray-400 font-sans">Campus Smart Canteen Platform</p>
                 </div>
               </div>
-               <p className="text-[11px] text-gray-500 font-sans">Powered by {userCollege?.name || 'esc(Q)'}</p>
+               <p className="text-[11px] text-gray-500 font-sans">Powered by {userCollege?.name || 'Esc(Q)'}</p>
             </div>
 
             {/* Quick Links */}

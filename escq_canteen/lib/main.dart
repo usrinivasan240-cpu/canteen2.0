@@ -4,6 +4,7 @@ import 'providers/auth_provider.dart';
 import 'providers/menu_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/order_provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/staff_home_screen.dart';
@@ -23,19 +24,32 @@ class EscqCanteenApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => MenuProvider()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: MaterialApp(
-        title: 'esc(Q)',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFD97706),
-            primary: const Color(0xFFD97706),
+      child: Consumer<ThemeProvider>(
+        builder: (ctx, themeProv, _) => MaterialApp(
+          title: 'Esc(Q)',
+          debugShowCheckedModeBanner: false,
+          themeMode: themeProv.themeMode,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFFDC2626),
+              primary: const Color(0xFFDC2626),
+            ),
+            fontFamily: 'Roboto',
+            scaffoldBackgroundColor: const Color(0xFFFBFCFF),
           ),
-          fontFamily: 'Roboto',
-          scaffoldBackgroundColor: const Color(0xFFFBFCFF),
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFFDC2626),
+              primary: const Color(0xFFDC2626),
+              brightness: Brightness.dark,
+            ),
+            fontFamily: 'Roboto',
+            scaffoldBackgroundColor: const Color(0xFF111827),
+          ),
+          home: const AppEntryPoint(),
         ),
-        home: const AppEntryPoint(),
       ),
     );
   }
@@ -75,17 +89,17 @@ class _AppEntryPointState extends State<AppEntryPoint> {
                 height: 48,
                 width: 48,
                 child: CircularProgressIndicator(
-                  color: Color(0xFFD97706),
+                  color: Color(0xFFDC2626),
                   strokeWidth: 3,
                 ),
               ),
               SizedBox(height: 16),
               Text(
-                'esc(Q)',
+                'Esc(Q)',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: Color(0xFF111827),
                 ),
               ),
               SizedBox(height: 4),
@@ -93,7 +107,7 @@ class _AppEntryPointState extends State<AppEntryPoint> {
                 'Connecting smart dining cloud network...',
                 style: TextStyle(
                   fontSize: 11,
-                  color: Color(0xFFD97706),
+                  color: Color(0xFFDC2626),
                   fontWeight: FontWeight.w600,
                 ),
               ),
