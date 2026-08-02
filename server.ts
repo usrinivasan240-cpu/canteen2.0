@@ -2261,14 +2261,13 @@ app.post('/api/payment/paytm-initiate', async (req, res) => {
     console.log(`[Paytm Initiate] orderId=${orderId} amount=₹${formattedAmount} customer=${customerId}`);
 
     // Build body for /theia/api/v1/initiateTransaction
-    const paytmBody = {
+    const paytmBody: Record<string, any> = {
       requestType: 'Payment',
       mid: paytmMerchantId,
       orderId,
       websiteName: paytmMerchantWebsite,
       txnAmount: { value: formattedAmount, currency: 'INR' },
       userInfo: { custId: customerId },
-      callbackUrl: paytmCallbackUrl,
     };
 
     // Generate checksum over the body only (per Paytm docs)
