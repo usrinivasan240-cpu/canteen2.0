@@ -2160,6 +2160,26 @@ app.post('/api/paytm/callback', async (req, res) => {
   }
 });
 
+// 4b-status. Check Paytm order payment status (polled by client after redirect)
+app.get('/api/paytm/status', async (req, res) => {
+  const orderId = (req.query.orderId as string) || '';
+  if (!orderId) return res.json({ success: false, error: 'orderId required' });
+
+  try {
+    let targetOrder: Order | undefined;
+    if (db) {
+      const snap = await db.collection('orders').where('paytmOrderId', '==', orderId).get();
+      if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
+    } else {
+      targetOrder = canteenState.orders.find(o => o.paytmOrderId === orderId);
+    }
+    if (!targetOrder) return res.json({ success: true, paymentStatus: 'not_found', status: 'not_found' });
+    return res.json({ success: true, paymentStatus: targetOrder.paymentStatus, status: targetOrder.status });
+  } catch (err) {
+    return res.json({ success: false, error: 'Server error' });
+  }
+});
+
 // 4b-alt. Paytm redirects browser via GET (302) after payment
 // The server-to-server POST callback handles the actual payment verification
 // This GET handler just shows the result to the user
@@ -2207,7 +2227,7 @@ app.get('/api/paytm/callback', async (req, res) => {
     if (targetOrder && targetOrder.paymentStatus === 'paid') {
       return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
     }
-    return res.redirect(`${APP_UPDATE_URL}?payment=failed&orderId=${orderId}&error=Payment+not+confirmed`);
+    return res.redirect(`${APP_UPDATE_URL}?payment=pending&orderId=${orderId}&error=Payment+not+confirmed+yet`);
   }
 
   // No params — POST callback should have handled it. Show generic page.

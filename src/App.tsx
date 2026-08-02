@@ -123,10 +123,52 @@ export default function App() {
     const paymentStatus = params.get('payment');
     const orderId = params.get('orderId');
     const error = params.get('error');
-    if (paymentStatus) {
+
+    if (paymentStatus === 'success' && orderId) {
+      try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
       fetchUserOrders();
-      setPaytmSuccess({ orderId: orderId || 'N/A', status: paymentStatus, error: error || undefined });
+      setPaytmSuccess({ orderId, status: 'success' });
       window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    if (paymentStatus === 'pending' || paymentStatus === 'failed') {
+      const pendingId = orderId || (() => { try { return localStorage.getItem('bb_pendingPaytmOrderId'); } catch { return null; } })();
+      if (pendingId) {
+        let attempts = 0;
+        const poll = setInterval(async () => {
+          attempts++;
+          try {
+            const resp = await fetch(`${API_BASE}/api/paytm/status?orderId=${pendingId}`);
+            const data = await resp.json();
+            if (data.success && data.paymentStatus === 'paid') {
+              clearInterval(poll);
+              try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
+              fetchUserOrders();
+              setPaytmSuccess({ orderId: pendingId, status: 'success' });
+              window.history.replaceState({}, '', window.location.pathname);
+            } else if (attempts >= 10) {
+              clearInterval(poll);
+              try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
+              fetchUserOrders();
+              setPaytmSuccess({ orderId: pendingId, status: data.paymentStatus === 'paid' ? 'success' : 'failed', error: 'Payment not confirmed after polling. Check Order History.' });
+              window.history.replaceState({}, '', window.location.pathname);
+            }
+          } catch {
+            if (attempts >= 10) {
+              clearInterval(poll);
+              try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
+              setPaytmSuccess({ orderId: pendingId, status: 'failed', error: 'Could not verify payment. Check Order History.' });
+              window.history.replaceState({}, '', window.location.pathname);
+            }
+          }
+        }, 3000);
+        return () => clearInterval(poll);
+      } else {
+        fetchUserOrders();
+        setPaytmSuccess({ orderId: 'N/A', status: 'failed', error: error || 'Payment was not completed.' });
+        window.history.replaceState({}, '', window.location.pathname);
+      }
     }
   }, []);
 
@@ -156,6 +198,11 @@ export default function App() {
       }
 
       if (data.usePaytm) {
+        const orderId = data.order?.id;
+        if (orderId) {
+          try { localStorage.setItem('bb_pendingPaytmOrderId', orderId); } catch {}
+        }
+
         const paytmForm = document.createElement('form');
         paytmForm.setAttribute('method', 'POST');
         paytmForm.setAttribute('action', data.paytmGatewayUrl);
