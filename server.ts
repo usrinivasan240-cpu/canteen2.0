@@ -8,7 +8,9 @@ import path from 'path';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import admin from 'firebase-admin';
-import { PaytmChecksum } from 'paytmchecksum';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const PaytmChecksum = require('paytmchecksum');
 import { GoogleGenAI, Type } from '@google/genai';
 import crypto from 'crypto';
 import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User } from './src/types';
@@ -1920,7 +1922,7 @@ app.post('/api/canteen/order', async (req, res) => {
         CALLBACK_URL: paytmCallbackUrl,
       };
 
-      const checksum = await (PaytmChecksum as any).generateSignature(paytmParams, paytmMerchantKey);
+      const checksum = await PaytmChecksum.generateSignature(paytmParams, paytmMerchantKey);
 
       const signedQrPayload = generateSignedQR(orderId);
       const newOrder: Order = {
@@ -2051,7 +2053,7 @@ app.post('/api/paytm/callback', express.urlencoded({ extended: true }), async (r
   }
 
   try {
-    const isValidChecksum = await (PaytmChecksum as any).verifySignature(params, paytmMerchantKey);
+    const isValidChecksum = await PaytmChecksum.verifySignature(params, paytmMerchantKey);
     if (!isValidChecksum) {
       return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Checksum+mismatch`);
     }
