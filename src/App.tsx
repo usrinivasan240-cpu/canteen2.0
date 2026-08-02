@@ -116,18 +116,15 @@ export default function App() {
   }, [isLoggedIn]);
 
   // Handle Paytm callback redirect
+  const [paytmSuccess, setPaytmSuccess] = useState<{ orderId: string; status: string } | null>(null);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
     const orderId = params.get('orderId');
     if (paymentStatus && orderId) {
-      if (paymentStatus === 'success') {
-        fetchUserOrders();
-        alert(`Payment successful! Order ID: ${orderId}`);
-      } else {
-        const error = params.get('error');
-        alert(`Payment failed: ${error || 'Unknown error'}`);
-      }
+      fetchUserOrders();
+      setPaytmSuccess({ orderId, status: paymentStatus });
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -381,8 +378,8 @@ export default function App() {
       {/* INTERACTIVE VIEWS */}
       <main className="flex-1">
         {role === 'customer' ? (
-          <CustomerApp
-             canteenName={canteen ? canteen.name : 'Esc(Q)'}
+           <CustomerApp
+              canteenName={canteen ? canteen.name : 'Esc(Q)'}
             menuItems={canteen?.items || []}
             orders={userOrders}
             reviews={canteen?.reviews || []}
@@ -395,6 +392,8 @@ export default function App() {
             userCanteenId={currentUser?.canteenId || selectedCanteenId}
             onLogout={handleLogout}
             onCanteenChange={setSelectedCanteenId}
+            paytmSuccess={paytmSuccess}
+            onDismissPaytmSuccess={() => setPaytmSuccess(null)}
           />
         ) : (role === 'owner' || role === 'chef' || role === 'staff') ? (
           <CanteenAdmin

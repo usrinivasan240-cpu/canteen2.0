@@ -26,6 +26,8 @@ interface CustomerAppProps {
   userCanteenId?: string;
   onLogout: () => void;
   onCanteenChange: (canteenId: string) => void;
+  paytmSuccess?: { orderId: string; status: string } | null;
+  onDismissPaytmSuccess?: () => void;
 }
 
 export default function CustomerApp({
@@ -41,7 +43,9 @@ export default function CustomerApp({
   userCollegeId,
   userCanteenId,
   onLogout,
-  onCanteenChange
+  onCanteenChange,
+  paytmSuccess,
+  onDismissPaytmSuccess
 }: CustomerAppProps) {
   // Generate pickup slots
   const generateTimeSlots = () => {
@@ -128,6 +132,13 @@ export default function CustomerApp({
       setSelectedSubCanteenId('');
     }
   }, [canteenSubCounters.length]);
+
+  // Auto-switch to history tab when Paytm payment completes
+  useEffect(() => {
+    if (paytmSuccess && paytmSuccess.status === 'success') {
+      setCustomerTab('history');
+    }
+  }, [paytmSuccess]);
    const bHeroTitle = branding.heroTitle || 'Esc(Q)';
   const bHeroSubtitle = branding.heroSubtitle || `Official ${userCollege?.name || ''} Canteen Platform`;
   const bHeroTagline = branding.heroTagline || 'Order Faster · Skip the Queue · Smart Pickup';
@@ -485,6 +496,32 @@ export default function CustomerApp({
           </div>
         </div>
       </div>
+
+      {/* PAYTM PAYMENT SUCCESS / FAILURE BANNER */}
+      {paytmSuccess && (
+        <div className={`mb-4 p-4 rounded-2xl border shadow-sm flex items-start gap-3 ${paytmSuccess.status === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${paytmSuccess.status === 'success' ? 'bg-green-100' : 'bg-red-100'}`}>
+            {paytmSuccess.status === 'success' ? (
+              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+            ) : (
+              <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-bold ${paytmSuccess.status === 'success' ? 'text-green-800' : 'text-red-800'}`}>
+              {paytmSuccess.status === 'success' ? 'Payment Successful!' : 'Payment Failed'}
+            </p>
+            <p className={`text-xs mt-0.5 ${paytmSuccess.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+              {paytmSuccess.status === 'success'
+                ? `Order ${paytmSuccess.orderId} confirmed. Check Order History for QR code.`
+                : `Order ${paytmSuccess.orderId} payment was not completed.`}
+            </p>
+          </div>
+          <button onClick={onDismissPaytmSuccess} className={`shrink-0 p-1 rounded-lg hover:bg-white/80 ${paytmSuccess.status === 'success' ? 'text-green-500' : 'text-red-500'}`}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      )}
 
       {/* SUB-CANTEEN SELECTOR + SEARCH (compact) */}
       <div className={`flex flex-col sm:flex-row gap-3 ${sectionSpacingClass}`}>
