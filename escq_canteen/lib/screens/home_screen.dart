@@ -227,15 +227,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _defaultLogo() {
-    final name = (_userCollege?.name ?? 'Q').substring(0, 1).toUpperCase();
-    return _genericLogo(name);
+    return Container(
+      width: 36, height: 36,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.asset(
+          'assets/images/escq_logo.png',
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _genericLogo((_userCollege?.name ?? 'Q').substring(0, 1).toUpperCase()),
+        ),
+      ),
+    );
   }
 
   Widget _genericLogo(String initial) {
     return Container(
       width: 36, height: 36,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFFDC2626), Color(0xFF991B1B)]),
+        gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEA580C)]),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Center(child: Text(initial, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white))),
@@ -347,15 +361,30 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _heroLogoFallback() {
-    final name = (_userCollege?.name ?? 'Esc(Q)').substring(0, 1).toUpperCase();
-    return _genericHeroLogo(name);
+    return Container(
+      width: 64, height: 64,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
+        boxShadow: [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.1), blurRadius: 8)],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.asset(
+          'assets/images/escq_logo.png',
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _genericHeroLogo((_userCollege?.name ?? 'Esc(Q)').substring(0, 1).toUpperCase()),
+        ),
+      ),
+    );
   }
 
   Widget _genericHeroLogo(String initial) {
     return Container(
       width: 64, height: 64,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFFDC2626), Color(0xFF991B1B)]),
+        gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEA580C)]),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Center(child: Text(initial, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white))),

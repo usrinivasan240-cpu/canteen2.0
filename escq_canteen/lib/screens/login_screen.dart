@@ -122,20 +122,28 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 // Logo
                 Container(
-                  width: 56,
-                  height: 56,
+                  width: 72,
+                  height: 72,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFFDC2626), Color(0xFF991B1B)]),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFDC2626).withOpacity(0.3),
+                        color: const Color(0xFFF59E0B).withOpacity(0.15),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.local_cafe, color: Colors.white, size: 30),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/images/escq_logo.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.local_cafe, color: Color(0xFFDC2626), size: 30),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 const Text(

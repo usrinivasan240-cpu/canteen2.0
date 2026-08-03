@@ -25,8 +25,8 @@ export default function AppHeader({ currentRole, onChangeRole, userEmail, onLogo
             {collegeLogo ? (
               <img src={collegeLogo} alt={collegeName || 'College'} className="h-10 w-10 rounded-xl object-cover border border-gray-200 shadow-sm" />
             ) : (
-              <div className="flex items-center justify-center p-2 rounded-xl bg-red-900 text-white shadow-md">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+              <div className="flex items-center justify-center p-1 rounded-xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+                <img src="/escq-logo.png" alt="Esc(Q)" className="h-8 w-8 object-contain" />
               </div>
             )}
             <div>
