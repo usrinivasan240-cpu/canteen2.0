@@ -20,6 +20,7 @@ import LegalPages from './components/LegalPages';
 import LegalFooter from './components/LegalFooter';
 import { MenuItem, Order, Review, Canteen, College } from './types';
 import { API_BASE } from './config';
+import SupportPage from './components/SupportPage';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -42,6 +43,7 @@ export default function App() {
   });
   const [userOrders, setUserOrders] = useState<Order[]>([]);
   const [legalPage, setLegalPage] = useState<string | null>(null);
+  const [showSupportPage, setShowSupportPage] = useState(false);
 
   const userEmail = currentUser ? currentUser.email : '';
 
@@ -401,6 +403,20 @@ export default function App() {
     );
   }
 
+  // 0b. SUPPORT PAGE VIEW (full-screen override)
+  if (showSupportPage && role === 'customer') {
+    return (
+      <SupportPage
+        userId={currentUser?.id || ''}
+        userName={currentUser?.name || ''}
+        userEmail={currentUser?.email || ''}
+        canteenId={currentUser?.canteenId || selectedCanteenId}
+        collegeId={currentUser?.collegeId}
+        onBack={() => setShowSupportPage(false)}
+      />
+    );
+  }
+
   // 1. GATED ENTRY FOR LOGIN
   if (!isLoggedIn) {
     return (
@@ -442,23 +458,24 @@ export default function App() {
       {/* INTERACTIVE VIEWS */}
       <main className="flex-1">
         {role === 'customer' ? (
-           <CustomerApp
+            <CustomerApp
               canteenName={canteen ? canteen.name : 'Esc(Q)'}
-            menuItems={canteen?.items || []}
-            orders={userOrders}
-            reviews={canteen?.reviews || []}
-            onOrderPlaced={handleOrderPlaced}
-            onAddReview={handleAddReview}
-            onResetCanteen={handleResetCanteen}
-            userEmail={userEmail}
-            userId={currentUser?.id || ''}
-            userCollegeId={currentUser?.collegeId}
-            userCanteenId={currentUser?.canteenId || selectedCanteenId}
-            onLogout={handleLogout}
-            onCanteenChange={setSelectedCanteenId}
-            paytmSuccess={paytmSuccess}
-            onDismissPaytmSuccess={() => setPaytmSuccess(null)}
-          />
+              menuItems={canteen?.items || []}
+              orders={userOrders}
+              reviews={canteen?.reviews || []}
+              onOrderPlaced={handleOrderPlaced}
+              onAddReview={handleAddReview}
+              onResetCanteen={handleResetCanteen}
+              userEmail={userEmail}
+              userId={currentUser?.id || ''}
+              userCollegeId={currentUser?.collegeId}
+              userCanteenId={currentUser?.canteenId || selectedCanteenId}
+              onLogout={handleLogout}
+              onCanteenChange={setSelectedCanteenId}
+              paytmSuccess={paytmSuccess}
+              onDismissPaytmSuccess={() => setPaytmSuccess(null)}
+              onShowSupport={() => setShowSupportPage(true)}
+            />
         ) : (role === 'owner' || role === 'chef' || role === 'staff') ? (
           <CanteenAdmin
             menuItems={canteen?.items || []}

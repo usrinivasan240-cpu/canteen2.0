@@ -2389,6 +2389,197 @@ function generateSignedQR(orderId: string): string {
   return JSON.stringify({ o: orderId, t: ts, s: sig });
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// 5. SUPPORT TICKETS — Customer submits help, admin views, email notification
+// ──────────────────────────────────────────────────────────────────────────────
+
+// POST /api/support/submit — Customer submits a support ticket
+app.post('/api/support/submit', async (req, res) => {
+  try {
+    const { userId, userName, userEmail, category, subject, description, orderId, canteenId, collegeId } = req.body;
+
+    if (!userId || !userName || !userEmail || !category || !subject || !description) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: userId, userName, userEmail, category, subject, description' });
+    }
+
+    const ticketId = `TKT_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const now = Date.now();
+
+    const ticket = {
+      id: ticketId,
+      userId,
+      userName,
+      userEmail,
+      category,
+      subject,
+      description,
+      orderId: orderId || '',
+      status: 'open',
+      priority: category === 'payment' || category === 'refund' ? 'high' : 'medium',
+      createdAt: now,
+      updatedAt: now,
+      canteenId: canteenId || '',
+      collegeId: collegeId || '',
+    };
+
+    // Save to Firestore
+    if (db) {
+      try {
+        await db.collection('support_tickets').doc(ticketId).set(ticket);
+      } catch (err) {
+        console.error('Failed to save support ticket to Firestore:', err);
+      }
+    }
+
+    console.log(`[Support] New ticket ${ticketId} from ${userName} (${userEmail}): ${subject}`);
+
+    // Send email notification to admin
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (resendApiKey) {
+      try {
+        const categoryEmoji: Record<string, string> = {
+          payment: '💳', refund: '💰', order: '📦', account: '👤', app: '📱', other: '❓',
+        };
+        const priorityColor: Record<string, string> = { high: '#dc2626', medium: '#f59e0b', low: '#16a34a' };
+
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: 'Esc(Q) Support <onboarding@resend.dev>',
+            to: ['usrinivasan240@gmail.com'],
+            subject: `[Esc(Q) Support] ${categoryEmoji[category] || '❓'} ${subject}`,
+            html: `
+              <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+                <div style="background:#7c3aed;color:white;padding:20px;border-radius:16px 16px 0 0">
+                  <h2 style="margin:0">🎫 New Support Ticket</h2>
+                </div>
+                <div style="background:#f8f7ff;padding:24px;border:1px solid #e5e1f0;border-radius:0 0 16px 16px">
+                  <table style="width:100%;border-collapse:collapse;font-size:14px">
+                    <tr><td style="padding:8px 0;color:#666;width:120px">Ticket ID</td><td style="padding:8px 0;font-weight:bold;color:#7c3aed">${ticketId}</td></tr>
+                    <tr><td style="padding:8px 0;color:#666">Category</td><td style="padding:8px 0">${categoryEmoji[category] || '❓'} ${category.charAt(0).toUpperCase() + category.slice(1)}</td></tr>
+                    <tr><td style="padding:8px 0;color:#666">Priority</td><td style="padding:8px 0"><span style="background:${priorityColor[ticket.priority]};color:white;padding:2px 8px;border-radius:4px;font-size:12px">${ticket.priority.toUpperCase()}</span></td></tr>
+                    <tr><td style="padding:8px 0;color:#666">Customer</td><td style="padding:8px 0">${userName} (${userEmail})</td></tr>
+                    <tr><td style="padding:8px 0;color:#666">Order ID</td><td style="padding:8px 0">${orderId || 'N/A'}</td></tr>
+                  </table>
+                  <hr style="border:none;border-top:1px solid #e5e1f0;margin:16px 0"/>
+                  <h3 style="margin:0 0 8px;color:#333">${subject}</h3>
+                  <p style="color:#555;line-height:1.6;white-space:pre-wrap">${description}</p>
+                  <hr style="border:none;border-top:1px solid #e5e1f0;margin:16px 0"/>
+                  <p style="color:#999;font-size:12px">View and reply in the Esc(Q) SuperAdmin Dashboard → Support Tickets tab.</p>
+                </div>
+              </div>`,
+          }),
+        });
+        console.log(`[Support] Email notification sent for ${ticketId}`);
+      } catch (emailErr) {
+        console.error('[Support] Email send failed:', emailErr);
+      }
+    }
+
+    return res.json({ success: true, ticket });
+  } catch (err: any) {
+    console.error('[Support] Submit error:', err?.message || err);
+    return res.status(500).json({ success: false, error: 'Failed to submit support ticket' });
+  }
+});
+
+// GET /api/support/all — Superadmin fetches all tickets
+app.get('/api/support/all', async (req, res) => {
+  try {
+    let tickets: any[] = [];
+    if (db) {
+      const snap = await db.collection('support_tickets').orderBy('createdAt', 'desc').limit(200).get();
+      tickets = snap.docs.map(doc => doc.data());
+    }
+    return res.json({ success: true, tickets });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to fetch tickets' });
+  }
+});
+
+// GET /api/support/user?userId=xxx — Customer fetches own tickets
+app.get('/api/support/user', async (req, res) => {
+  const userId = req.query.userId as string;
+  if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+
+  try {
+    let tickets: any[] = [];
+    if (db) {
+      const snap = await db.collection('support_tickets').where('userId', '==', userId).orderBy('createdAt', 'desc').get();
+      tickets = snap.docs.map(doc => doc.data());
+    }
+    return res.json({ success: true, tickets });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to fetch tickets' });
+  }
+});
+
+// POST /api/support/reply — Superadmin replies to a ticket (updates status + admin reply)
+app.post('/api/support/reply', async (req, res) => {
+  try {
+    const { ticketId, adminReply, status } = req.body;
+    if (!ticketId || !adminReply) {
+      return res.status(400).json({ success: false, error: 'ticketId and adminReply required' });
+    }
+
+    const updates: any = { adminReply, updatedAt: Date.now() };
+    if (status) updates.status = status;
+
+    if (db) {
+      await db.collection('support_tickets').doc(ticketId).set(updates, { merge: true });
+    }
+
+    // Fetch ticket to send reply email
+    let ticket: any = null;
+    if (db) {
+      const doc = await db.collection('support_tickets').doc(ticketId).get();
+      if (doc.exists) ticket = doc.data();
+    }
+
+    // Send reply email to customer
+    if (ticket?.userEmail && process.env.RESEND_API_KEY) {
+      try {
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: 'Esc(Q) Support <onboarding@resend.dev>',
+            to: [ticket.userEmail],
+            subject: `[Esc(Q) Support] Reply to: ${ticket.subject}`,
+            html: `
+              <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+                <div style="background:#7c3aed;color:white;padding:20px;border-radius:16px 16px 0 0">
+                  <h2 style="margin:0">💬 Support Reply</h2>
+                </div>
+                <div style="background:#f8f7ff;padding:24px;border:1px solid #e5e1f0;border-radius:0 0 16px 16px">
+                  <p style="color:#666;font-size:14px">Hi ${ticket.userName},</p>
+                  <p style="color:#666;font-size:14px">We've replied to your support ticket <strong>${ticketId}</strong>:</p>
+                  <div style="background:#f3f0ff;padding:16px;border-radius:8px;border-left:4px solid #7c3aed;margin:16px 0">
+                    <p style="color:#333;line-height:1.6;white-space:pre-wrap">${adminReply}</p>
+                  </div>
+                  <p style="color:#999;font-size:12px">Status updated to: <strong>${status || ticket.status}</strong></p>
+                </div>
+              </div>`,
+          }),
+        });
+      } catch (e) {
+        console.error('[Support] Reply email failed:', e);
+      }
+    }
+
+    return res.json({ success: true, message: 'Reply sent and ticket updated' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to reply' });
+  }
+});
+
 app.get('/api/canteen/qr/verify', async (req, res) => {
   const { code } = req.query;
   if (!code || typeof code !== 'string') {

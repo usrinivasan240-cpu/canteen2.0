@@ -5,8 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Users, Trash2, LogOut, CheckCircle, AlertTriangle, UserPlus, Sparkles, X, Globe, MapPin, Plus, TrendingUp
+  Users, Trash2, LogOut, CheckCircle, AlertTriangle, UserPlus, Sparkles, X, Globe, MapPin, Plus, TrendingUp, LifeBuoy
 } from 'lucide-react';
+import { SupportTicket } from '../types';
 import { Order, MenuItem } from '../types';
 import { API_BASE } from '../config';
 import CanteenAdmin from './CanteenAdmin';
@@ -70,7 +71,12 @@ export default function ServicePanel({
   };
 
   const isSuperAdmin = currentUser?.role === 'superadmin';
-  const [activeTab, setActiveTab] = useState<'users' | 'colleges' | 'canteens'>(isSuperAdmin ? 'canteens' : 'users');
+  const [activeTab, setActiveTab] = useState<'users' | 'colleges' | 'canteens' | 'tickets'>(isSuperAdmin ? 'canteens' : 'users');
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [ticketFilter, setTicketFilter] = useState<string>('all');
+  const [ticketReply, setTicketReply] = useState<Record<string, string>>({});
+  const [ticketStatusUpdate, setTicketStatusUpdate] = useState<Record<string, string>>({});
   const [selectedCollegeFilter, setSelectedCollegeFilter] = useState<string>('all');
   const [userCanteenFilter, setUserCanteenFilter] = useState<string>('all');
   const [userSubCanteenFilter, setUserSubCanteenFilter] = useState<string>('all');
@@ -137,6 +143,40 @@ export default function ServicePanel({
       if (usr.success) setUsers(usr.users);
     } catch (e) {
       console.error("Failed to sync service data", e);
+    }
+  };
+
+  const fetchSupportTickets = async () => {
+    setLoadingTickets(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/support/all`);
+      const data = await resp.json();
+      if (data.success) setSupportTickets(data.tickets || []);
+    } catch (e) {
+      console.error('Failed to fetch support tickets:', e);
+    }
+    setLoadingTickets(false);
+  };
+
+  const handleTicketReply = async (ticketId: string) => {
+    const reply = ticketReply[ticketId];
+    const newStatus = ticketStatusUpdate[ticketId] || 'in_progress';
+    if (!reply?.trim()) return;
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/support/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId, adminReply: reply.trim(), status: newStatus }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        setTicketReply(prev => ({ ...prev, [ticketId]: '' }));
+        setTicketStatusUpdate(prev => ({ ...prev, [ticketId]: '' }));
+        fetchSupportTickets();
+      }
+    } catch (e) {
+      console.error('Failed to reply:', e);
     }
   };
 
@@ -490,6 +530,15 @@ export default function ServicePanel({
             >
               <TrendingUp className="h-4 w-4" />
               <span>Canteen Dashboards</span>
+            </button>
+            <button
+              onClick={() => { setActiveTab('tickets'); fetchSupportTickets(); }}
+              className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'tickets' ? 'border-amber-600 text-amber-600 font-black' : 'border-transparent text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <LifeBuoy className="h-4 w-4" />
+              <span>Support Tickets {supportTickets.filter(t => t.status === 'open').length > 0 && `(${supportTickets.filter(t => t.status === 'open').length})`}</span>
             </button>
           </div>
         </div>
@@ -1784,6 +1833,108 @@ export default function ServicePanel({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* SUPPORT TICKETS TAB VIEW */}
+        {activeTab === 'tickets' && (
+          <div className="max-w-6xl mx-auto px-4 mt-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <LifeBuoy className="h-5 w-5 text-amber-600" /> Support Tickets
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">Customer help requests and issues</p>
+              </div>
+              <div className="flex gap-2">
+                {['all', 'open', 'in_progress', 'resolved', 'closed'].map(f => (
+                  <button key={f} onClick={() => setTicketFilter(f)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${ticketFilter === f ? 'bg-amber-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
+                    {f === 'all' ? 'All' : f === 'in_progress' ? 'In Progress' : f.charAt(0).toUpperCase() + f.slice(1)}
+                    {f === 'open' && supportTickets.filter(t => t.status === 'open').length > 0 && ` (${supportTickets.filter(t => t.status === 'open').length})`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {loadingTickets ? (
+              <div className="text-center py-12 text-gray-400">
+                <div className="h-8 w-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                Loading tickets...
+              </div>
+            ) : supportTickets.length === 0 ? (
+              <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+                <LifeBuoy className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 text-sm">No support tickets yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {supportTickets
+                  .filter(t => ticketFilter === 'all' || t.status === ticketFilter)
+                  .map((ticket) => {
+                    const catEmoji: Record<string, string> = { payment: '💳', refund: '💰', order: '📦', account: '👤', app: '📱', other: '❓' };
+                    const statusColors: Record<string, string> = {
+                      open: 'bg-amber-50 border-amber-200', in_progress: 'bg-blue-50 border-blue-200',
+                      resolved: 'bg-green-50 border-green-200', closed: 'bg-gray-50 border-gray-200',
+                    };
+                    return (
+                      <div key={ticket.id} className={`rounded-2xl border p-5 ${statusColors[ticket.status] || statusColors.open}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                              <span className="text-lg">{catEmoji[ticket.category] || '❓'}</span>
+                              <span className="text-[10px] font-mono text-gray-400">{ticket.id}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                ticket.status === 'open' ? 'bg-amber-200 text-amber-800' :
+                                ticket.status === 'in_progress' ? 'bg-blue-200 text-blue-800' :
+                                ticket.status === 'resolved' ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-600'
+                              }`}>{ticket.status.replace('_', ' ').toUpperCase()}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                ticket.priority === 'high' ? 'bg-red-200 text-red-800' :
+                                ticket.priority === 'medium' ? 'bg-yellow-200 text-yellow-800' : 'bg-gray-200 text-gray-600'
+                              }`}>{ticket.priority.toUpperCase()}</span>
+                            </div>
+                            <h3 className="text-sm font-bold text-gray-800">{ticket.subject}</h3>
+                            <p className="text-xs text-gray-600 mt-1">{ticket.description}</p>
+                            <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-500">
+                              <span>👤 {ticket.userName} ({ticket.userEmail})</span>
+                              {ticket.orderId && <span className="font-mono">📦 {ticket.orderId}</span>}
+                              <span>🕐 {new Date(ticket.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                            {ticket.adminReply && (
+                              <div className="mt-3 bg-white rounded-xl p-3 border border-purple-200">
+                                <p className="text-[10px] font-bold text-purple-600 mb-1">Your Reply:</p>
+                                <p className="text-xs text-gray-700">{ticket.adminReply}</p>
+                              </div>
+                            )}
+                            {/* Reply form */}
+                            <div className="mt-3 flex gap-2">
+                              <select value={ticketStatusUpdate[ticket.id] || ticket.status}
+                                onChange={e => setTicketStatusUpdate(prev => ({ ...prev, [ticket.id]: e.target.value }))}
+                                className="px-2 py-1.5 rounded-lg border border-gray-300 text-xs bg-white">
+                                <option value="open">Open</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="resolved">Resolved</option>
+                                <option value="closed">Closed</option>
+                              </select>
+                              <input type="text" placeholder="Type your reply..."
+                                value={ticketReply[ticket.id] || ''}
+                                onChange={e => setTicketReply(prev => ({ ...prev, [ticket.id]: e.target.value }))}
+                                onKeyDown={e => e.key === 'Enter' && handleTicketReply(ticket.id)}
+                                className="flex-1 px-3 py-1.5 rounded-lg border border-gray-300 text-xs" />
+                              <button onClick={() => handleTicketReply(ticket.id)}
+                                className="px-4 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 disabled:opacity-50"
+                                disabled={!ticketReply[ticket.id]?.trim()}>
+                                Reply
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         )}
 

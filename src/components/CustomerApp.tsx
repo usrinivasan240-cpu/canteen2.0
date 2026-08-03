@@ -28,6 +28,7 @@ interface CustomerAppProps {
   onCanteenChange: (canteenId: string) => void;
   paytmSuccess?: { orderId: string; status: string } | null;
   onDismissPaytmSuccess?: () => void;
+  onShowSupport?: () => void;
 }
 
 export default function CustomerApp({
@@ -45,7 +46,8 @@ export default function CustomerApp({
   onLogout,
   onCanteenChange,
   paytmSuccess,
-  onDismissPaytmSuccess
+  onDismissPaytmSuccess,
+  onShowSupport
 }: CustomerAppProps) {
   // Generate pickup slots
   const generateTimeSlots = () => {
@@ -669,6 +671,13 @@ export default function CustomerApp({
           >
             Order History & Milestones
           </button>
+          <button
+            type="button"
+            onClick={() => onShowSupport?.()}
+            className="pb-3 text-xs font-bold transition-all border-b-2 tracking-wide uppercase cursor-pointer border-transparent text-gray-400 hover:text-amber-600 ml-auto"
+          >
+            🎫 Help
+          </button>
         </div>
       )}
 
@@ -1241,6 +1250,7 @@ export default function CustomerApp({
                       if (link.action === 'menu') { setCustomerTab('menu'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
                       else if (link.action === 'history') { setCustomerTab('history'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
                       else if (link.action === 'profile') { setToastMessage('Profile settings are available in the top-right menu.'); setTimeout(() => setToastMessage(''), 3000); }
+                      else if (link.action === 'help') { onShowSupport?.(); }
                       else { setToastMessage(`For help, contact ${bContactEmail} or call ${bContactPhone}`); setTimeout(() => setToastMessage(''), 4000); }
                     }}
                     className="hover:text-white cursor-pointer transition flex items-center gap-1.5"

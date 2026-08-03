@@ -228,3 +228,21 @@ export interface WalkinBill {
   synced: boolean;
   type: 'walkin';
 }
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  category: 'payment' | 'refund' | 'order' | 'account' | 'app' | 'other';
+  subject: string;
+  description: string;
+  orderId?: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'medium' | 'high';
+  createdAt: number;
+  updatedAt: number;
+  adminReply?: string;
+  canteenId?: string;
+  collegeId?: string;
+}
