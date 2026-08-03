@@ -43,7 +43,23 @@ export default function App() {
   });
   const [userOrders, setUserOrders] = useState<Order[]>([]);
   const [legalPage, setLegalPage] = useState<string | null>(null);
-  const [showSupportPage, setShowSupportPage] = useState(false);
+  const [showSupportPage, setShowSupportPage] = useState(() => window.location.pathname === '/support');
+
+  // Push browser history when support page opens
+  useEffect(() => {
+    if (showSupportPage) {
+      window.history.pushState({ supportPage: true }, '', '/support');
+    }
+  }, [showSupportPage]);
+
+  // Handle browser back button
+  useEffect(() => {
+    const handlePopState = () => {
+      setShowSupportPage(false);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const userEmail = currentUser ? currentUser.email : '';
 
@@ -412,7 +428,7 @@ export default function App() {
         userEmail={currentUser?.email || ''}
         canteenId={currentUser?.canteenId || selectedCanteenId}
         collegeId={currentUser?.collegeId}
-        onBack={() => setShowSupportPage(false)}
+        onBack={() => window.history.back()}
       />
     );
   }

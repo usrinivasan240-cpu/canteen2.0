@@ -2492,8 +2492,9 @@ app.get('/api/support/all', async (req, res) => {
   try {
     let tickets: any[] = [];
     if (db) {
-      const snap = await db.collection('support_tickets').orderBy('createdAt', 'desc').limit(200).get();
+      const snap = await db.collection('support_tickets').limit(200).get();
       tickets = snap.docs.map(doc => doc.data());
+      tickets.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
     }
     return res.json({ success: true, tickets });
   } catch (err: any) {
@@ -2509,8 +2510,9 @@ app.get('/api/support/user', async (req, res) => {
   try {
     let tickets: any[] = [];
     if (db) {
-      const snap = await db.collection('support_tickets').where('userId', '==', userId).orderBy('createdAt', 'desc').get();
+      const snap = await db.collection('support_tickets').where('userId', '==', userId).get();
       tickets = snap.docs.map(doc => doc.data());
+      tickets.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
     }
     return res.json({ success: true, tickets });
   } catch (err: any) {
