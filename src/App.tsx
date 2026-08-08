@@ -133,8 +133,8 @@ export default function App() {
     }
   }, [isLoggedIn]);
 
-  // Handle Paytm callback redirect
-  const [paytmSuccess, setPaytmSuccess] = useState<{ orderId: string; status: string; error?: string } | null>(null);
+  // Handle payment callback redirect
+  const [razorpaySuccess, setRazorpaySuccess] = useState<{ orderId: string; status: string; error?: string } | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -143,58 +143,25 @@ export default function App() {
     const error = params.get('error');
 
     if (paymentStatus === 'success' && orderId) {
-      try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
       fetchUserOrders();
-      setPaytmSuccess({ orderId, status: 'success' });
+      setRazorpaySuccess({ orderId, status: 'success' });
       window.history.replaceState({}, '', window.location.pathname);
       return;
     }
 
     if (paymentStatus === 'pending' || paymentStatus === 'failed') {
-      const pendingId = orderId || (() => { try { return localStorage.getItem('bb_pendingPaytmOrderId'); } catch { return null; } })();
-      if (pendingId) {
-        let attempts = 0;
-        const poll = setInterval(async () => {
-          attempts++;
-          try {
-            const resp = await fetch(`${API_BASE}/api/paytm/status?orderId=${pendingId}`);
-            const data = await resp.json();
-            if (data.success && data.paymentStatus === 'paid') {
-              clearInterval(poll);
-              try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
-              fetchUserOrders();
-              setPaytmSuccess({ orderId: pendingId, status: 'success' });
-              window.history.replaceState({}, '', window.location.pathname);
-            } else if (attempts >= 10) {
-              clearInterval(poll);
-              try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
-              fetchUserOrders();
-              setPaytmSuccess({ orderId: pendingId, status: data.paymentStatus === 'paid' ? 'success' : 'failed', error: 'Payment not confirmed after polling. Check Order History.' });
-              window.history.replaceState({}, '', window.location.pathname);
-            }
-          } catch {
-            if (attempts >= 10) {
-              clearInterval(poll);
-              try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
-              setPaytmSuccess({ orderId: pendingId, status: 'failed', error: 'Could not verify payment. Check Order History.' });
-              window.history.replaceState({}, '', window.location.pathname);
-            }
-          }
-        }, 3000);
-        return () => clearInterval(poll);
-      } else {
-        fetchUserOrders();
-        setPaytmSuccess({ orderId: 'N/A', status: 'failed', error: error || 'Payment was not completed.' });
-        window.history.replaceState({}, '', window.location.pathname);
-      }
+      fetchUserOrders();
+      setRazorpaySuccess({ orderId: orderId || 'N/A', status: paymentStatus === 'failed' ? 'failed' : 'pending', error: error || 'Payment status pending. Check Order History.' });
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
   // Derive user's college info
   const userCollege = colleges.find(c => c.id === currentUser?.collegeId);
 
-  const handleOrderPlaced = async (cartItems: { itemId: string; name: string; quantity: number }[], pickupSlot?: string, canteenId?: string, subCanteenId?: string): Promise<any> => {
+  const handleOrderPlaced = async (cartItems: { itemId: string; name: string; quantity: number }[], pickupSlot?: string, canteenId?: string, subCanteenId?: string, paymentMethod?: string): Promise<any> => {
     try {
+      const gateway = paymentMethod === 'UPI Dynamic QR' ? 'vyapar' : 'razorpay';
       const resp = await fetch(`${API_BASE}/api/canteen/order`, {
         method: 'POST',
         headers: {
@@ -204,7 +171,8 @@ export default function App() {
           userId: currentUser ? currentUser.id : 'user_guest',
           userName: currentUser ? currentUser.name : 'Raju Watson',
           items: cartItems,
-          paymentMethod: 'Paytm Gateway',
+          paymentMethod: paymentMethod || 'Razorpay',
+          gateway,
           pickupSlot,
           canteenId: canteenId || currentUser?.canteenId || selectedCanteenId,
           subCanteenId: subCanteenId || currentUser?.subCanteenId
@@ -215,45 +183,36 @@ export default function App() {
         return data;
       }
 
-      if (data.usePaytm) {
-        const orderId = data.order?.id;
-        if (orderId) {
-          try { localStorage.setItem('bb_pendingPaytmOrderId', orderId); } catch {}
-        }
+      if (data.useRazorpay) {
+        await fetchCanteenData();
+        fetchUserOrders();
 
-        // Call our backend to get a txnToken for Paytm CheckoutJS SDK
-        try {
-          const initResp = await fetch(`${API_BASE}/api/payment/paytm-initiate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              orderId: orderId,
-              amount: data.order?.totalPrice || 0,
-              customerId: currentUser?.id || 'guest',
-            }),
-          });
-          const initData = await initResp.json();
+        return {
+          success: true,
+          useRazorpay: true,
+          razorpayOrderId: data.razorpayOrderId,
+          razorpayKeyId: data.razorpayKeyId,
+          amount: data.amount,
+          currency: data.currency,
+          order: data.order,
+        };
+      }
 
-          if (!initData.success || !initData.txnToken) {
-            return { success: false, error: initData.error || 'Failed to get Paytm transaction token' };
-          }
+      if (data.useVyapar) {
+        await fetchCanteenData();
+        fetchUserOrders();
 
-          await fetchCanteenData();
-          fetchUserOrders();
-
-          return {
-            success: true,
-            usePaytm: true,
-            txnToken: initData.txnToken,
-            orderId: initData.orderId,
-            mid: initData.mid,
-            amount: initData.amount,
-            order: data.order,
-          };
-        } catch (initErr) {
-          console.error('Paytm initiate error:', initErr);
-          return { success: false, error: 'Failed to connect to Paytm. Please try again.' };
-        }
+        return {
+          success: true,
+          useVyapar: true,
+          vyaparTxnId: data.vyaparTxnId,
+          qrUrl: data.qrUrl,
+          upiString: data.upiString,
+          amount: data.amount,
+          currency: data.currency,
+          order: data.order,
+          sandbox: data.sandbox,
+        };
       }
 
       await fetchCanteenData(); // resync lists
@@ -488,8 +447,8 @@ export default function App() {
               userCanteenId={currentUser?.canteenId || selectedCanteenId}
               onLogout={handleLogout}
               onCanteenChange={setSelectedCanteenId}
-              paytmSuccess={paytmSuccess}
-              onDismissPaytmSuccess={() => setPaytmSuccess(null)}
+              razorpaySuccess={razorpaySuccess}
+              onDismissRazorpaySuccess={() => setRazorpaySuccess(null)}
               onShowSupport={() => setShowSupportPage(true)}
             />
         ) : (role === 'owner' || role === 'chef' || role === 'staff') ? (

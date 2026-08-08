@@ -17,7 +17,7 @@ interface CustomerAppProps {
   menuItems: MenuItem[];
   orders: Order[];
   reviews: Review[];
-  onOrderPlaced: (cartItems: { itemId: string; name: string; quantity: number }[], pickupSlot: string, canteenId?: string, subCanteenId?: string) => Promise<any>;
+  onOrderPlaced: (cartItems: { itemId: string; name: string; quantity: number }[], pickupSlot: string, canteenId?: string, subCanteenId?: string, paymentMethod?: string) => Promise<any>;
   onAddReview: (rating: number, comment: string, menuItemId?: string, menuItemName?: string) => Promise<any>;
   onResetCanteen: () => void;
   userEmail: string;
@@ -26,8 +26,8 @@ interface CustomerAppProps {
   userCanteenId?: string;
   onLogout: () => void;
   onCanteenChange: (canteenId: string) => void;
-  paytmSuccess?: { orderId: string; status: string } | null;
-  onDismissPaytmSuccess?: () => void;
+  razorpaySuccess?: { orderId: string; status: string } | null;
+  onDismissRazorpaySuccess?: () => void;
   onShowSupport?: () => void;
 }
 
@@ -45,8 +45,8 @@ export default function CustomerApp({
   userCanteenId,
   onLogout,
   onCanteenChange,
-  paytmSuccess,
-  onDismissPaytmSuccess,
+  razorpaySuccess,
+  onDismissRazorpaySuccess,
   onShowSupport
 }: CustomerAppProps) {
   // Generate pickup slots
@@ -135,12 +135,12 @@ export default function CustomerApp({
     }
   }, [canteenSubCounters.length]);
 
-  // Auto-switch to history tab when Paytm payment completes
+  // Auto-switch to history tab when payment completes
   useEffect(() => {
-    if (paytmSuccess && paytmSuccess.status === 'success') {
+    if (razorpaySuccess && razorpaySuccess.status === 'success') {
       setCustomerTab('history');
     }
-  }, [paytmSuccess]);
+  }, [razorpaySuccess]);
    const bHeroTitle = branding.heroTitle || 'Esc(Q)';
   const bHeroSubtitle = branding.heroSubtitle || `Official ${userCollege?.name || ''} Canteen Platform`;
   const bHeroTagline = branding.heroTagline || 'Order Faster · Skip the Queue · Smart Pickup';
@@ -252,6 +252,20 @@ export default function CustomerApp({
   const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('razorpay');
+  const [vyaparPollingInterval, setVyaparPollingInterval] = useState<ReturnType<typeof setInterval> | null>(null);
+  const [showVyaparQRModal, setShowVyaparQRModal] = useState<boolean>(false);
+  const [vyaparQRData, setVyaparQRData] = useState<{ orderId: string; upiString: string; qrUrl: string; amount: number; vyaparTxnId: string } | null>(null);
+  const [vyaparQRDataUrl, setVyaparQRDataUrl] = useState<string>('');
+
+  // Cleanup VyaparGateway polling on unmount
+  useEffect(() => {
+    return () => {
+      if (vyaparPollingInterval) {
+        clearInterval(vyaparPollingInterval);
+      }
+    };
+  }, [vyaparPollingInterval]);
   
   // Review form state
   const [selectedReviewItem, setSelectedReviewItem] = useState<MenuItem | null>(null);
@@ -303,11 +317,26 @@ export default function CustomerApp({
         setQrImageUrl(url);
       }).catch(err => {
         console.error('QR generation failed:', err);
-        // Fallback: use the order ID as plain text
         setQrImageUrl('');
       });
     }
   }, [successOrder, qrPayload]);
+
+  // Generate QR code for VyaparGateway UPI modal
+  useEffect(() => {
+    if (vyaparQRData && vyaparQRData.upiString) {
+      QRCode.toDataURL(vyaparQRData.upiString, {
+        width: 240,
+        margin: 2,
+        color: { dark: '#000000', light: '#ffffff' }
+      }).then(url => {
+        setVyaparQRDataUrl(url);
+      }).catch(err => {
+        console.error('VyaparGateway QR generation failed:', err);
+        setVyaparQRDataUrl('');
+      });
+    }
+  }, [vyaparQRData]);
 
   // Load recommendations when table scan finishes
   useEffect(() => {
@@ -399,91 +428,138 @@ export default function CustomerApp({
       };
     });
 
+    const paymentMethod = selectedPaymentMethod === 'vyapar' ? 'UPI Dynamic QR' : 'Razorpay';
+
     try {
-      const res = await onOrderPlaced(orderItems, selectedSlot, selectedCanteenId, selectedSubCanteenId);
+      const res = await onOrderPlaced(orderItems, selectedSlot, selectedCanteenId, selectedSubCanteenId, paymentMethod);
       if (res && res.success) {
-        // Paytm All-in-One SDK flow (CheckoutJS overlay)
-        if (res.usePaytm && res.txnToken) {
+        // Razorpay SDK flow
+        if (res.useRazorpay && res.razorpayOrderId) {
           setCart({});
           setShowGPayModal(false);
 
-          // Load Paytm CheckoutJS SDK dynamically
+          // Load Razorpay SDK dynamically
           const loadSDK = (): Promise<void> => new Promise((resolve, reject) => {
-            if ((window as any).Paytm && (window as any).Paytm.CheckoutJS) { resolve(); return; }
+            if ((window as any).Razorpay) { resolve(); return; }
             const script = document.createElement('script');
-            script.src = `https://securegw-stage.paytm.in/merchantpgpui/checkoutjs/merchants/${res.mid}.js`;
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
             script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Failed to load Paytm SDK'));
+            script.onerror = () => reject(new Error('Failed to load Razorpay SDK'));
             document.head.appendChild(script);
           });
 
           try {
-            showToast('Opening Paytm checkout...');
+            showToast('Opening Razorpay checkout...');
             await loadSDK();
 
-            const paytmConfig = {
-              root: '',
-              flow: 'DEFAULT',
-              data: {
-                orderId: res.orderId,
-                token: res.txnToken,
-                tokenType: 'TXN_TOKEN',
-                amount: res.amount,
+            const options = {
+              key: res.razorpayKeyId,
+              amount: res.amount,
+              currency: res.currency,
+              name: 'Esc(Q) Canteen',
+              description: 'Food Order Payment',
+              order_id: res.razorpayOrderId,
+              handler: async function (response: any) {
+                // Verify payment on server
+                try {
+                  const verifyRes = await fetch(`${API_BASE}/api/razorpay/verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      razorpay_order_id: response.razorpay_order_id,
+                      razorpay_payment_id: response.razorpay_payment_id,
+                      razorpay_signature: response.razorpay_signature,
+                    }),
+                  });
+                  const verifyData = await verifyRes.json();
+                  if (verifyData.success) {
+                    setSuccessOrder(verifyData.order || res.order);
+                    setQrPayload((verifyData.order || res.order).qrPayload || (verifyData.order || res.order).id);
+                    showToast('Payment successful! Order confirmed.');
+                  } else {
+                    showToast('Payment verification failed. Check Order History.');
+                  }
+                } catch {
+                  showToast('Could not verify payment. Check Order History.');
+                }
               },
-              handler: {
-                notifyMerchant: (eventName: string, payload: any) => {
-                  console.log('[Paytm Web] Event:', eventName, payload);
+              prefill: {
+                name: '',
+                email: '',
+              },
+              theme: {
+                color: '#7c3aed',
+              },
+              modal: {
+                ondismiss: function () {
+                  showToast('Payment cancelled.');
                 },
               },
             };
 
-            const paytmJs = (window as any).Paytm.CheckoutJS;
-            await paytmJs.init(paytmConfig);
-            await paytmJs.open();
-
-            // After checkout closes, poll for payment status
-            const orderId = res.orderId;
-            let attempts = 0;
-            const poll = setInterval(async () => {
-              attempts++;
-              try {
-                const resp = await fetch(`${API_BASE}/api/paytm/status?orderId=${orderId}`);
-                const statusData = await resp.json();
-                if (statusData.success && statusData.paymentStatus === 'paid') {
-                  clearInterval(poll);
-                  try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
-                  fetchUserOrders?.();
-                  setSuccessOrder(res.order);
-                  setQrPayload(res.order.qrPayload || res.order.id);
-                  showToast('Payment successful! Order confirmed.');
-                } else if (attempts >= 10) {
-                  clearInterval(poll);
-                  try { localStorage.removeItem('bb_pendingPaytmOrderId'); } catch {}
-                  fetchUserOrders?.();
-                  setSuccessOrder(res.order);
-                  setQrPayload(res.order.qrPayload || res.order.id);
-                  showToast('Payment submitted. Check Order History for status.');
-                }
-              } catch {
-                if (attempts >= 10) {
-                  clearInterval(poll);
-                  showToast('Could not verify payment. Check Order History.');
-                }
-              }
-            }, 3000);
+            const rzp = new (window as any).Razorpay(options);
+            rzp.on('payment.failed', function (response: any) {
+              console.error('[Razorpay] Payment failed:', response.error);
+              showToast('Payment failed. Please try again.');
+            });
+            rzp.open();
           } catch (sdkErr: any) {
-            console.error('[Paytm Web] SDK error:', sdkErr);
+            console.error('[Razorpay] SDK error:', sdkErr);
             showToast('Payment cancelled or SDK error.');
           }
           return;
         }
 
-        // Non-Paytm (instant checkout)
+        // VyaparGateway UPI QR flow
+        if (res.useVyapar) {
+          setCart({});
+          setShowGPayModal(false);
+
+          const orderId = res.order.id;
+          const upiString = res.upiString || '';
+          const qrUrl = res.qrUrl || '';
+
+          // Start polling for payment status
+          showToast('Scan UPI QR to complete payment');
+          const pollInterval = setInterval(async () => {
+            try {
+              const statusRes = await fetch(`${API_BASE}/api/vyapar/status?orderId=${orderId}`);
+              const statusData = await statusRes.json();
+              if (statusData.paymentStatus === 'paid') {
+                clearInterval(pollInterval);
+                setVyaparPollingInterval(null);
+                // Fetch full order
+                const orderRes = await fetch(`${API_BASE}/api/user/orders?userId=${userId}&canteenId=${selectedCanteenId}`);
+                const orderData = await orderRes.json();
+                const matchedOrder = orderData.orders?.find((o: any) => o.id === orderId) || res.order;
+                setSuccessOrder(matchedOrder);
+                setQrPayload(matchedOrder.qrPayload || matchedOrder.id);
+                showToast('Payment received! Order confirmed.');
+              }
+            } catch {
+              // Silently retry
+            }
+          }, 3000);
+          setVyaparPollingInterval(pollInterval);
+
+          // Show QR modal with UPI info
+          setShowVyaparQRModal(true);
+          setVyaparQRData({
+            orderId,
+            upiString,
+            qrUrl,
+            amount: res.amount / 100,
+            vyaparTxnId: res.vyaparTxnId,
+          });
+          return;
+        }
+
+        // Non-Razorpay (instant checkout)
         setSuccessOrder(res.order);
         setQrPayload(res.order.qrPayload || res.qrPayload || res.order.id);
         setCart({}); // clear cart
         setShowGPayModal(false); // dismiss modal
-        showToast("Payment processed via Paytm!");
+        showToast("Payment processed!");
       } else {
         setShowGPayModal(false);
         alert(res?.error || "Failed to checkout. Out of stock.");
@@ -571,27 +647,27 @@ export default function CustomerApp({
         </div>
       </div>
 
-      {/* PAYTM PAYMENT SUCCESS / FAILURE BANNER */}
-      {paytmSuccess && (
-        <div className={`mb-4 p-4 rounded-2xl border shadow-sm flex items-start gap-3 ${paytmSuccess.status === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${paytmSuccess.status === 'success' ? 'bg-green-100' : 'bg-red-100'}`}>
-            {paytmSuccess.status === 'success' ? (
+      {/* PAYMENT SUCCESS / FAILURE BANNER */}
+      {razorpaySuccess && (
+        <div className={`mb-4 p-4 rounded-2xl border shadow-sm flex items-start gap-3 ${razorpaySuccess.status === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${razorpaySuccess.status === 'success' ? 'bg-green-100' : 'bg-red-100'}`}>
+            {razorpaySuccess.status === 'success' ? (
               <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
             ) : (
               <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className={`text-sm font-bold ${paytmSuccess.status === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-              {paytmSuccess.status === 'success' ? 'Payment Successful!' : 'Payment Failed'}
+            <p className={`text-sm font-bold ${razorpaySuccess.status === 'success' ? 'text-green-800' : 'text-red-800'}`}>
+              {razorpaySuccess.status === 'success' ? 'Payment Successful!' : 'Payment Failed'}
             </p>
-            <p className={`text-xs mt-0.5 ${paytmSuccess.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
-              {paytmSuccess.status === 'success'
-                ? `Order ${paytmSuccess.orderId} confirmed. Check Order History for QR code.`
-                : `Order ${paytmSuccess.orderId} payment was not completed.`}
+            <p className={`text-xs mt-0.5 ${razorpaySuccess.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+              {razorpaySuccess.status === 'success'
+                ? `Order ${razorpaySuccess.orderId} confirmed. Check Order History for QR code.`
+                : `Order ${razorpaySuccess.orderId} payment was not completed.`}
             </p>
           </div>
-          <button onClick={onDismissPaytmSuccess} className={`shrink-0 p-1 rounded-lg hover:bg-white/80 ${paytmSuccess.status === 'success' ? 'text-green-500' : 'text-red-500'}`}>
+          <button onClick={onDismissRazorpaySuccess} className={`shrink-0 p-1 rounded-lg hover:bg-white/80 ${razorpaySuccess.status === 'success' ? 'text-green-500' : 'text-red-500'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -1078,14 +1154,54 @@ export default function CustomerApp({
                         </div>
                       </div>
 
-                      {/* PAY WITH PAYTM BUTTON */}
+                      {/* PAYMENT METHOD SELECTOR */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Payment Method</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPaymentMethod('razorpay')}
+                            className={`p-3 rounded-xl text-xs font-semibold transition-all border ${
+                              selectedPaymentMethod === 'razorpay'
+                                ? 'bg-[#7c3aed] text-white border-[#7c3aed] shadow-md'
+                                : 'bg-white text-gray-600 border-gray-200 hover:border-[#7c3aed]'
+                            }`}
+                          >
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-sm font-bold">Razorpay</span>
+                              <span className="text-[9px] opacity-75">Cards, UPI, Wallets</span>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPaymentMethod('vyapar')}
+                            className={`p-3 rounded-xl text-xs font-semibold transition-all border ${
+                              selectedPaymentMethod === 'vyapar'
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                                : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-600'
+                            }`}
+                          >
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-sm font-bold">UPI QR</span>
+                              <span className="text-[9px] opacity-75">Scan & Pay</span>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* PAY BUTTON */}
                       <button
                         type="button"
                         onClick={handleTriggerGPay}
-                        className="w-full bg-[#00baf2] hover:bg-[#00a3d9] text-white rounded-xl py-3.5 text-xs font-semibold shadow-md flex items-center justify-center space-x-2 transition cursor-pointer"
+                        className={`w-full text-white rounded-xl py-3.5 text-xs font-semibold shadow-md flex items-center justify-center space-x-2 transition cursor-pointer ${
+                          selectedPaymentMethod === 'vyapar'
+                            ? 'bg-emerald-600 hover:bg-emerald-700'
+                            : 'bg-[#7c3aed] hover:bg-[#6d28d9]'
+                        }`}
                       >
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M2 6.5l2.5-2h5l1.5 2h9v13h-18z"/><text x="7" y="15" fontSize="7" fontWeight="bold" fill="white">P</text></svg>
-                        <span>Pay via Paytm</span>
+                        <span className="font-bold">
+                          {selectedPaymentMethod === 'vyapar' ? 'Pay via UPI QR' : 'Pay via Razorpay'}
+                        </span>
                       </button>
                     </div>
                   )}
@@ -1194,19 +1310,21 @@ export default function CustomerApp({
         </div>
       )}
 
-      {/* 4. PAYTM PROCESSING OVERLAY */}
+      {/* 4. PAYMENT PROCESSING OVERLAY */}
       {showGPayModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden transition-all border border-neutral-200">
-            <div className="bg-[#00baf2] px-5 py-4 flex items-center justify-center">
-              <span className="text-white font-bold text-lg tracking-tight">Paytm</span>
+            <div className={`px-5 py-4 flex items-center justify-center ${selectedPaymentMethod === 'vyapar' ? 'bg-emerald-600' : 'bg-[#7c3aed]'}`}>
+              <span className="text-white font-bold text-lg tracking-tight">{selectedPaymentMethod === 'vyapar' ? 'UPI QR Payment' : 'Razorpay'}</span>
             </div>
             <div className="p-8 text-center space-y-4">
               {isSubmittingOrder ? (
                 <>
-                  <div className="h-10 w-10 border-4 border-[#00baf2] border-t-transparent rounded-full animate-spin mx-auto" />
-                  <p className="text-sm font-semibold text-gray-700">Connecting to Paytm...</p>
-                  <p className="text-xs text-gray-400">Please wait while we redirect you</p>
+                  <div className={`h-10 w-10 border-4 ${selectedPaymentMethod === 'vyapar' ? 'border-emerald-600' : 'border-[#7c3aed]'} border-t-transparent rounded-full animate-spin mx-auto`} />
+                  <p className="text-sm font-semibold text-gray-700">
+                    {selectedPaymentMethod === 'vyapar' ? 'Generating UPI QR Code...' : 'Connecting to Razorpay...'}
+                  </p>
+                  <p className="text-xs text-gray-400">Please wait while we process your order</p>
                 </>
               ) : (
                 <>
@@ -1214,6 +1332,124 @@ export default function CustomerApp({
                   <button onClick={() => setShowGPayModal(false)} className="mt-2 px-4 py-2 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-200">Close</button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. VYAPARGATEWAY UPI QR MODAL */}
+      {showVyaparQRModal && vyaparQRData && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden transition-all border border-neutral-200">
+            <div className="bg-emerald-600 px-5 py-4 flex items-center justify-between">
+              <span className="text-white font-bold text-lg tracking-tight">UPI QR Payment</span>
+              <button
+                onClick={() => {
+                  if (vyaparPollingInterval) clearInterval(vyaparPollingInterval);
+                  setVyaparPollingInterval(null);
+                  setShowVyaparQRModal(false);
+                  setVyaparQRData(null);
+                  setVyaparQRDataUrl('');
+                }}
+                className="text-white/80 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 text-center space-y-4">
+              <p className="text-xs text-gray-500">Scan this QR code with any UPI app to pay</p>
+
+              {/* QR Code */}
+              <div className="bg-white p-4 rounded-2xl border-2 border-dashed border-emerald-200 inline-block">
+                <div className="bg-neutral-900 p-4 rounded-xl">
+                  {vyaparQRDataUrl ? (
+                    <img src={vyaparQRDataUrl} alt="UPI QR Code" className="h-56 w-56 rounded-lg" />
+                  ) : (
+                    <div className="h-56 w-56 bg-neutral-800 rounded-lg flex items-center justify-center text-white text-xs font-mono p-4 text-center">
+                      Generating QR...
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Amount */}
+              <div className="bg-emerald-50 p-3 rounded-xl">
+                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Amount to Pay</span>
+                <span className="text-2xl font-display font-bold text-emerald-800">₹{vyaparQRData.amount.toFixed(2)}</span>
+              </div>
+
+              {/* Order info */}
+              <div className="text-[10px] text-gray-400 font-mono space-y-1">
+                <p>Order ID: <span className="text-gray-600 font-bold">{vyaparQRData.orderId}</span></p>
+                <p>Txn ID: <span className="text-gray-600 font-bold">{vyaparQRData.vyaparTxnId}</span></p>
+              </div>
+
+              {/* UPI string (copyable) */}
+              {vyaparQRData.upiString && (
+                <div className="bg-gray-50 p-2 rounded-lg">
+                  <p className="text-[9px] text-gray-400 mb-1">Or copy UPI ID:</p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(vyaparQRData.upiString);
+                      showToast('UPI string copied!');
+                    }}
+                    className="text-[10px] text-[#7c3aed] font-mono break-all hover:underline"
+                  >
+                    {vyaparQRData.upiString.substring(0, 50)}...
+                  </button>
+                </div>
+              )}
+
+              {/* Status indicator */}
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                <div className="h-2 w-2 bg-amber-500 rounded-full animate-ping" />
+                <span>Waiting for payment confirmation...</span>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      const verifyRes = await fetch(`${API_BASE}/api/vyapar/verify`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ orderId: vyaparQRData.orderId }),
+                      });
+                      const verifyData = await verifyRes.json();
+                      if (verifyData.success) {
+                        if (vyaparPollingInterval) clearInterval(vyaparPollingInterval);
+                        setVyaparPollingInterval(null);
+                        setShowVyaparQRModal(false);
+                        setVyaparQRData(null);
+                        setVyaparQRDataUrl('');
+                        setSuccessOrder(verifyData.order);
+                        setQrPayload(verifyData.order.qrPayload || verifyData.order.id);
+                        showToast('Payment verified! Order confirmed.');
+                      } else {
+                        showToast('Payment not yet confirmed. Try again.');
+                      }
+                    } catch {
+                      showToast('Verification failed. Try again.');
+                    }
+                  }}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 text-xs font-semibold transition"
+                >
+                  I've Paid - Verify
+                </button>
+                <button
+                  onClick={() => {
+                    if (vyaparPollingInterval) clearInterval(vyaparPollingInterval);
+                    setVyaparPollingInterval(null);
+                    setShowVyaparQRModal(false);
+                    setVyaparQRData(null);
+                    setVyaparQRDataUrl('');
+                  }}
+                  className="px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

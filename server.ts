@@ -8,10 +8,9 @@ import path from 'path';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import admin from 'firebase-admin';
-import PaytmChecksum from 'paytmchecksum';
-import axios from 'axios';
-import { GoogleGenAI, Type } from '@google/genai';
+import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import { GoogleGenAI, Type } from '@google/genai';
 import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User } from './src/types';
 
 // Load environment variables
@@ -39,24 +38,33 @@ app.use((req, res, next) => {
   next();
 });
 
-const paytmMerchantId = (process.env.PAYTM_MERCHANT_ID || '').trim();
-const paytmMerchantKey = (process.env.PAYTM_MERCHANT_KEY || '').trim();
-const paytmMerchantWebsite = (process.env.PAYTM_MERCHANT_WEBSITE || 'WEBSTAGING').trim();
-const paytmChannelId = (process.env.PAYTM_CHANNEL_ID || 'WEB').trim();
-const paytmIndustryType = (process.env.PAYTM_INDUSTRY_TYPE || 'Retail').trim();
-const paytmStaging = (process.env.PAYTM_STAGING || 'true').trim() === 'true';
-const paytmGatewayUrl = paytmStaging
-  ? 'https://securegw-stage.paytm.in/order/process'
-  : 'https://securegw.paytm.in/order/process';
-const paytmCallbackUrl = paytmStaging
-  ? 'https://canteen20.vercel.app/api/paytm/callback'
-  : 'https://canteen20.vercel.app/api/paytm/callback';
-const paytmConfigured = !!(paytmMerchantId && paytmMerchantKey);
+// Razorpay configuration
+const razorpayKeyId = (process.env.RAZORPAY_KEY_ID || '').trim();
+const razorpayKeySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
+const razorpayConfigured = !!(razorpayKeyId && razorpayKeySecret);
 
-if (paytmConfigured) {
-  console.log(`Paytm SDK configured (${paytmStaging ? 'STAGING' : 'PRODUCTION'}).`);
+let razorpay: Razorpay | null = null;
+if (razorpayConfigured) {
+  razorpay = new Razorpay({
+    key_id: razorpayKeyId,
+    key_secret: razorpayKeySecret,
+  });
+  console.log(`Razorpay SDK configured (${razorpayKeyId.substring(0, 8)}...).`);
 } else {
-  console.log('Paytm keys not configured. Operating with sandbox payment fallback.');
+  console.log('Razorpay keys not configured. Operating with sandbox payment fallback.');
+}
+
+// VyaparGateway (UPI Dynamic QR) configuration
+const vyaparApiKey = (process.env.VYAPAR_API_KEY || '').trim();
+const vyaparMerchantId = (process.env.VYAPAR_MERCHANT_ID || '').trim();
+const vyaparSecret = (process.env.VYAPAR_SECRET || '').trim();
+const vyaparBaseUrl = (process.env.VYAPAR_BASE_URL || 'https://api.vyapargateway.in').trim();
+const vyaparConfigured = !!(vyaparApiKey && vyaparMerchantId && vyaparSecret);
+
+if (vyaparConfigured) {
+  console.log(`VyaparGateway configured (merchant: ${vyaparMerchantId.substring(0, 8)}...).`);
+} else {
+  console.log('VyaparGateway not configured. UPI QR payment will use sandbox fallback.');
 }
 
 // ============================================================================
@@ -121,7 +129,7 @@ if (process.env.VERCEL) {
 }
 
 app.get('/api/test', (req, res) => {
-  res.json({ success: true, message: "Server is working!", dbConnected: !!db, envVar: !!process.env.FIREBASE_SERVICE_ACCOUNT, initError: firebaseInitError, envLength: (process.env.FIREBASE_SERVICE_ACCOUNT || '').length, paytm: { configured: paytmConfigured, staging: paytmStaging, merchantPrefix: paytmMerchantId.substring(0, 6), keyLen: paytmMerchantKey.length } });
+  res.json({ success: true, message: "Server is working!", dbConnected: !!db, envVar: !!process.env.FIREBASE_SERVICE_ACCOUNT, initError: firebaseInitError, envLength: (process.env.FIREBASE_SERVICE_ACCOUNT || '').length, razorpay: { configured: razorpayConfigured, keyPrefix: razorpayKeyId.substring(0, 8) } });
 });
 
 // App version endpoint - bump this to force update popup on all devices
@@ -577,7 +585,6 @@ let canteensState: Canteen[] = [
     ownerName: 'Chef Watson',
     status: 'active',
     location: 'Campus Plaza',
-    paytmMerchantId: paytmMerchantId || 'merchant_default',
     items: [...INITIAL_MENU_ITEMS],
     orders: [...INITIAL_ORDERS],
     reviews: [...INITIAL_REVIEWS],
@@ -1079,9 +1086,6 @@ app.post('/api/canteens', async (req, res) => {
   }
   if (!canteenData.id) canteenData.id = `canteen_${Date.now()}`;
   if (!canteenData.status) canteenData.status = 'active';
-  if (!canteenData.paytmMerchantId) {
-    canteenData.paytmMerchantId = paytmMerchantId || 'merchant_default';
-  }
 
   if (db) {
     try {
@@ -1764,7 +1768,7 @@ function parseSlotToTimestamp(slot: string): number {
 // 4. Place an Order (Customer)
 app.post('/api/canteen/order', async (req, res) => {
   try {
-  const { userId, userName, items, paymentMethod, pickupSlot, canteenId, subCanteenId } = req.body;
+  const { userId, userName, items, paymentMethod, pickupSlot, canteenId, subCanteenId, gateway } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ success: false, error: 'Cannot place empty order.' });
@@ -1905,24 +1909,19 @@ app.post('/api/canteen/order', async (req, res) => {
   }
   const expiryTime = pickupTimestamp + (noShowMinutes * 60 * 1000);
 
-  if (paytmConfigured) {
+  const selectedGateway = (gateway === 'vyapar') ? 'vyapar' : 'razorpay';
+
+  // ── RAZORPAY GATEWAY ──────────────────────────────────────────────────────
+  if (selectedGateway === 'razorpay' && razorpayConfigured && razorpay) {
     try {
       const totalPrice = Number((subtotal / 0.9764).toFixed(2));
       const totalAmountPaise = Math.round(totalPrice * 100);
-      const paytmTransactionId = `TXN_${orderId}_${Date.now()}`;
 
-      const paytmParams: Record<string, string> = {
-        MID: paytmMerchantId,
-        WEBSITE: paytmMerchantWebsite,
-        CHANNEL_ID: paytmChannelId,
-        INDUSTRY_TYPE_ID: paytmIndustryType,
-        ORDER_ID: orderId,
-        TXN_AMOUNT: totalPrice.toFixed(2),
-        CUST_ID: userId || 'guest',
-        CALLBACK_URL: paytmCallbackUrl,
-      };
-
-      const checksum = await PaytmChecksum.generateSignature(paytmParams, paytmMerchantKey);
+      const razorpayOrder = await razorpay.orders.create({
+        amount: totalAmountPaise,
+        currency: 'INR',
+        receipt: orderId,
+      });
 
       const signedQrPayload = generateSignedQR(orderId);
       const newOrder: Order = {
@@ -1932,15 +1931,14 @@ app.post('/api/canteen/order', async (req, res) => {
         items: validatedItems,
         totalPrice,
         paymentStatus: 'pending',
-        paymentMethod: 'Paytm Gateway',
+        paymentMethod: 'Razorpay',
         qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
         qrPayload: signedQrPayload,
         status: 'pending',
         timestamp: new Date().toISOString(),
         createdAt: Date.now(),
         pickupTimeText: 'Pending payment confirmation',
-        paytmOrderId: orderId,
-        paytmTransactionId,
+        razorpayOrderId: razorpayOrder.id,
         pickupSlot: selectedSlot,
         prepStartTime,
         expiryTime,
@@ -1955,9 +1953,11 @@ app.post('/api/canteen/order', async (req, res) => {
 
       return res.json({
         success: true,
-        usePaytm: true,
-        paytmParams: { ...paytmParams, CHECKSUMHASH: checksum },
-        paytmGatewayUrl,
+        useRazorpay: true,
+        razorpayOrderId: razorpayOrder.id,
+        razorpayKeyId: razorpayKeyId,
+        amount: totalAmountPaise,
+        currency: 'INR',
         order: newOrder,
         qrPayload: generateSignedQR(orderId)
       });
@@ -1965,12 +1965,137 @@ app.post('/api/canteen/order', async (req, res) => {
       const errDetail = typeof err === 'string'
         ? err
         : err?.message || err?.error?.description || err?.statusText || err?.stack?.split('\n')[0] || JSON.stringify(err, Object.getOwnPropertyNames(err));
-      console.error('Paytm order creation error:', errDetail, '| raw:', err);
+      console.error('Razorpay order creation error:', errDetail, '| raw:', err);
       return res.status(500).json({ success: false, error: `Payment gateway error: ${errDetail}` });
     }
   }
 
-  // Fallback to Instant Mock Checkout when Paytm credentials are not configured
+  // ── VYAPARGATEWAY (UPI DYNAMIC QR) ────────────────────────────────────────
+  if (selectedGateway === 'vyapar') {
+    try {
+      const totalPrice = Number((subtotal / 0.9764).toFixed(2));
+      const totalAmountPaise = Math.round(totalPrice * 100);
+
+      const signedQrPayload = generateSignedQR(orderId);
+      const newOrder: Order = {
+        id: orderId,
+        userId: userId || 'user_guest',
+        userName: userName || 'Guest User',
+        items: validatedItems,
+        totalPrice,
+        paymentStatus: 'pending',
+        paymentMethod: 'UPI Dynamic QR',
+        qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
+        qrPayload: signedQrPayload,
+        status: 'pending',
+        timestamp: new Date().toISOString(),
+        createdAt: Date.now(),
+        pickupTimeText: 'Pending UPI payment',
+        pickupSlot: selectedSlot,
+        prepStartTime,
+        expiryTime,
+        canteenId: canteenId || 'canteen_001',
+        subCanteenId: subCanteenId || 'sub_001'
+      };
+
+      if (db) {
+        await db.collection('orders').doc(orderId).set(newOrder);
+      }
+      canteenState.orders.unshift(newOrder);
+
+      if (vyaparConfigured) {
+        // Real VyaparGateway API call
+        try {
+          const vyaparAuth = Buffer.from(`${vyaparMerchantId}:${vyaparSecret}`).toString('base64');
+          const vyaparResp = await fetch(`${vyaparBaseUrl}/api/v1/transactions/create`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Basic ${vyaparAuth}`,
+              'Content-Type': 'application/json',
+              'X-Api-Key': vyaparApiKey,
+            },
+            body: JSON.stringify({
+              merchant_id: vyaparMerchantId,
+              order_id: orderId,
+              amount: totalAmountPaise,
+              currency: 'INR',
+              customer_name: userName || 'Guest User',
+              callback_url: `${APP_UPDATE_URL}/api/vyapar/webhook`,
+              description: `Esc(Q) Order ${orderId}`,
+            }),
+          });
+          const vyaparData = await vyaparResp.json() as any;
+          console.log('[VyaparGateway] Create transaction response:', JSON.stringify(vyaparData).substring(0, 500));
+
+          if (vyaparData.success || vyaparData.status === 'success') {
+            const qrUrl = vyaparData.qr_url || vyaparData.qr_data || vyaparData.upi_qr || '';
+            const upiString = vyaparData.upi_string || vyaparData.vpa || '';
+            const txnId = vyaparData.transaction_id || vyaparData.txn_id || '';
+
+            // Update order with VyaparGateway transaction details
+            newOrder.vyaparTxnId = txnId;
+            newOrder.upiQrUrl = qrUrl;
+            newOrder.upiString = upiString;
+
+            if (db) {
+              await db.collection('orders').doc(orderId).set(newOrder, { merge: true });
+            }
+            canteenState.orders = canteenState.orders.map(o => o.id === orderId ? newOrder : o);
+
+            return res.json({
+              success: true,
+              useVyapar: true,
+              vyaparTxnId: txnId,
+              qrUrl,
+              upiString,
+              amount: totalAmountPaise,
+              currency: 'INR',
+              order: newOrder,
+              qrPayload: generateSignedQR(orderId)
+            });
+          } else {
+            console.error('[VyaparGateway] API error:', vyaparData);
+            // Fall through to sandbox QR
+          }
+        } catch (vyaparErr: any) {
+          console.error('[VyaparGateway] API call failed:', vyaparErr?.message || vyaparErr);
+          // Fall through to sandbox QR
+        }
+      }
+
+      // Sandbox / fallback: generate a static UPI QR for the order
+      const upiString = `upi://pay?pa=canteen@upi&pn=Esc(Q) Canteen&am=${(totalPrice).toFixed(2)}&tn=Order%20${orderId}&cu=INR`;
+      const sandboxTxnId = `VYG_${orderId}_${Date.now()}`;
+
+      newOrder.vyaparTxnId = sandboxTxnId;
+      newOrder.upiString = upiString;
+      if (db) {
+        await db.collection('orders').doc(orderId).set(newOrder, { merge: true });
+      }
+      canteenState.orders = canteenState.orders.map(o => o.id === orderId ? newOrder : o);
+
+      return res.json({
+        success: true,
+        useVyapar: true,
+        vyaparTxnId: sandboxTxnId,
+        qrUrl: '',
+        upiString,
+        amount: totalAmountPaise,
+        currency: 'INR',
+        order: newOrder,
+        qrPayload: generateSignedQR(orderId),
+        sandbox: true
+      });
+    } catch (err: any) {
+      const errDetail = typeof err === 'string'
+        ? err
+        : err?.message || err?.error?.description || err?.statusText || err?.stack?.split('\n')[0] || JSON.stringify(err, Object.getOwnPropertyNames(err));
+      console.error('VyaparGateway order creation error:', errDetail, '| raw:', err);
+      return res.status(500).json({ success: false, error: `Payment gateway error: ${errDetail}` });
+    }
+  }
+
+  // Fallback to Instant Mock Checkout when Razorpay credentials are not configured
   // Deduct ingredient stock, decrement item stock, increment bookedToday
   for (const clientItem of items) {
     const itemInMenu = currentItems.find(item => item.id === clientItem.itemId);
@@ -2035,7 +2160,7 @@ app.post('/api/canteen/order', async (req, res) => {
   }
 
   canteenState.orders.unshift(newOrder);
-  res.json({ success: true, usePaytm: false, order: newOrder, qrPayload: generateSignedQR(orderId), message: 'Order placed & payment verified!' });
+  res.json({ success: true, useRazorpay: false, order: newOrder, qrPayload: generateSignedQR(orderId), message: 'Order placed & payment verified!' });
   } catch (topErr: any) {
     console.error('Order endpoint unhandled error:', typeof topErr === 'string' ? topErr : topErr?.message || JSON.stringify(topErr));
     if (!res.headersSent) {
@@ -2044,48 +2169,47 @@ app.post('/api/canteen/order', async (req, res) => {
   }
 });
 
-// 4b. Paytm Payment Callback (Customer Checkout completion)
-app.post('/api/paytm/callback', async (req, res) => {
-  const params: Record<string, string> = { ...req.query, ...req.body };
-  console.log('Paytm callback keys:', Object.keys(params).join(', '), 'CHECKSUMHASH:', params.CHECKSUMHASH ? 'present' : 'missing');
-
-  const orderId = params.ORDER_ID || '';
-  const txnStatus = params.TXN_STATUS || '';
-  const checksum = params.CHECKSUMHASH || params.CHECKSUM || '';
-
-  if (!checksum && txnStatus !== 'TXN_SUCCESS') {
-    return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Missing+checksum&received=${Object.keys(params).join(',')}`);
-  }
-
+// ──────────────────────────────────────────────────────────────────────────────
+// 4b. Razorpay Payment Verification — POST /api/razorpay/verify
+// Verifies payment signature using HMAC-SHA256
+// ──────────────────────────────────────────────────────────────────────────────
+app.post('/api/razorpay/verify', async (req, res) => {
   try {
-    if (checksum) {
-      const isValidChecksum = await PaytmChecksum.verifySignature({ ...params, CHECKSUMHASH: checksum }, paytmMerchantKey);
-      if (!isValidChecksum && txnStatus !== 'TXN_SUCCESS') {
-        return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Checksum+mismatch`);
-      }
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, error: 'Missing required payment verification fields' });
     }
 
-    if (txnStatus && txnStatus !== 'TXN_SUCCESS') {
-      return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=${params.RESPMSG || 'Payment+failed'}`);
+    // Verify signature
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', razorpayKeySecret)
+      .update(body)
+      .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+      console.error(`[Razorpay Verify] ❌ Signature mismatch for order ${razorpay_order_id}`);
+      return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
     }
 
-    if (!orderId) {
-      return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=No+order+ID`);
-    }
+    console.log(`[Razorpay Verify] ✅ Signature verified for order ${razorpay_order_id}`);
 
-    // Retrieve order
+    // Find order by razorpayOrderId
     let targetOrder: Order | undefined;
     if (db) {
-      const snap = await db.collection('orders').where('paytmOrderId', '==', orderId).get();
-      if (!snap.empty) {
-        targetOrder = snap.docs[0].data() as Order;
-      }
+      const snap = await db.collection('orders').where('razorpayOrderId', '==', razorpay_order_id).get();
+      if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
     } else {
-      targetOrder = canteenState.orders.find(o => o.paytmOrderId === orderId);
+      targetOrder = canteenState.orders.find(o => o.razorpayOrderId === razorpay_order_id);
     }
 
     if (!targetOrder) {
-      return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Order+not+found`);
+      return res.status(404).json({ success: false, error: 'Order not found for this payment' });
+    }
+
+    if (targetOrder.paymentStatus === 'paid') {
+      return res.json({ success: true, message: 'Payment already verified', order: targetOrder });
     }
 
     // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
@@ -2143,7 +2267,8 @@ app.post('/api/paytm/callback', async (req, res) => {
       ...targetOrder,
       paymentStatus: 'paid',
       status: containsChefItems ? 'scheduled' : 'ready',
-      paytmTransactionId: params.TXNID || params.TXN_ID || targetOrder.paytmTransactionId,
+      razorpayPaymentId: razorpay_payment_id,
+      razorpaySignature: razorpay_signature,
       pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
     };
 
@@ -2153,26 +2278,269 @@ app.post('/api/paytm/callback', async (req, res) => {
 
     canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
 
-    console.log('Paytm callback SUCCESS for order:', orderId);
-    res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
+    console.log(`[Razorpay Verify] ✅ Order ${targetOrder.id} marked as paid`);
+    res.json({ success: true, message: 'Payment verified successfully', order: updatedOrder });
   } catch (err: any) {
-    console.error('Paytm callback error:', err);
-    res.redirect(`${APP_UPDATE_URL}?payment=failed&error=Server+error`);
+    console.error('[Razorpay Verify] Error:', err?.message || err);
+    return res.status(500).json({ success: false, error: 'Payment verification failed' });
   }
 });
 
-// 4b-status. Check Paytm order payment status (polled by client after redirect)
-app.get('/api/paytm/status', async (req, res) => {
+// GET redirect from Razorpay (browser redirect after payment)
+app.get('/api/razorpay/callback', (req, res) => {
+  const orderId = (req.query.orderId as string) || '';
+  return res.redirect(`${APP_UPDATE_URL}?payment=pending&orderId=${orderId}`);
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 4f. VyaparGateway Payment Verification — POST /api/vyapar/verify
+// Called by frontend after user confirms UPI payment
+// ──────────────────────────────────────────────────────────────────────────────
+app.post('/api/vyapar/verify', async (req, res) => {
+  try {
+    const { orderId, vyaparTxnId } = req.body;
+    if (!orderId) {
+      return res.status(400).json({ success: false, error: 'orderId required' });
+    }
+
+    // Find order
+    let targetOrder: Order | undefined;
+    if (db) {
+      const doc = await db.collection('orders').doc(orderId).get();
+      if (doc.exists) targetOrder = doc.data() as Order;
+    } else {
+      targetOrder = canteenState.orders.find(o => o.id === orderId);
+    }
+
+    if (!targetOrder) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    if (targetOrder.paymentStatus === 'paid') {
+      return res.json({ success: true, message: 'Payment already verified', order: targetOrder });
+    }
+
+    // If VyaparGateway is configured, check status with their API
+    if (vyaparConfigured && targetOrder.vyaparTxnId) {
+      try {
+        const vyaparAuth = Buffer.from(`${vyaparMerchantId}:${vyaparSecret}`).toString('base64');
+        const statusResp = await fetch(`${vyaparBaseUrl}/api/v1/transactions/${targetOrder.vyaparTxnId}/status`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${vyaparAuth}`,
+            'Content-Type': 'application/json',
+            'X-Api-Key': vyaparApiKey,
+          },
+        });
+        const statusData = await statusResp.json() as any;
+        console.log('[VyaparGateway] Status check response:', JSON.stringify(statusData).substring(0, 500));
+
+        if (!statusData.success && statusData.status !== 'success' && statusData.payment_status !== 'success') {
+          return res.json({ success: false, error: 'Payment not yet confirmed by VyaparGateway', status: statusData.status || statusData.payment_status || 'pending' });
+        }
+      } catch (e: any) {
+        console.error('[VyaparGateway] Status API error:', e?.message || e);
+        // In sandbox, auto-verify
+      }
+    }
+
+    // Mark order as paid (sandbox auto-verify or real API confirmed)
+    // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
+    let currentItems: MenuItem[] = [];
+    if (db) {
+      const snap = await db.collection('items').get();
+      currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+    } else {
+      currentItems = canteenState.items;
+    }
+
+    let currentIngredients: Ingredient[] = [];
+    if (db) {
+      const snap = await db.collection('ingredients').get();
+      currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+    } else {
+      currentIngredients = canteenState.ingredients || [];
+    }
+
+    for (const item of targetOrder.items) {
+      const itemInMenu = currentItems.find(i => i.id === item.itemId);
+      if (itemInMenu) {
+        itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
+        itemInMenu.bookedToday += item.quantity;
+        if (itemInMenu.stock <= 0) {
+          itemInMenu.available = false;
+        }
+        if (db) {
+          await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+        }
+
+        if (itemInMenu.recipe) {
+          for (const recipeItem of itemInMenu.recipe) {
+            const reqAmount = recipeItem.amountGrams * item.quantity;
+            const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
+            if (ingredient) {
+              ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
+              if (db) {
+                await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+              }
+            }
+          }
+        }
+      }
+    }
+    canteenState.items = currentItems;
+    canteenState.ingredients = currentIngredients;
+
+    const containsChefItems = targetOrder.items.some(it => {
+      const itemMenu = currentItems.find(m => m.id === it.itemId);
+      return itemMenu ? itemMenu.requiresChef !== false : true;
+    });
+
+    const updatedOrder: Order = {
+      ...targetOrder,
+      paymentStatus: 'paid',
+      status: containsChefItems ? 'scheduled' : 'ready',
+      pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
+    };
+
+    if (db) {
+      await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
+    }
+    canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
+
+    console.log(`[VyaparGateway Verify] Order ${orderId} marked as paid`);
+    res.json({ success: true, message: 'Payment verified successfully', order: updatedOrder });
+  } catch (err: any) {
+    console.error('[VyaparGateway Verify] Error:', err?.message || err);
+    return res.status(500).json({ success: false, error: 'Payment verification failed' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 4g. VyaparGateway Webhook — POST /api/vyapar/webhook
+// Called by VyaparGateway servers when payment status changes
+// ──────────────────────────────────────────────────────────────────────────────
+app.post('/api/vyapar/webhook', async (req, res) => {
+  try {
+    const { order_id, transaction_id, status, payment_status } = req.body;
+    const txnStatus = status || payment_status;
+
+    console.log(`[VyaparGateway Webhook] order=${order_id} txn=${transaction_id} status=${txnStatus}`);
+
+    if (!order_id) {
+      return res.status(400).json({ success: false, error: 'order_id required' });
+    }
+
+    // Find order
+    let targetOrder: Order | undefined;
+    if (db) {
+      const doc = await db.collection('orders').doc(order_id).get();
+      if (doc.exists) targetOrder = doc.data() as Order;
+    } else {
+      targetOrder = canteenState.orders.find(o => o.id === order_id);
+    }
+
+    if (!targetOrder) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    if (targetOrder.paymentStatus === 'paid') {
+      return res.json({ success: true, message: 'Already processed' });
+    }
+
+    if (txnStatus === 'success' || txnStatus === 'completed' || txnStatus === 'captured') {
+      // Deduct stock, same as verify
+      let currentItems: MenuItem[] = [];
+      if (db) {
+        const snap = await db.collection('items').get();
+        currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+      } else {
+        currentItems = canteenState.items;
+      }
+
+      let currentIngredients: Ingredient[] = [];
+      if (db) {
+        const snap = await db.collection('ingredients').get();
+        currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+      } else {
+        currentIngredients = canteenState.ingredients || [];
+      }
+
+      for (const item of targetOrder.items) {
+        const itemInMenu = currentItems.find(i => i.id === item.itemId);
+        if (itemInMenu) {
+          itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
+          itemInMenu.bookedToday += item.quantity;
+          if (itemInMenu.stock <= 0) itemInMenu.available = false;
+          if (db) await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+
+          if (itemInMenu.recipe) {
+            for (const recipeItem of itemInMenu.recipe) {
+              const reqAmount = recipeItem.amountGrams * item.quantity;
+              const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
+              if (ingredient) {
+                ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
+                if (db) await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+              }
+            }
+          }
+        }
+      }
+      canteenState.items = currentItems;
+      canteenState.ingredients = currentIngredients;
+
+      const containsChefItems = targetOrder.items.some(it => {
+        const itemMenu = currentItems.find(m => m.id === it.itemId);
+        return itemMenu ? itemMenu.requiresChef !== false : true;
+      });
+
+      const updatedOrder: Order = {
+        ...targetOrder,
+        paymentStatus: 'paid',
+        status: containsChefItems ? 'scheduled' : 'ready',
+        pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
+      };
+
+      if (db) {
+        await db.collection('orders').doc(order_id).set(updatedOrder);
+      }
+      canteenState.orders = canteenState.orders.map(o => o.id === order_id ? updatedOrder : o);
+
+      console.log(`[VyaparGateway Webhook] Order ${order_id} marked as paid`);
+    } else if (txnStatus === 'failed') {
+      const failedOrder: Order = {
+        ...targetOrder,
+        paymentStatus: 'failed',
+        status: 'cancelled'
+      };
+      if (db) {
+        await db.collection('orders').doc(order_id).set(failedOrder);
+      }
+      canteenState.orders = canteenState.orders.map(o => o.id === order_id ? failedOrder : o);
+      console.log(`[VyaparGateway Webhook] Order ${order_id} marked as failed`);
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[VyaparGateway Webhook] Error:', err?.message || err);
+    return res.status(500).json({ success: false, error: 'Webhook processing failed' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 4h. VyaparGateway Payment Status Check — GET /api/vyapar/status
+// ──────────────────────────────────────────────────────────────────────────────
+app.get('/api/vyapar/status', async (req, res) => {
   const orderId = (req.query.orderId as string) || '';
   if (!orderId) return res.json({ success: false, error: 'orderId required' });
 
   try {
     let targetOrder: Order | undefined;
     if (db) {
-      const snap = await db.collection('orders').where('paytmOrderId', '==', orderId).get();
-      if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
+      const doc = await db.collection('orders').doc(orderId).get();
+      if (doc.exists) targetOrder = doc.data() as Order;
     } else {
-      targetOrder = canteenState.orders.find(o => o.paytmOrderId === orderId);
+      targetOrder = canteenState.orders.find(o => o.id === orderId);
     }
     if (!targetOrder) return res.json({ success: true, paymentStatus: 'not_found', status: 'not_found' });
     return res.json({ success: true, paymentStatus: targetOrder.paymentStatus, status: targetOrder.status });
@@ -2181,203 +2549,144 @@ app.get('/api/paytm/status', async (req, res) => {
   }
 });
 
-// 4b-alt. Paytm redirects browser via GET (302) after payment
-// The server-to-server POST callback handles the actual payment verification
-// This GET handler just shows the result to the user
-app.get('/api/paytm/callback', async (req, res) => {
-  const allParams: Record<string, string> = { ...req.query as Record<string, string> };
-  console.log('Paytm GET redirect URL:', req.originalUrl);
-  console.log('Paytm GET redirect params:', JSON.stringify(allParams));
+// ──────────────────────────────────────────────────────────────────────────────
+// 4d. Razorpay Payment Status Check — GET /api/razorpay/status
+// Returns payment status for an order
+// ──────────────────────────────────────────────────────────────────────────────
+app.get('/api/razorpay/status', async (req, res) => {
+  const orderId = (req.query.orderId as string) || '';
+  if (!orderId) return res.json({ success: false, error: 'orderId required' });
 
-  const orderId = allParams.ORDER_ID || allParams.ORDERID || allParams.orderId || '';
-  const txnStatus = allParams.TXN_STATUS || allParams.STATUS || '';
-
-  // If Paytm sent params with TXN_SUCCESS, update the order
-  if (txnStatus === 'TXN_SUCCESS' && orderId) {
+  try {
     let targetOrder: Order | undefined;
     if (db) {
-      const snap = await db.collection('orders').where('paytmOrderId', '==', orderId).get();
+      const snap = await db.collection('orders').where('razorpayOrderId', '==', orderId).get();
       if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
     } else {
-      targetOrder = canteenState.orders.find(o => o.paytmOrderId === orderId);
+      targetOrder = canteenState.orders.find(o => o.razorpayOrderId === orderId);
     }
-
-    if (targetOrder && targetOrder.paymentStatus !== 'paid') {
-      const updatedOrder: Order = {
-        ...targetOrder,
-        paymentStatus: 'paid',
-        status: 'scheduled',
-        pickupTimeText: `Scheduled for pickup at ${targetOrder.pickupSlot}`
-      };
-      if (db) await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
-      canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
-    }
-    return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
+    if (!targetOrder) return res.json({ success: true, paymentStatus: 'not_found', status: 'not_found' });
+    return res.json({ success: true, paymentStatus: targetOrder.paymentStatus, status: targetOrder.status });
+  } catch (err) {
+    return res.json({ success: false, error: 'Server error' });
   }
-
-  // If has order ID (even without TXN_SUCCESS), check if POST callback already marked it as paid
-  if (orderId) {
-    let targetOrder: Order | undefined;
-    if (db) {
-      const snap = await db.collection('orders').where('paytmOrderId', '==', orderId).get();
-      if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
-    } else {
-      targetOrder = canteenState.orders.find(o => o.paytmOrderId === orderId);
-    }
-
-    if (targetOrder && targetOrder.paymentStatus === 'paid') {
-      return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
-    }
-    return res.redirect(`${APP_UPDATE_URL}?payment=pending&orderId=${orderId}&error=Payment+not+confirmed+yet`);
-  }
-
-  // No params — POST callback should have handled it. Show generic page.
-  return res.redirect(`${APP_UPDATE_URL}?payment=pending&orderId=&error=Check+order+history+for+payment+status`);
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 4d. Paytm All-in-One SDK — Initiate Transaction (Flutter SDK calls this)
-// POST /api/payment/paytm-initiate
-// Body: { orderId, amount, customerId }
-// Returns: { success, txnToken, orderId, mid }
+// 4e. Razorpay Payment Verification — POST /api/razorpay/verify
+// Verifies payment signature and updates order status
 // ──────────────────────────────────────────────────────────────────────────────
-app.post('/api/payment/paytm-initiate', async (req, res) => {
-  if (!paytmConfigured) {
-    return res.status(500).json({ success: false, error: 'Paytm credentials not configured' });
-  }
-
+app.post('/api/payment/razorpay-verify', async (req, res) => {
   try {
-    const { orderId, amount, customerId } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
-    if (!orderId || amount === undefined || amount === null || !customerId) {
-      return res.status(400).json({ success: false, error: 'Missing required fields: orderId, amount, customerId' });
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: razorpay_order_id, razorpay_payment_id, razorpay_signature' });
     }
 
-    const formattedAmount = Number(amount).toFixed(2);
-    if (isNaN(Number(formattedAmount)) || Number(formattedAmount) <= 0) {
-      return res.status(400).json({ success: false, error: 'Invalid amount' });
+    // Verify signature
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', razorpayKeySecret)
+      .update(body)
+      .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+      console.error(`[Razorpay Verify] ❌ Signature mismatch for order ${razorpay_order_id}`);
+      return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
     }
 
-    console.log(`[Paytm Initiate] orderId=${orderId} amount=₹${formattedAmount} customer=${customerId}`);
+    console.log(`[Razorpay Verify] ✅ Signature verified for order ${razorpay_order_id}`);
 
-    // Build body for /theia/api/v1/initiateTransaction
-    const paytmBody: Record<string, any> = {
-      requestType: 'Payment',
-      mid: paytmMerchantId,
-      orderId,
-      websiteName: paytmMerchantWebsite,
-      txnAmount: { value: formattedAmount, currency: 'INR' },
-      userInfo: { custId: customerId },
-      callbackUrl: paytmCallbackUrl,
-    };
+    // Find order by razorpayOrderId
+    let targetOrder: Order | undefined;
+    if (db) {
+      const snap = await db.collection('orders').where('razorpayOrderId', '==', razorpay_order_id).get();
+      if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
+    } else {
+      targetOrder = canteenState.orders.find(o => o.razorpayOrderId === razorpay_order_id);
+    }
 
-    // Generate checksum over the body JSON string
-    const bodyString = JSON.stringify(paytmBody);
-    const checksum = await PaytmChecksum.generateSignature(bodyString, paytmMerchantKey);
-    console.log(`[Paytm Initiate] Checksum generated:`, typeof checksum);
+    if (!targetOrder) {
+      return res.status(404).json({ success: false, error: 'Order not found for this payment' });
+    }
 
-    const fullPayload = { body: paytmBody, head: { signature: checksum } };
+    if (targetOrder.paymentStatus === 'paid') {
+      return res.json({ success: true, message: 'Payment already verified', order: targetOrder });
+    }
 
-    // Call Paytm's Initiate Transaction API
-    const apiUrl = `${paytmGatewayUrl.replace('/order/process', '')}/theia/api/v1/initiateTransaction?mid=${paytmMerchantId}&orderId=${orderId}`;
-    const paytmResponse = await axios.post(apiUrl, fullPayload, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 15000,
+    // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
+    let currentItems: MenuItem[] = [];
+    if (db) {
+      const snap = await db.collection('items').get();
+      currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+    } else {
+      currentItems = canteenState.items;
+    }
+
+    let currentIngredients: Ingredient[] = [];
+    if (db) {
+      const snap = await db.collection('ingredients').get();
+      currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+    } else {
+      currentIngredients = canteenState.ingredients || [];
+    }
+
+    for (const item of targetOrder.items) {
+      const itemInMenu = currentItems.find(i => i.id === item.itemId);
+      if (itemInMenu) {
+        itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
+        itemInMenu.bookedToday += item.quantity;
+        if (itemInMenu.stock <= 0) {
+          itemInMenu.available = false;
+        }
+        if (db) {
+          await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+        }
+
+        if (itemInMenu.recipe) {
+          for (const recipeItem of itemInMenu.recipe) {
+            const reqAmount = recipeItem.amountGrams * item.quantity;
+            const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
+            if (ingredient) {
+              ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
+              if (db) {
+                await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+              }
+            }
+          }
+        }
+      }
+    }
+    canteenState.items = currentItems;
+    canteenState.ingredients = currentIngredients;
+
+    const containsChefItems = targetOrder.items.some(it => {
+      const itemMenu = currentItems.find(m => m.id === it.itemId);
+      return itemMenu ? itemMenu.requiresChef !== false : true;
     });
 
-    const result = paytmResponse.data;
+    const updatedOrder: Order = {
+      ...targetOrder,
+      paymentStatus: 'paid',
+      status: containsChefItems ? 'scheduled' : 'ready',
+      razorpayPaymentId: razorpay_payment_id,
+      razorpaySignature: razorpay_signature,
+      pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
+    };
 
-    if (result.body?.resultInfo?.resultStatus === 'S' && result.body?.txnToken) {
-      console.log(`[Paytm Initiate] ✅ txnToken issued for ${orderId}`);
-      return res.json({
-        success: true,
-        txnToken: result.body.txnToken,
-        orderId,
-        mid: paytmMerchantId,
-        amount: formattedAmount,
-      });
+    if (db) {
+      await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
     }
 
-    const errCode = result.body?.resultInfo?.resultCode || 'UNKNOWN';
-    const errMsg = result.body?.resultInfo?.resultMsg || 'Paytm did not issue a txnToken';
-    console.error(`[Paytm Initiate] ❌ ${errCode}: ${errMsg}`);
-    return res.status(502).json({ success: false, error: `[${errCode}] ${errMsg}`, paytmResult: result.body?.resultInfo });
+    canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
+
+    console.log(`[Razorpay Verify] ✅ Order ${targetOrder.id} marked as paid`);
+    return res.json({ success: true, orderId: razorpay_order_id, status: 'paid', paymentId: razorpay_payment_id });
   } catch (err: any) {
-    const detail = err?.response?.data || err?.message || JSON.stringify(err);
-    console.error('[Paytm Initiate] Server error:', detail);
-    return res.status(500).json({ success: false, error: `Server error: ${err?.message || 'Unknown'}` });
+    console.error('[Razorpay Verify] Error:', err?.message || err);
+    return res.status(500).json({ success: false, error: 'Payment verification failed' });
   }
-});
-
-// ──────────────────────────────────────────────────────────────────────────────
-// 4e. Paytm All-in-One SDK — Callback (server-to-server after payment)
-// POST /api/payment/paytm-callback
-// Paytm sends form-urlencoded body with ORDER_ID, TXNSTATUS, CHECKSUMHASH, etc.
-// ──────────────────────────────────────────────────────────────────────────────
-app.post('/api/payment/paytm-callback', async (req, res) => {
-  try {
-    const params: Record<string, string> = { ...req.query as Record<string, string>, ...req.body };
-    const orderId = params.ORDER_ID || '';
-    const txnStatus = params.TXN_STATUS || params.STATUS || '';
-    const checksum = params.CHECKSUMHASH || params.CHECKSUM || '';
-
-    console.log(`[Paytm Callback v2] orderId=${orderId} status=${txnStatus}`);
-
-    // Verify checksum
-    if (checksum) {
-      const verifyParams = { ...params };
-      delete verifyParams.CHECKSUMHASH;
-      delete verifyParams.CHECKSUM;
-      try {
-        const isValid = await PaytmChecksum.verifySignature(verifyParams, paytmMerchantKey, checksum);
-        if (!isValid && txnStatus !== 'TXN_SUCCESS') {
-          console.error(`[Paytm Callback v2] ❌ Checksum mismatch for ${orderId}`);
-          return res.status(400).json({ success: false, error: 'Checksum verification failed' });
-        }
-        console.log(`[Paytm Callback v2] ✅ Checksum verified for ${orderId}`);
-      } catch (verifyErr) {
-        console.warn(`[Paytm Callback v2] Checksum verify threw, continuing:`, verifyErr);
-      }
-    }
-
-    if (txnStatus === 'TXN_SUCCESS') {
-      // Update order in database
-      let targetOrder: Order | undefined;
-      if (db) {
-        const snap = await db.collection('orders').where('paytmOrderId', '==', orderId).get();
-        if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
-      } else {
-        targetOrder = canteenState.orders.find(o => o.paytmOrderId === orderId);
-      }
-
-      if (targetOrder && targetOrder.paymentStatus !== 'paid') {
-        const updatedOrder: Order = {
-          ...targetOrder,
-          paymentStatus: 'paid',
-          status: 'scheduled',
-          paytmTransactionId: params.TXNID || targetOrder.paytmTransactionId,
-          pickupTimeText: `Scheduled for pickup at ${targetOrder.pickupSlot}`,
-        };
-        if (db) await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
-        canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
-        console.log(`[Paytm Callback v2] ✅ Order ${orderId} marked as paid`);
-      }
-
-      return res.json({ success: true, orderId, txnStatus: 'TXN_SUCCESS', txnId: params.TXNID || '' });
-    } else {
-      console.log(`[Paytm Callback v2] ❌ Payment FAILED for ${orderId}: ${params.RESPMSG || txnStatus}`);
-      return res.json({ success: false, orderId, txnStatus, error: params.RESPMSG || 'Payment failed' });
-    }
-  } catch (err: any) {
-    console.error('[Paytm Callback v2] Error:', err?.message || err);
-    return res.status(500).json({ success: false, error: 'Callback processing error' });
-  }
-});
-
-// GET redirect from Paytm (browser 302)
-app.get('/api/payment/paytm-callback', (req, res) => {
-  console.log('[Paytm Callback v2] GET redirect:', req.query);
-  return res.redirect(`${APP_UPDATE_URL}?payment=pending&orderId=${req.query.ORDER_ID || ''}`);
 });
 
 // 4c. QR Code Verification Endpoint (Staff scanning customer QR)

@@ -2053,7 +2053,7 @@ export default function CanteenAdmin({
                       <tr key={order.id} className="hover:bg-red-50/25">
                         <td className="py-3 font-mono font-bold text-gray-800">{order.id}</td>
                         <td className="py-3 text-gray-700 font-semibold">{order.userName}</td>
-                        <td className="py-3 text-gray-500">{order.paymentMethod || 'Paytm Gateway'}</td>
+                        <td className="py-3 text-gray-500">{order.paymentMethod || 'Razorpay / UPI QR'}</td>
                         <td className="py-3 text-gray-500">{new Date(order.timestamp || order.createdAt).toLocaleString()}</td>
                         <td className="py-3 text-right font-bold text-amber-600">₹{order.totalPrice.toFixed(2)}</td>
                       </tr>

@@ -55,8 +55,12 @@ export interface Order {
   timestamp: string;
   createdAt: number;
   pickupTimeText?: string;
-  paytmOrderId?: string;
-  paytmTransactionId?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
+  vyaparTxnId?: string;
+  upiQrUrl?: string;
+  upiString?: string;
   pickupSlot?: string;
   prepStartTime?: number;
   expiryTime?: number;
@@ -143,7 +147,6 @@ export interface Canteen {
   status: 'active' | 'inactive';
   location?: string;
   logoUrl?: string;
-  paytmMerchantId?: string;
   items?: MenuItem[];
   orders?: Order[];
   reviews?: Review[];
