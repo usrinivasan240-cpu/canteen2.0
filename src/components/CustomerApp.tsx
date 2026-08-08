@@ -528,6 +528,9 @@ export default function CustomerApp({
               if (statusData.paymentStatus === 'paid') {
                 clearInterval(pollInterval);
                 setVyaparPollingInterval(null);
+                setShowVyaparQRModal(false);
+                setVyaparQRData(null);
+                setVyaparQRDataUrl('');
                 // Fetch full order
                 const orderRes = await fetch(`${API_BASE}/api/user/orders?userId=${userId}&canteenId=${selectedCanteenId}`);
                 const orderData = await orderRes.json();
@@ -1342,7 +1345,7 @@ export default function CustomerApp({
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden transition-all border border-neutral-200">
             <div className="bg-emerald-600 px-5 py-4 flex items-center justify-between">
-              <span className="text-white font-bold text-lg tracking-tight">UPI QR Payment</span>
+              <span className="text-white font-bold text-lg tracking-tight">UPI Payment</span>
               <button
                 onClick={() => {
                   if (vyaparPollingInterval) clearInterval(vyaparPollingInterval);
@@ -1357,48 +1360,53 @@ export default function CustomerApp({
               </button>
             </div>
             <div className="p-6 text-center space-y-4">
-              <p className="text-xs text-gray-500">Scan this QR code with any UPI app to pay</p>
-
-              {/* QR Code */}
-              <div className="bg-white p-4 rounded-2xl border-2 border-dashed border-emerald-200 inline-block">
-                <div className="bg-neutral-900 p-4 rounded-xl">
-                  {vyaparQRDataUrl ? (
-                    <img src={vyaparQRDataUrl} alt="UPI QR Code" className="h-56 w-56 rounded-lg" />
-                  ) : (
-                    <div className="h-56 w-56 bg-neutral-800 rounded-lg flex items-center justify-center text-white text-xs font-mono p-4 text-center">
-                      Generating QR...
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Amount */}
               <div className="bg-emerald-50 p-3 rounded-xl">
                 <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Amount to Pay</span>
                 <span className="text-2xl font-display font-bold text-emerald-800">₹{vyaparQRData.amount.toFixed(2)}</span>
               </div>
 
+              {/* Mobile: Pay Now button (opens UPI app directly) */}
+              {vyaparQRData.upiString && /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500">Tap below to open your UPI app</p>
+                  <a
+                    href={vyaparQRData.upiString}
+                    onClick={() => {
+                      // Start polling after redirect back
+                      showToast('Opening UPI app...');
+                    }}
+                    className="block w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-4 text-sm font-bold shadow-lg transition text-center"
+                  >
+                    Pay ₹{vyaparQRData.amount.toFixed(2)} via UPI App
+                  </a>
+                  <p className="text-[10px] text-gray-400">Opens Google Pay, PhonePe, Paytm or any UPI app</p>
+                </div>
+              )}
+
+              {/* Desktop: Show QR Code */}
+              {!(/Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) && (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500">Scan this QR code with any UPI app to pay</p>
+                  <div className="bg-white p-4 rounded-2xl border-2 border-dashed border-emerald-200 inline-block">
+                    <div className="bg-neutral-900 p-4 rounded-xl">
+                      {vyaparQRDataUrl ? (
+                        <img src={vyaparQRDataUrl} alt="UPI QR Code" className="h-56 w-56 rounded-lg" />
+                      ) : (
+                        <div className="h-56 w-56 bg-neutral-800 rounded-lg flex items-center justify-center text-white text-xs font-mono p-4 text-center">
+                          Generating QR...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Order info */}
               <div className="text-[10px] text-gray-400 font-mono space-y-1">
                 <p>Order ID: <span className="text-gray-600 font-bold">{vyaparQRData.orderId}</span></p>
                 <p>Txn ID: <span className="text-gray-600 font-bold">{vyaparQRData.vyaparTxnId}</span></p>
               </div>
-
-              {/* UPI string (copyable) */}
-              {vyaparQRData.upiString && (
-                <div className="bg-gray-50 p-2 rounded-lg">
-                  <p className="text-[9px] text-gray-400 mb-1">Or copy UPI ID:</p>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(vyaparQRData.upiString);
-                      showToast('UPI string copied!');
-                    }}
-                    className="text-[10px] text-[#7c3aed] font-mono break-all hover:underline"
-                  >
-                    {vyaparQRData.upiString.substring(0, 50)}...
-                  </button>
-                </div>
-              )}
 
               {/* Status indicator */}
               <div className="flex items-center justify-center gap-2 text-xs text-gray-400">

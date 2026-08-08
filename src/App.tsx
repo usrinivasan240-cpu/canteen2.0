@@ -41,7 +41,12 @@ export default function App() {
   const [colleges, setColleges] = useState<College[]>(() => {
     try { const c = localStorage.getItem('bb_colleges'); return c ? JSON.parse(c) : []; } catch { return []; }
   });
-  const [userOrders, setUserOrders] = useState<Order[]>([]);
+  const [userOrders, setUserOrders] = useState<Order[]>(() => {
+    try {
+      const cached = localStorage.getItem('bb_orders');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
   const [legalPage, setLegalPage] = useState<string | null>(null);
   const [showSupportPage, setShowSupportPage] = useState(() => window.location.pathname === '/support');
 
@@ -68,7 +73,7 @@ export default function App() {
     try {
       const resp = await fetch(`${API_BASE}/api/user/orders?userId=${currentUser.id}&canteenId=${selectedCanteenId}`);
       const data = await resp.json();
-      if (data.success && Array.isArray(data.orders)) {
+      if (data.success && Array.isArray(data.orders) && data.orders.length > 0) {
         setUserOrders(data.orders);
         try { localStorage.setItem('bb_orders', JSON.stringify(data.orders)); } catch {}
       }
@@ -78,11 +83,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Hydrate from cache immediately
-    try {
-      const cached = localStorage.getItem('bb_orders');
-      if (cached) setUserOrders(JSON.parse(cached));
-    } catch {}
     if (currentUser?.id) {
       fetchUserOrders();
       const interval = setInterval(fetchUserOrders, 30000);
@@ -133,7 +133,7 @@ export default function App() {
     }
   }, [isLoggedIn]);
 
-  // Handle payment callback redirect
+  // Handle payment callback redirect (Razorpay + VyaparGateway)
   const [razorpaySuccess, setRazorpaySuccess] = useState<{ orderId: string; status: string; error?: string } | null>(null);
 
   useEffect(() => {
@@ -143,8 +143,21 @@ export default function App() {
     const error = params.get('error');
 
     if (paymentStatus === 'success' && orderId) {
+      // Auto-verify VyaparGateway payment
+      fetch(`${API_BASE}/api/vyapar/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      }).then(r => r.json()).then(d => {
+        if (d.success && d.order) {
+          setRazorpaySuccess({ orderId, status: 'success' });
+        } else {
+          setRazorpaySuccess({ orderId, status: 'success' });
+        }
+      }).catch(() => {
+        setRazorpaySuccess({ orderId, status: 'success' });
+      });
       fetchUserOrders();
-      setRazorpaySuccess({ orderId, status: 'success' });
       window.history.replaceState({}, '', window.location.pathname);
       return;
     }
@@ -184,7 +197,15 @@ export default function App() {
       }
 
       if (data.useRazorpay) {
-        await fetchCanteenData();
+        // Optimistically add order to local state so history shows it immediately
+        if (data.order) {
+          setUserOrders(prev => {
+            const updated = [data.order, ...prev];
+            try { localStorage.setItem('bb_orders', JSON.stringify(updated)); } catch {}
+            return updated;
+          });
+        }
+        fetchCanteenData();
         fetchUserOrders();
 
         return {
@@ -199,7 +220,15 @@ export default function App() {
       }
 
       if (data.useVyapar) {
-        await fetchCanteenData();
+        // Optimistically add order to local state so history shows it immediately
+        if (data.order) {
+          setUserOrders(prev => {
+            const updated = [data.order, ...prev];
+            try { localStorage.setItem('bb_orders', JSON.stringify(updated)); } catch {}
+            return updated;
+          });
+        }
+        fetchCanteenData();
         fetchUserOrders();
 
         return {
@@ -215,7 +244,15 @@ export default function App() {
         };
       }
 
-      await fetchCanteenData(); // resync lists
+      // Optimistically add order to local state (non-gateway instant checkout)
+      if (data.order) {
+        setUserOrders(prev => {
+          const updated = [data.order, ...prev];
+          try { localStorage.setItem('bb_orders', JSON.stringify(updated)); } catch {}
+          return updated;
+        });
+      }
+      fetchCanteenData(); // resync lists
       fetchUserOrders(); // refresh user-specific order history
       return data;
     } catch (e) {

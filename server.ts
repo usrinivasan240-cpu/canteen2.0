@@ -1550,44 +1550,68 @@ app.get('/api/user/orders', async (req, res) => {
   if (!userId) {
     return res.json({ success: true, orders: [] });
   }
+
+  // Always try in-memory fallback first as baseline
+  const memoryOrders = canteenState.orders
+    .filter(o => o.userId === userId && (!canteenId || o.canteenId === canteenId))
+    .slice(0, 50);
+
   if (db) {
     try {
       let orders: Order[] = [];
-      if (canteenId) {
-        try {
-          const snap = await db.collection('orders').where('userId', '==', userId).where('canteenId', '==', canteenId).orderBy('createdAt', 'desc').limit(50).get();
-          orders = snap.docs.map(doc => {
-            const o = doc.data() as Order;
-            if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
-            return o;
-          });
-        } catch (idxErr) {
-          console.warn('Composite index missing, falling back to userId-only query:', idxErr);
-          const snap = await db.collection('orders').where('userId', '==', userId).orderBy('createdAt', 'desc').limit(100).get();
-          orders = snap.docs
-            .map(doc => {
-              const o = doc.data() as Order;
-              if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
-              return o;
-            })
-            .filter(o => !canteenId || o.canteenId === canteenId)
-            .slice(0, 50);
-        }
-      } else {
-        const snap = await db.collection('orders').where('userId', '==', userId).orderBy('createdAt', 'desc').limit(50).get();
+
+      // Try simple userId-only query (no composite index needed)
+      try {
+        const snap = await db.collection('orders').where('userId', '==', userId).orderBy('createdAt', 'desc').limit(100).get();
         orders = snap.docs.map(doc => {
           const o = doc.data() as Order;
           if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
           return o;
         });
+        if (canteenId) {
+          orders = orders.filter(o => o.canteenId === canteenId);
+        }
+        orders = orders.slice(0, 50);
+      } catch (simpleErr) {
+        console.warn('Simple userId query failed:', simpleErr);
+
+        // Last resort: scan without orderBy
+        try {
+          const snap = await db.collection('orders').where('userId', '==', userId).limit(100).get();
+          orders = snap.docs.map(doc => {
+            const o = doc.data() as Order;
+            if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
+            return o;
+          });
+          if (canteenId) {
+            orders = orders.filter(o => o.canteenId === canteenId);
+          }
+          orders.sort((a, b) => b.createdAt - a.createdAt);
+          orders = orders.slice(0, 50);
+        } catch (scanErr) {
+          console.error('All Firestore queries failed for user orders:', scanErr);
+        }
       }
-      return res.json({ success: true, orders });
+
+      // Merge: prefer Firestore orders, but keep memory orders not found in Firestore
+      if (orders.length > 0) {
+        const firestoreIds = new Set(orders.map(o => o.id));
+        const merged = [...orders, ...memoryOrders.filter(o => !firestoreIds.has(o.id))];
+        return res.json({ success: true, orders: merged.slice(0, 50) });
+      }
+
+      // If Firestore returned nothing but we have memory orders, return those
+      if (memoryOrders.length > 0) {
+        return res.json({ success: true, orders: memoryOrders });
+      }
+
+      return res.json({ success: true, orders: [] });
     } catch (err) {
       console.error('Failed to fetch user orders:', err);
     }
   }
-  const allOrders = canteenState.orders.filter(o => o.userId === userId).slice(0, 50);
-  res.json({ success: true, orders: allOrders });
+
+  res.json({ success: true, orders: memoryOrders });
 });
 
 // 2. Add / Edit Menu Items (Owner)
@@ -2064,7 +2088,8 @@ app.post('/api/canteen/order', async (req, res) => {
       }
 
       // Sandbox / fallback: generate a static UPI QR for the order
-      const upiString = `upi://pay?pa=canteen@upi&pn=Esc(Q) Canteen&am=${(totalPrice).toFixed(2)}&tn=Order%20${orderId}&cu=INR`;
+      const callbackUrl = `${APP_UPDATE_URL}/api/vyapar/callback?orderId=${orderId}`;
+      const upiString = `upi://pay?pa=canteen@upi&pn=Esc(Q) Canteen&am=${(totalPrice).toFixed(2)}&tn=Order%20${orderId}&cu=INR&tr=${orderId}&url=${encodeURIComponent(callbackUrl)}`;
       const sandboxTxnId = `VYG_${orderId}_${Date.now()}`;
 
       newOrder.vyaparTxnId = sandboxTxnId;
@@ -2548,6 +2573,133 @@ app.get('/api/vyapar/status', async (req, res) => {
     return res.json({ success: false, error: 'Server error' });
   }
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 4i. VyaparGateway UPI Callback — GET /api/vyapar/callback
+// Handles redirect-back from UPI app after payment
+// ──────────────────────────────────────────────────────────────────────────────
+app.get('/api/vyapar/callback', async (req, res) => {
+  const orderId = (req.query.orderId as string) || '';
+  const txnId = (req.query.txnId as string) || '';
+  const status = (req.query.status as string) || '';
+
+  console.log(`[VyaparGateway Callback] order=${orderId} txn=${txnId} status=${status}`);
+
+  if (!orderId) {
+    return res.redirect(`${APP_UPDATE_URL}?payment=failed&error=No+order+ID`);
+  }
+
+  // Try to verify payment
+  let targetOrder: Order | undefined;
+  if (db) {
+    const doc = await db.collection('orders').doc(orderId).get();
+    if (doc.exists) targetOrder = doc.data() as Order;
+  } else {
+    targetOrder = canteenState.orders.find(o => o.id === orderId);
+  }
+
+  if (!targetOrder) {
+    return res.redirect(`${APP_UPDATE_URL}?payment=failed&orderId=${orderId}&error=Order+not+found`);
+  }
+
+  if (targetOrder.paymentStatus === 'paid') {
+    return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
+  }
+
+  // If VyaparGateway is configured, check with their API
+  if (vyaparConfigured && targetOrder.vyaparTxnId) {
+    try {
+      const vyaparAuth = Buffer.from(`${vyaparMerchantId}:${vyaparSecret}`).toString('base64');
+      const statusResp = await fetch(`${vyaparBaseUrl}/api/v1/transactions/${targetOrder.vyaparTxnId}/status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${vyaparAuth}`,
+          'Content-Type': 'application/json',
+          'X-Api-Key': vyaparApiKey,
+        },
+      });
+      const statusData = await statusResp.json() as any;
+
+      if (statusData.success || statusData.status === 'success' || statusData.payment_status === 'success') {
+        // Auto-verify and mark as paid
+        await autoVerifyVyaparOrder(targetOrder);
+        return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
+      }
+    } catch (e: any) {
+      console.error('[VyaparGateway Callback] Status check error:', e?.message);
+    }
+  }
+
+  // Sandbox fallback: auto-verify
+  if (status === 'success' || status === 'completed') {
+    await autoVerifyVyaparOrder(targetOrder);
+    return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
+  }
+
+  return res.redirect(`${APP_UPDATE_URL}?payment=pending&orderId=${orderId}`);
+});
+
+// Helper: Auto-verify VyaparGateway order (deduct stock, mark paid)
+async function autoVerifyVyaparOrder(targetOrder: Order) {
+  if (targetOrder.paymentStatus === 'paid') return;
+
+  let currentItems: MenuItem[] = [];
+  if (db) {
+    const snap = await db.collection('items').get();
+    currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+  } else {
+    currentItems = canteenState.items;
+  }
+
+  let currentIngredients: Ingredient[] = [];
+  if (db) {
+    const snap = await db.collection('ingredients').get();
+    currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+  } else {
+    currentIngredients = canteenState.ingredients || [];
+  }
+
+  for (const item of targetOrder.items) {
+    const itemInMenu = currentItems.find(i => i.id === item.itemId);
+    if (itemInMenu) {
+      itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
+      itemInMenu.bookedToday += item.quantity;
+      if (itemInMenu.stock <= 0) itemInMenu.available = false;
+      if (db) await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+
+      if (itemInMenu.recipe) {
+        for (const recipeItem of itemInMenu.recipe) {
+          const reqAmount = recipeItem.amountGrams * item.quantity;
+          const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
+          if (ingredient) {
+            ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
+            if (db) await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+          }
+        }
+      }
+    }
+  }
+  canteenState.items = currentItems;
+  canteenState.ingredients = currentIngredients;
+
+  const containsChefItems = targetOrder.items.some(it => {
+    const itemMenu = currentItems.find(m => m.id === it.itemId);
+    return itemMenu ? itemMenu.requiresChef !== false : true;
+  });
+
+  const updatedOrder: Order = {
+    ...targetOrder,
+    paymentStatus: 'paid',
+    status: containsChefItems ? 'scheduled' : 'ready',
+    pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
+  };
+
+  if (db) {
+    await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
+  }
+  canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
+  console.log(`[VyaparGateway AutoVerify] Order ${targetOrder.id} marked as paid`);
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 4d. Razorpay Payment Status Check — GET /api/razorpay/status
