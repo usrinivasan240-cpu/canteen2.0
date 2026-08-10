@@ -21,6 +21,7 @@ import LegalFooter from './components/LegalFooter';
 import { MenuItem, Order, Review, Canteen, College } from './types';
 import { API_BASE } from './config';
 import SupportPage from './components/SupportPage';
+import DownloadPage from './components/DownloadPage';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -49,6 +50,7 @@ export default function App() {
   });
   const [legalPage, setLegalPage] = useState<string | null>(null);
   const [showSupportPage, setShowSupportPage] = useState(() => window.location.pathname === '/support');
+  const [showDownloadPage, setShowDownloadPage] = useState(() => window.location.pathname === '/download');
 
   // Push browser history when support page opens
   useEffect(() => {
@@ -57,10 +59,19 @@ export default function App() {
     }
   }, [showSupportPage]);
 
+  // Push browser history when download page opens
+  useEffect(() => {
+    if (showDownloadPage) {
+      window.history.pushState({ downloadPage: true }, '', '/download');
+    }
+  }, [showDownloadPage]);
+
   // Handle browser back button
   useEffect(() => {
     const handlePopState = () => {
-      setShowSupportPage(false);
+      const path = window.location.pathname;
+      if (path !== '/download') setShowDownloadPage(false);
+      if (path !== '/support') setShowSupportPage(false);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -429,6 +440,18 @@ export default function App() {
     );
   }
 
+  // 0c. DOWNLOAD PAGE VIEW (full-screen, no login required)
+  if (showDownloadPage) {
+    return (
+      <DownloadPage
+        onBack={() => {
+          setShowDownloadPage(false);
+          window.history.back();
+        }}
+      />
+    );
+  }
+
   // 1. GATED ENTRY FOR LOGIN
   if (!isLoggedIn) {
     return (
@@ -437,6 +460,7 @@ export default function App() {
         <LoginScreen
           onLoginSuccess={handleLoginSuccess}
           onNavigateLegal={(page) => setLegalPage(page)}
+          onNavigateDownload={() => setShowDownloadPage(true)}
         />
       </>
     );

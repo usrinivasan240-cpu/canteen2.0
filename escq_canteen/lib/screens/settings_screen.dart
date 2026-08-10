@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import 'help_support_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -71,6 +72,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _legalTile('Refund Policy', Icons.replay, themeProv),
             _legalTile('About Us', Icons.info_outline, themeProv),
             _legalTile('Contact Us', Icons.mail_outline, themeProv),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen())),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.headset_mic, size: 18, color: Color(0xFFF59E0B)),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Help & Support', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFF59E0B)))),
+                    Icon(Icons.chevron_right, size: 18, color: Color(0xFFF59E0B)),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 32),
             _logoutBtn(auth),
           ],
@@ -318,6 +340,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: const Color(0xFF1F2937),
         child: Container(
           constraints: const BoxConstraints(maxWidth: 420, maxHeight: 500),
           padding: const EdgeInsets.all(24),
@@ -339,16 +362,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
-                  GestureDetector(onTap: () => Navigator.pop(ctx), child: const Icon(Icons.close, size: 20)),
+                  Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))),
+                  GestureDetector(onTap: () => Navigator.pop(ctx), child: const Icon(Icons.close, size: 20, color: Colors.grey)),
                 ],
               ),
               const SizedBox(height: 16),
-              const Divider(),
+              const Divider(color: Color(0xFF374151)),
               const SizedBox(height: 8),
               Flexible(
                 child: SingleChildScrollView(
-                  child: Text(content, style: const TextStyle(fontSize: 12, height: 1.5, color: Color(0xFF374151))),
+                  child: Text(content, style: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFFD1D5DB))),
                 ),
               ),
             ],

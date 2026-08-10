@@ -16,6 +16,7 @@ import '../services/api_service.dart';
 import 'checkout_screen.dart';
 import '../config.dart';
 import 'settings_screen.dart';
+import 'help_support_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -528,7 +529,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Text(sub.name, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isActive ? Colors.amber[700] : Colors.grey[600])),
               ),
             );
-          }),
+          }).toList(),
         ],
       ),
     );
@@ -550,29 +551,30 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _searchBar() {
+    final themeProv = context.watch<ThemeProvider>();
     return TextField(
       onChanged: (v) => setState(() => _searchQuery = v),
       decoration: InputDecoration(
         hintText: 'Search menus, food items, categories...',
-        hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
-        prefixIcon: const Icon(Icons.search, size: 18, color: Color(0xFF6B7280)),
+        hintStyle: TextStyle(fontSize: 13, color: themeProv.isDark ? Colors.grey[500] : const Color(0xFF9CA3AF)),
+        prefixIcon: Icon(Icons.search, size: 18, color: themeProv.isDark ? Colors.grey[500] : const Color(0xFF6B7280)),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderSide: BorderSide(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFE5E7EB)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderSide: BorderSide(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFE5E7EB)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 2),
         ),
       ),
-      style: const TextStyle(fontSize: 12),
+      style: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.white : Colors.black87),
     );
   }
 
@@ -624,15 +626,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildMenuGrid(bool isMobile, bool isTablet, String title, String subtitle) {
     final bShowCategoryTabs = _branding.showCategoryTabs ?? true;
     final crossCount = isMobile ? 2 : (isTablet ? 3 : 4);
+    final themeProv = context.watch<ThemeProvider>();
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFFEE2E2)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4)],
+        border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(themeProv.isDark ? 0.1 : 0.02), blurRadius: 4)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -644,9 +647,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.black87)),
+                    Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: themeProv.isDark ? Colors.white : Colors.black87)),
                     const SizedBox(height: 2),
-                    Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text(subtitle, style: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.grey[400] : Colors.grey)),
                   ],
                 ),
               ),
@@ -709,13 +712,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _menuCard(MenuItem item) {
     final cart = context.read<CartProvider>();
     final qty = cart.getItemQty(item.id);
+    final themeProv = context.watch<ThemeProvider>();
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFEE2E2)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4)],
+        border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(themeProv.isDark ? 0.1 : 0.03), blurRadius: 4)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -751,21 +755,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text(item.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        child: Text(item.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: themeProv.isDark ? Colors.white : const Color(0xFF111827)), maxLines: 2, overflow: TextOverflow.ellipsis),
                       ),
-                      Text('★ ${item.rating}', style: TextStyle(fontSize: 10, color: Colors.grey[400])),
+                      Text('★ ${item.rating}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
                     ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       _miniTag('Prep: ${item.prepTime}m', Colors.amber[50]!, Colors.amber[800]!),
                       const SizedBox(width: 4),
-                      _miniTag('Limit: ${item.dailyLimit}', Colors.grey[50]!, Colors.grey[500]!),
+                      _miniTag('Limit: ${item.dailyLimit}', Colors.grey[50]!, Colors.grey[600]!),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text('₹${item.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFFF59E0B))),
+                  Text('₹${item.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFFF59E0B))),
                   const Spacer(),
                   // BUTTON - always at bottom, full width, explicitly tappable
                   if (qty > 0)
@@ -907,16 +911,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSuccessTicket(user) {
     final order = context.read<OrderProvider>().lastOrder;
     if (order == null) return const SizedBox();
+    final themeProv = context.watch<ThemeProvider>();
     return Center(
       child: Container(
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.all(24),
         constraints: const BoxConstraints(maxWidth: 480),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFFEE2E2)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 24)],
+          border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(themeProv.isDark ? 0.2 : 0.08), blurRadius: 24)],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -927,7 +932,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(Icons.check_circle, color: Colors.white, size: 28),
             ),
             const SizedBox(height: 12),
-            const Text('Order Placed Successfully!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('Order Placed Successfully!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeProv.isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 4),
             const Text('Show this QR code at the counter.', style: TextStyle(fontSize: 11, color: Colors.grey)),
             const SizedBox(height: 20),
@@ -1030,14 +1035,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildOrderHistory(user) {
     final myOrders = List<Order>.from(_userOrders);
     myOrders.sort((a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
+    final themeProv = context.watch<ThemeProvider>();
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFFEE2E2)),
+        border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1045,13 +1051,13 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Your Booking History', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                    SizedBox(height: 4),
-                    Text('Track and view your past orders.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text('Your Booking History', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: themeProv.isDark ? Colors.white : Colors.black87)),
+                    const SizedBox(height: 4),
+                    Text('Track and view your past orders.', style: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.grey[400] : Colors.grey)),
                   ],
                 ),
               ),
@@ -1121,14 +1127,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final isCollected = order.status == 'collected' || order.status == 'delivered';
     final isExpired = order.status == 'expired' || order.status == 'cancelled';
     Color statusColor = isCollected ? Colors.green : (isExpired ? Colors.red : Colors.amber);
+    final themeProv = context.watch<ThemeProvider>();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProv.isDark ? const Color(0xFF111827) : Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFEE2E2)),
+        border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1244,18 +1251,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ─── REVIEW SECTION ──────────────────────────────────────
   Widget _buildReviewSection(user) {
+    final themeProv = context.watch<ThemeProvider>();
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFFEE2E2)),
+        border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Add Public Faculty Review', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          Text('Add Public Faculty Review', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: themeProv.isDark ? Colors.white : Colors.black87)),
           const SizedBox(height: 4),
           const Text('Reviews are sentiment analyzed automatically.', style: TextStyle(fontSize: 10, color: Colors.grey)),
           const SizedBox(height: 12),
@@ -1339,13 +1347,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ─── SENTIMENT LOG ───────────────────────────────────────
   Widget _buildSentimentLog() {
+    final themeProv = context.watch<ThemeProvider>();
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFFEE2E2)),
+        border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1562,6 +1571,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.user;
+    final themeProv = context.watch<ThemeProvider>();
     final branding = _branding;
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
@@ -1569,34 +1579,94 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBFCFF),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(height: 40, width: 40, child: CircularProgressIndicator(color: Colors.amber[600], strokeWidth: 3)),
-              const SizedBox(height: 16),
-              const Text('Loading menu...', style: TextStyle(fontSize: 12, color: Colors.grey)),
-            ],
-          ),
+        backgroundColor: const Color(0xFF0D0D12),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              'assets/images/splash_screen.png',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.restaurant, color: Color(0xFFF59E0B), size: 48),
+                    SizedBox(height: 16),
+                    Text('Esc(Q)', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
+                  ],
+                ),
+              ),
+            ),
+            const Positioned(
+              bottom: 60,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 28,
+                      width: 28,
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFF59E0B),
+                        strokeWidth: 2.5,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      'Loading menu...',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFFF59E0B),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
 
     if (_error != null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFBFCFF),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
-              const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: _loadAll, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.white), child: const Text('Retry')),
-            ],
-          ),
+        backgroundColor: const Color(0xFF0D0D12),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              'assets/images/splash_screen.png',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0D0D12)),
+            ),
+            Center(
+              child: Container(
+                margin: const EdgeInsets.all(32),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                    const SizedBox(height: 12),
+                    Text(_error!, style: const TextStyle(fontSize: 13, color: Colors.white70), textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadAll,
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.white),
+                      child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -1609,7 +1679,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final bFooterCopyright = branding.footerCopyright ?? '\u00a9 2026 Esc(Q). All Rights Reserved.';
 
     final scaffold = Scaffold(
-      backgroundColor: const Color(0xFFFBFCFF),
+      backgroundColor: themeProv.isDark ? const Color(0xFF111827) : const Color(0xFFFBFCFF),
       floatingActionButton: _buildFloatingCartButton(),
       body: Column(
         children: [
@@ -1629,7 +1699,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   else
                     _buildOrderHistory(user),
                   const SizedBox(height: 24),
-                  _buildDarkFooter(branding, bFooterCopyright, bContactPhone, bContactEmail, bContactAddress),
                 ],
               ),
             ),

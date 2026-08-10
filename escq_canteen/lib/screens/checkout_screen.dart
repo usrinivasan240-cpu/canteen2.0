@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
+import '../providers/theme_provider.dart';
 import 'payment_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -39,17 +40,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
     final slots = _generateTimeSlots();
+    final themeProv = context.watch<ThemeProvider>();
+    final bg = themeProv.isDark ? const Color(0xFF111827) : const Color(0xFFFBFCFF);
+    final cardBg = themeProv.isDark ? const Color(0xFF1F2937) : Colors.white;
+    final cardBorder = themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2);
+    final textColor = themeProv.isDark ? Colors.white : Colors.black87;
+    final subTextColor = themeProv.isDark ? Colors.grey[400]! : Colors.grey;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFCFF),
+      backgroundColor: bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, size: 18, color: Color(0xFF111827)),
+          icon: Icon(Icons.arrow_back_ios, size: 18, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Checkout', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+        title: Text('Checkout', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: textColor)),
         centerTitle: true,
       ),
       body: cart.isEmpty
@@ -91,14 +98,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardBg,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFFEE2E2)),
+                      border: Border.all(color: cardBorder),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('YOUR ORDER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey, letterSpacing: 0.5)),
+                        Text('YOUR ORDER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: subTextColor, letterSpacing: 0.5)),
                         const SizedBox(height: 12),
                         ...cart.items.entries.map((e) {
                           final item = e.value;
@@ -118,7 +125,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(item.menuItem.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      Text(item.menuItem.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textColor), maxLines: 1, overflow: TextOverflow.ellipsis),
                                       const SizedBox(height: 2),
                                       Text('₹${item.menuItem.price.toStringAsFixed(2)}', style: TextStyle(fontSize: 11, color: Colors.amber[700], fontWeight: FontWeight.bold)),
                                     ],
@@ -163,14 +170,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardBg,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFFEE2E2)),
+                      border: Border.all(color: cardBorder),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('PICKUP SLOT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey, letterSpacing: 0.5)),
+                        Text('PICKUP SLOT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: subTextColor, letterSpacing: 0.5)),
                         const SizedBox(height: 8),
                         Container(
                           width: double.infinity,
@@ -185,7 +192,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               value: selectedSlot,
                               isDense: true,
                               isExpanded: true,
-                              items: slots.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12)))).toList(),
+                              items: slots.map((s) => DropdownMenuItem(value: s, child: Text(s, style: TextStyle(fontSize: 12, color: textColor)))).toList(),
                               onChanged: (v) => setState(() => selectedSlot = v ?? 'ASAP (Instant)'),
                             ),
                           ),
@@ -197,9 +204,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardBg,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFFEE2E2)),
+                      border: Border.all(color: cardBorder),
                     ),
                     child: Column(
                       children: [
@@ -253,28 +260,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _qtyBtn(IconData icon, VoidCallback onTap) {
+    final themeProv = context.watch<ThemeProvider>();
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.all(5),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
+        decoration: BoxDecoration(color: themeProv.isDark ? const Color(0xFF374151) : Colors.white, borderRadius: BorderRadius.circular(5)),
         child: Icon(icon, size: 12, color: const Color(0xFFF59E0B)),
       ),
     );
   }
 
   Widget _summaryRow(String label, String value, {bool bold = false}) {
+    final themeProv = context.watch<ThemeProvider>();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[500], fontWeight: bold ? FontWeight.w700 : FontWeight.normal)),
+          Text(label, style: TextStyle(fontSize: 13, color: themeProv.isDark ? Colors.grey[400] : Colors.grey[500], fontWeight: bold ? FontWeight.w700 : FontWeight.normal)),
           Text(value, style: TextStyle(
             fontSize: bold ? 16 : 13,
             fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-            color: bold ? Colors.amber[700] : Colors.grey[700],
+            color: bold ? const Color(0xFFF59E0B) : (themeProv.isDark ? Colors.grey[300] : Colors.grey[700]),
           )),
         ],
       ),

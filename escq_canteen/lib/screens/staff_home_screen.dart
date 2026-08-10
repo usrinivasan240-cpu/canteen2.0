@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../providers/auth_provider.dart';
+import '../providers/theme_provider.dart';
 import '../models/order.dart';
 import '../services/api_service.dart';
 
@@ -64,9 +65,10 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.user;
+    final themeProv = context.watch<ThemeProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFCFF),
+      backgroundColor: themeProv.isDark ? const Color(0xFF111827) : const Color(0xFFFBFCFF),
       body: Column(
         children: [
           _buildHeader(auth, user),
@@ -82,8 +84,9 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   }
 
   Widget _buildHeader(AuthProvider auth, user) {
+    final themeProv = context.watch<ThemeProvider>();
     return Container(
-      color: Colors.white,
+      color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
       child: SafeArea(
         bottom: false,
         child: Container(
@@ -100,8 +103,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Esc(Q)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                    Text('Staff Panel · ${user?.role ?? ''}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                    Text('Esc(Q)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: themeProv.isDark ? Colors.white : Colors.black87)),
+                    Text('Staff Panel · ${user?.role ?? ''}', style: TextStyle(fontSize: 10, color: themeProv.isDark ? Colors.grey[400] : Colors.grey)),
                   ],
                 ),
               ),
@@ -127,8 +130,9 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   }
 
   Widget _buildTabBar() {
+    final themeProv = context.watch<ThemeProvider>();
     return Container(
-      color: Colors.white,
+      color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
       child: Row(
         children: [
           _tabBtn(0, Icons.receipt_long, 'Orders'),
@@ -260,6 +264,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
 
   Widget _orderCard(Order order, {required bool isActive}) {
     final createdTime = order.timestamp != null ? _parseTimestamp(order.timestamp!) : null;
+    final themeProv = context.watch<ThemeProvider>();
 
     Color statusColor;
     switch (order.status) {
@@ -277,10 +282,10 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isActive ? const Color(0xFFFEE2E2) : Colors.grey.shade200),
-        boxShadow: isActive ? [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4)] : [],
+        border: Border.all(color: isActive ? (themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)) : (themeProv.isDark ? const Color(0xFF374151) : Colors.grey.shade200)),
+        boxShadow: isActive ? [BoxShadow(color: Colors.black.withOpacity(themeProv.isDark ? 0.1 : 0.03), blurRadius: 4)] : [],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -305,7 +310,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text('By: ${order.userName}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text('By: ${order.userName}', style: TextStyle(fontSize: 11, color: themeProv.isDark ? Colors.grey[400] : Colors.grey)),
                   ],
                 ),
               ),
@@ -313,7 +318,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(createdTime['time']!, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+                    Text(createdTime['time']!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: themeProv.isDark ? Colors.white : Colors.black87)),
                     Text(createdTime['date']!, style: TextStyle(fontSize: 9, color: Colors.grey[400])),
                   ],
                 ),
@@ -347,7 +352,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                     Text('Pickup: ${order.pickupSlot}', style: TextStyle(fontSize: 10, color: Colors.grey[500])),
                   ],
                 ),
-              Text('₹${order.totalPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              Text('₹${order.totalPrice.toStringAsFixed(2)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: themeProv.isDark ? Colors.white : Colors.black87)),
             ],
           ),
 
@@ -496,6 +501,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
       context: context,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1F2937) : null,
         child: Container(
           constraints: const BoxConstraints(maxWidth: 380),
           padding: const EdgeInsets.all(24),

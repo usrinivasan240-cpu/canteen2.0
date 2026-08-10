@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { ChefHat, Eye, EyeOff, LogIn, UserPlus, AlertCircle, GraduationCap, Phone, Hash, Mail, Lock, User } from 'lucide-react';
+import { ChefHat, Eye, EyeOff, LogIn, UserPlus, AlertCircle, GraduationCap, Phone, Hash, Mail, Lock, User, Download, Smartphone } from 'lucide-react';
 import { API_BASE } from '../config';
 import { College } from '../types';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: { id: string; email: string; name: string; role: 'customer' | 'owner' | 'superadmin' | 'admin' | 'chef' | 'staff'; collegeId?: string; canteenId?: string; subCanteenId?: string }) => void;
   onNavigateLegal?: (page: string) => void;
+  onNavigateDownload?: () => void;
 }
 
-export default function LoginScreen({ onLoginSuccess, onNavigateLegal }: LoginScreenProps) {
+export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigateDownload }: LoginScreenProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -438,6 +439,33 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal }: LoginSc
             </span>
           </div>
         )}
+
+        {/* Download App Button - Always visible */}
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => {
+              if (onNavigateDownload) {
+                onNavigateDownload();
+              } else {
+                window.history.pushState({ downloadPage: true }, '', '/download');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+                // Fallback: direct navigation
+                window.location.href = '/download';
+              }
+            }}
+            className="w-full flex items-center justify-center gap-3 bg-gray-900 hover:bg-gray-800 text-white rounded-2xl py-3.5 px-4 transition-all border border-gray-700/50 hover:border-amber-500/30 cursor-pointer group shadow-lg shadow-gray-900/20"
+          >
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-500 to-red-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Smartphone className="h-4 w-4 text-white" />
+            </div>
+            <div className="text-left flex-1">
+              <div className="text-[10px] font-medium text-gray-400">Get the mobile app</div>
+              <div className="text-xs font-bold font-display">Download Esc(Q) APK</div>
+            </div>
+            <Download className="h-4 w-4 text-gray-500 group-hover:text-amber-400 transition-colors" />
+          </button>
+        </div>
       </div>
     </div>
 
