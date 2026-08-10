@@ -80,35 +80,55 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   @override
   Widget build(BuildContext context) {
     if (!_initialized) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0D0D12),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _EscqSplashLogo(),
-              SizedBox(height: 24),
-              _EscqSplashText(),
-              SizedBox(height: 32),
-              SizedBox(
-                height: 28,
-                width: 28,
-                child: CircularProgressIndicator(
-                  color: Color(0xFFF59E0B),
-                  strokeWidth: 2.5,
+      return Scaffold(
+        backgroundColor: const Color(0xFF0D0D12),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              'assets/images/splash_screen.png',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _EscqSplashLogo(),
+                    SizedBox(height: 24),
+                    _EscqSplashText(),
+                  ],
                 ),
               ),
-              SizedBox(height: 16),
-              Text(
-                'Connecting smart dining cloud network...',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFFF59E0B),
-                  fontWeight: FontWeight.w600,
+            ),
+            Positioned(
+              bottom: 60,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      height: 28,
+                      width: 28,
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFF59E0B),
+                        strokeWidth: 2.5,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Connecting smart dining cloud network...',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFFF59E0B),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
