@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
@@ -28,8 +28,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String? orderId;
   Timer? _pollTimer;
   int _pollCount = 0;
-
-  static const _channel = MethodChannel('com.escq/url_launcher');
 
   @override
   void initState() {
@@ -71,22 +69,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
       orderId = result['order']?['id'];
       cart.clear();
 
-      if (result['usePaytm'] == true && result['paytmGatewayUrl'] != null && result['paytmParams'] != null) {
-        final gatewayUrl = result['paytmGatewayUrl'] as String;
-        final paytmParams = Map<String, dynamic>.from(result['paytmParams']);
-
-        final uri = Uri.parse(gatewayUrl);
-        final fullUri = uri.replace(queryParameters: paytmParams.map((k, v) => MapEntry(k, v.toString())));
+      // Handle VyaparGateway UPI payment
+      if (result['useVyapar'] == true && result['upiQrUrl'] != null) {
+        final upiQrUrl = result['upiQrUrl'] as String;
+        final upiString = result['upiString'] as String? ?? '';
 
         setState(() { isProcessing = false; waitingForPayment = true; });
 
-        try {
-          await _channel.invokeMethod('openUrl', {'url': fullUri.toString()});
-          _startPolling();
-        } catch (e) {
-          setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Could not open payment gateway'; });
-        }
-      } else {
+        // Show UPI QR modal and start polling
+        _showUpiPaymentModal(upiQrUrl, upiString);
+        _startPolling();
+      }
+      // Handle Razorpay payment
+      else if (result['useRazorpay'] == true && result['razorpayOrderId'] != null) {
+        final razorpayOrderId = result['razorpayOrderId'] as String;
+        final amount = result['amount'] as num? ?? widget.totalAmount;
+
+        setState(() { isProcessing = false; waitingForPayment = true; });
+
+        // Show Razorpay payment info and start polling
+        _showRazorpayModal(razorpayOrderId, amount);
+        _startPolling();
+      }
+      // Direct order success (free items or already paid)
+      else {
         context.read<OrderProvider>().setLastOrder(Order.fromJson(result['order']));
         setState(() { isProcessing = false; isComplete = true; });
       }
@@ -124,6 +130,127 @@ class _PaymentScreenState extends State<PaymentScreen> {
     });
   }
 
+  void _showUpiPaymentModal(String qrUrl, String upiString) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.6,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 20),
+            const Text('Scan UPI QR to Pay', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text('Order ID: $orderId', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+            const SizedBox(height: 16),
+            Container(
+              width: 200, height: 200,
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFF59E0B), width: 3),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(13),
+                child: Image.network(qrUrl, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.qr_code, size: 80, color: Colors.grey)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: const Color(0xFFFEF9E7), borderRadius: BorderRadius.circular(10)),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 16, color: Color(0xFFD97706)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Scan the QR code with any UPI app. Payment will be confirmed automatically.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[700]))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () { Navigator.pop(ctx); setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment cancelled'; }); },
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                child: const Text('Cancel Payment', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRazorpayModal(String razorpayOrderId, num amount) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.5,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 20),
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEA580C)]),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Center(child: Text('R', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white))),
+            ),
+            const SizedBox(height: 16),
+            const Text('Razorpay Payment', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text('Amount: ₹${amount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFFF59E0B))),
+            const SizedBox(height: 4),
+            Text('Order ID: $razorpayOrderId', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: const Color(0xFFFEF9E7), borderRadius: BorderRadius.circular(10)),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 16, color: Color(0xFFD97706)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Payment is being processed. This screen will update automatically.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[700]))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () { Navigator.pop(ctx); setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment cancelled'; }); },
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                child: const Text('Cancel Payment', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -152,19 +279,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
             Container(
               width: 80, height: 80,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF00baf2), Color(0xFF0096d6)]),
+                gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEA580C)]),
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: const Color(0xFF00baf2).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
+                boxShadow: [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
               ),
-              child: const Center(child: Text('P', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white))),
+              child: const Center(child: Text('Esc(Q)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white))),
             ),
             const SizedBox(height: 24),
             if (waitingForPayment) ...[
-              const SizedBox(height: 48, width: 48, child: CircularProgressIndicator(color: Color(0xFF00baf2), strokeWidth: 3)),
+              const SizedBox(height: 48, width: 48, child: CircularProgressIndicator(color: Color(0xFFF59E0B), strokeWidth: 3)),
               const SizedBox(height: 24),
               const Text('Waiting for Payment Confirmation', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
               const SizedBox(height: 8),
-              Text('Complete payment in the Paytm app/browser', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+              Text('Complete payment in the payment gateway', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
               const SizedBox(height: 8),
               Text('Order ID: $orderId', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
               const SizedBox(height: 32),
@@ -189,11 +316,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
               ),
             ] else ...[
-              const SizedBox(height: 48, width: 48, child: CircularProgressIndicator(color: Color(0xFF00baf2), strokeWidth: 3)),
+              const SizedBox(height: 48, width: 48, child: CircularProgressIndicator(color: Color(0xFFF59E0B), strokeWidth: 3)),
               const SizedBox(height: 24),
               const Text('Initiating Payment...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
               const SizedBox(height: 8),
-              Text('Connecting to Paytm gateway', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+              Text('Connecting to payment gateway', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
             ],
           ],
         ),
@@ -251,7 +378,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFDC2626),
+                  backgroundColor: const Color(0xFFF59E0B),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
@@ -288,7 +415,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   setState(() { isFailed = false; isProcessing = true; _pollCount = 0; _initiatePayment(); });
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFDC2626),
+                  backgroundColor: const Color(0xFFF59E0B),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),

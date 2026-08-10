@@ -92,7 +92,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
             children: [
               Container(
                 width: 36, height: 36,
-                decoration: BoxDecoration(color: Colors.red[900], borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: const Color(0xFFF59E0B), borderRadius: BorderRadius.circular(10)),
                 child: const Icon(Icons.local_cafe, color: Colors.white, size: 18),
               ),
               const SizedBox(width: 10),

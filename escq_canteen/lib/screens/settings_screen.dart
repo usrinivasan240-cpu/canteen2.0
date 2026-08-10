@@ -97,7 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: const Color(0xFFDC2626),
+                backgroundColor: const Color(0xFFF59E0B),
                 child: Text(
                   (user?.name ?? 'U').substring(0, 1).toUpperCase(),
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
@@ -119,10 +119,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _editingProfile ? const Color(0xFFDC2626).withOpacity(0.1) : Colors.grey[100],
+                    color: _editingProfile ? const Color(0xFFF59E0B).withOpacity(0.1) : Colors.grey[100],
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(_editingProfile ? 'Cancel' : 'Edit', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _editingProfile ? const Color(0xFFDC2626) : Colors.grey[600])),
+                  child: Text(_editingProfile ? 'Cancel' : 'Edit', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _editingProfile ? const Color(0xFFF59E0B) : Colors.grey[600])),
                 ),
               ),
             ],
@@ -142,10 +142,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onPressed: () {
                   setState(() => _editingProfile = false);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile updated locally. Server sync pending.'), backgroundColor: Color(0xFFDC2626)),
+                    const SnackBar(content: Text('Profile updated locally. Server sync pending.'), backgroundColor: Color(0xFFF59E0B)),
                   );
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
                 child: const Text('Save Changes', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ),
@@ -200,7 +200,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       child: Row(
         children: [
-          Icon(themeProv.isDark ? Icons.dark_mode : Icons.light_mode, size: 20, color: const Color(0xFFDC2626)),
+          Icon(themeProv.isDark ? Icons.dark_mode : Icons.light_mode, size: 20, color: const Color(0xFFF59E0B)),
           const SizedBox(width: 12),
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Switch(
             value: themeProv.isDark,
             onChanged: (_) => themeProv.toggleTheme(),
-            activeColor: const Color(0xFFDC2626),
+            activeColor: const Color(0xFFF59E0B),
           ),
         ],
       ),
@@ -232,7 +232,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: const Color(0xFFDC2626)),
+            Icon(icon, size: 18, color: const Color(0xFFF59E0B)),
             const SizedBox(width: 12),
             Expanded(child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: themeProv.isDark ? Colors.white : Colors.black87))),
             Icon(Icons.chevron_right, size: 18, color: themeProv.isDark ? Colors.grey[500] : Colors.grey),
@@ -251,7 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await auth.logout();
           if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
         },
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.red[50], foregroundColor: Colors.red[700], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.red[200]!))),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.amber[50], foregroundColor: Colors.amber[700], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.amber[200]!))),
         child: const Text('Logout', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
       ),
     );
@@ -329,7 +329,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Container(
                     width: 40, height: 40,
-                    decoration: BoxDecoration(color: const Color(0xFFDC2626), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: const Color(0xFFF59E0B), borderRadius: BorderRadius.circular(12)),
                     child: Icon(
                       page == 'About Us' ? Icons.info :
                       page == 'Contact Us' ? Icons.mail :

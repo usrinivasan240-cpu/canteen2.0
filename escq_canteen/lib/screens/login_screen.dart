@@ -114,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   offset: const Offset(0, 4),
                 ),
               ],
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              border: Border.all(color: const Color(0xFFFEE2E2)),
             ),
             padding: const EdgeInsets.all(28),
             child: Column(
@@ -125,13 +125,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: const Color(0xFFF59E0B),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFF59E0B).withOpacity(0.15),
-                        blurRadius: 8,
+                        color: const Color(0xFFF59E0B).withOpacity(0.3),
+                        blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
                     ],
@@ -141,7 +140,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Image.asset(
                       'assets/images/escq_logo.png',
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.local_cafe, color: Color(0xFFDC2626), size: 30),
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Text(
+                          'Esc(Q)',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -161,7 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: Color(0xFF6B7280),
+                    color: Color(0xFFF59E0B),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -169,8 +177,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Sign In / Sign Up toggle
                 Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
+                    color: const Color(0xFFFEF2F2),
                     borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFFEE2E2).withOpacity(0.5)),
                   ),
                   padding: const EdgeInsets.all(4),
                   child: Row(
@@ -181,14 +190,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: !isSignUp ? const Color(0xFFDC2626) : Colors.transparent,
+                              color: !isSignUp ? const Color(0xFFF59E0B) : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: !isSignUp ? [BoxShadow(color: const Color(0xFFDC2626).withOpacity(0.3), blurRadius: 6)] : null,
+                              boxShadow: !isSignUp ? [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 6)] : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.login, size: 14, color: !isSignUp ? Colors.white : Color(0xFF6B7280)),
+                                Icon(Icons.login, size: 14, color: !isSignUp ? Colors.white : const Color(0xFF6B7280)),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Sign In',
@@ -209,14 +218,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: isSignUp ? const Color(0xFFDC2626) : Colors.transparent,
+                              color: isSignUp ? const Color(0xFFF59E0B) : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: isSignUp ? [BoxShadow(color: const Color(0xFFDC2626).withOpacity(0.3), blurRadius: 6)] : null,
+                              boxShadow: isSignUp ? [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 6)] : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.person_add, size: 14, color: isSignUp ? Colors.white : Color(0xFF6B7280)),
+                                Icon(Icons.person_add, size: 14, color: isSignUp ? Colors.white : const Color(0xFF6B7280)),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Sign Up',
@@ -291,7 +300,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: ElevatedButton(
                     onPressed: auth.loading ? null : _handleSubmit,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFDC2626),
+                      backgroundColor: const Color(0xFFF59E0B),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -361,7 +370,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2),
+              borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 2),
             ),
           ),
           style: const TextStyle(fontSize: 13, color: Color(0xFF111827)),
@@ -403,7 +412,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2),
+              borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 2),
             ),
           ),
           style: const TextStyle(fontSize: 13, color: Color(0xFF111827)),
@@ -455,7 +464,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Checkbox(
               value: value,
               onChanged: (v) => onChanged(v ?? false),
-              activeColor: const Color(0xFFDC2626),
+              activeColor: const Color(0xFFF59E0B),
               side: const BorderSide(color: Color(0xFFD1D5DB)),
             ),
           ),

@@ -193,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         right: -4, top: -4,
                         child: Container(
                           padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(color: Color(0xFFDC2626), shape: BoxShape.circle),
+                          decoration: const BoxDecoration(color: Color(0xFFF59E0B), shape: BoxShape.circle),
                           child: Text('$cartCount', style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white)),
                         ),
                       ),
@@ -308,9 +308,9 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFFDC2626), Color(0xFF991B1B)]),
+        gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEA580C)]),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: const Color(0xFFDC2626).withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Row(
         children: [
@@ -436,14 +436,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFDC2626) : Colors.white,
+                    color: isSelected ? const Color(0xFFF59E0B) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isSelected ? const Color(0xFFDC2626) : const Color(0xFFE5E7EB),
+                      color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFE5E7EB),
                       width: isSelected ? 2 : 1,
                     ),
                     boxShadow: isSelected
-                        ? [BoxShadow(color: const Color(0xFFDC2626).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 2))]
+                        ? [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 2))]
                         : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4)],
                   ),
                   child: Row(
@@ -473,7 +473,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Text(
                             '${subs.length}',
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.red[700]),
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.amber[700]),
                           ),
                         ),
                       ],
@@ -510,7 +510,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: _selectedSubCanteenId.isEmpty ? const Color(0xFFFECACA) : const Color(0xFFE5E7EB)),
               ),
-              child: Text('All', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _selectedSubCanteenId.isEmpty ? Colors.red[700] : Colors.grey[600])),
+              child: Text('All', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _selectedSubCanteenId.isEmpty ? Colors.amber[700] : Colors.grey[600])),
             ),
           ),
           ...subs.map((sub) {
@@ -525,7 +525,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: isActive ? const Color(0xFFFECACA) : const Color(0xFFE5E7EB)),
                 ),
-                child: Text(sub.name, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isActive ? Colors.red[700] : Colors.grey[600])),
+                child: Text(sub.name, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isActive ? Colors.amber[700] : Colors.grey[600])),
               ),
             );
           }),
@@ -569,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2),
+          borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 2),
         ),
       ),
       style: const TextStyle(fontSize: 12),
@@ -605,14 +605,14 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.only(bottom: 12, right: 20),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: isActive ? const Color(0xFFDC2626) : Colors.transparent, width: 2)),
+          border: Border(bottom: BorderSide(color: isActive ? const Color(0xFFF59E0B) : Colors.transparent, width: 2)),
         ),
           child: Text(
           label,
           style: TextStyle(
             fontSize: 12,
             fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
-            color: isActive ? const Color(0xFFDC2626) : Colors.grey,
+            color: isActive ? const Color(0xFFF59E0B) : Colors.grey,
             letterSpacing: 0.5,
           ),
         ),
@@ -698,7 +698,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: isActive ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : null,
               ),
-              child: Text(cat, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isActive ? Colors.red[700] : Colors.grey)),
+              child: Text(cat, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isActive ? Colors.amber[700] : Colors.grey)),
             ),
           );
         }).toList(),
@@ -726,7 +726,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Colors.red[50],
+                color: Colors.amber[50],
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
               ),
               child: ClipRRect(
@@ -759,13 +759,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      _miniTag('Prep: ${item.prepTime}m', Colors.red[50]!, Colors.red[800]!),
+                      _miniTag('Prep: ${item.prepTime}m', Colors.amber[50]!, Colors.amber[800]!),
                       const SizedBox(width: 4),
                       _miniTag('Limit: ${item.dailyLimit}', Colors.grey[50]!, Colors.grey[500]!),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text('₹${item.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFFDC2626))),
+                  Text('₹${item.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFFF59E0B))),
                   const Spacer(),
                   // BUTTON - always at bottom, full width, explicitly tappable
                   if (qty > 0)
@@ -774,7 +774,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Expanded(
                           child: Container(
-                            decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(8)),
+                            decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(8)),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
@@ -808,7 +808,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               SnackBar(
                                 content: Text(errorMsg),
                                 duration: const Duration(seconds: 2),
-                                backgroundColor: Colors.red[700],
+                                backgroundColor: Colors.amber[700],
                                 behavior: SnackBarBehavior.floating,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
@@ -818,7 +818,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               SnackBar(
                                 content: Text('${item.name} added to cart'),
                                 duration: const Duration(seconds: 1),
-                                backgroundColor: const Color(0xFFDC2626),
+                                backgroundColor: const Color(0xFFF59E0B),
                                 behavior: SnackBarBehavior.floating,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
@@ -826,7 +826,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           }
                         } : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFDC2626),
+                          backgroundColor: const Color(0xFFF59E0B),
                           foregroundColor: Colors.white,
                           padding: EdgeInsets.zero,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -873,7 +873,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
-        child: Icon(icon, size: 11, color: const Color(0xFFDC2626)),
+        child: Icon(icon, size: 11, color: const Color(0xFFF59E0B)),
       ),
     );
   }
@@ -888,7 +888,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(value, style: TextStyle(
             fontSize: bold ? 14 : 12,
             fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-            color: bold ? Colors.red[700] : Colors.grey[700],
+            color: bold ? Colors.amber[700] : Colors.grey[700],
           )),
         ],
       ),
@@ -934,9 +934,9 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.red[100]!),
+                border: Border.all(color: Colors.amber[100]!),
                 borderRadius: BorderRadius.circular(16),
-                color: Colors.red[50]?.withOpacity(0.3),
+                color: Colors.amber[50]?.withOpacity(0.3),
               ),
               child: Column(
                 children: [
@@ -967,7 +967,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('ORDER ID', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey[400])),
-                          Text(order.id, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red[700])),
+                          Text(order.id, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber[700])),
                         ],
                       )),
                       Expanded(child: Column(
@@ -1012,7 +1012,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   context.read<OrderProvider>().setLastOrder(null);
                 }),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFDC2626),
+                  backgroundColor: const Color(0xFFF59E0B),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1061,8 +1061,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
                 child: Container(
                   padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(8)),
-                  child: Icon(Icons.refresh, size: 16, color: Colors.red[700]),
+                  decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(8)),
+                  child: Icon(Icons.refresh, size: 16, color: Colors.amber[700]),
                 ),
               ),
             ],
@@ -1074,7 +1074,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
-                    Icon(Icons.receipt_long, size: 40, color: Colors.red[100]),
+                    Icon(Icons.receipt_long, size: 40, color: Colors.amber[100]),
                     const SizedBox(height: 10),
                     const Text('No orders yet', style: TextStyle(fontSize: 12, color: Colors.grey)),
                   ],
@@ -1140,7 +1140,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(order.id, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red[700])),
+                    Text(order.id, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber[700])),
                     const SizedBox(height: 2),
                     Text(_formatOrderTime(order), style: TextStyle(fontSize: 9, color: Colors.grey[500])),
                     const SizedBox(height: 2),
@@ -1165,7 +1165,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 return Container(
                   width: 50, height: 50,
                   margin: const EdgeInsets.only(right: 6),
-                  decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(8)),
                   child: (mi?.imageUrl != null && mi!.imageUrl!.isNotEmpty)
                       ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(mi.imageUrl!, fit: BoxFit.cover))
                       : const Center(child: Text('🍲', style: TextStyle(fontSize: 18))),
@@ -1191,7 +1191,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: const Icon(Icons.qr_code, size: 12),
                   label: const Text('QR Ticket', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFDC2626),
+                    backgroundColor: const Color(0xFFF59E0B),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -1224,7 +1224,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 width: 20, height: 20,
                 decoration: BoxDecoration(
-                  color: isActive ? const Color(0xFFDC2626) : Colors.grey[200],
+                  color: isActive ? const Color(0xFFF59E0B) : Colors.grey[200],
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -1234,7 +1234,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               if (i < steps.length - 1)
-                Expanded(child: Container(height: 2, color: i < activeIndex ? const Color(0xFFDC2626) : Colors.grey[200])),
+                Expanded(child: Container(height: 2, color: i < activeIndex ? const Color(0xFFF59E0B) : Colors.grey[200])),
             ],
           ),
         );
@@ -1269,9 +1269,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFDC2626) : Colors.red[50]?.withOpacity(0.5),
+                    color: isSelected ? const Color(0xFFF59E0B) : Colors.amber[50]?.withOpacity(0.5),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: isSelected ? const Color(0xFFDC2626) : const Color(0xFFFEE2E2).withOpacity(0.4)),
+                    border: Border.all(color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFFEE2E2).withOpacity(0.4)),
                   ),
                   child: Text(m.name, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.grey)),
                 ),
@@ -1298,7 +1298,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 hintText: 'How was the ${selectedReviewItem!.name}?',
                 hintStyle: const TextStyle(fontSize: 11),
                 filled: true,
-                fillColor: Colors.red[50]?.withOpacity(0.5),
+                fillColor: Colors.amber[50]?.withOpacity(0.5),
                 contentPadding: const EdgeInsets.all(10),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFFEE2E2))),
                 enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFFEE2E2))),
@@ -1324,7 +1324,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFDC2626),
+                backgroundColor: const Color(0xFFF59E0B),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -1361,7 +1361,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ..._reviews.take(4).map((rev) => Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.red[50]?.withOpacity(0.5), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFFEE2E2).withOpacity(0.3))),
+              decoration: BoxDecoration(color: Colors.amber[50]?.withOpacity(0.5), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFFEE2E2).withOpacity(0.3))),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1381,7 +1381,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   if (rev.menuItemName != null) ...[
                     const SizedBox(height: 2),
-                    Text('On: ${rev.menuItemName}', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red[800])),
+                    Text('On: ${rev.menuItemName}', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.amber[800])),
                   ],
                   const SizedBox(height: 4),
                   Text('"${rev.comment}"', style: TextStyle(fontSize: 10, color: Colors.grey[500], fontStyle: FontStyle.italic)),
@@ -1405,9 +1405,9 @@ class _HomeScreenState extends State<HomeScreen> {
         width: 60, height: 60,
         margin: const EdgeInsets.only(bottom: 16, right: 4),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [Color(0xFFDC2626), Color(0xFF991B1B)]),
+          gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEA580C)]),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: const Color(0xFFDC2626).withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
+          boxShadow: [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
         ),
         child: Stack(
           clipBehavior: Clip.none,
@@ -1422,7 +1422,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                 child: Text(
                   '${cart.totalItems}',
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B)),
                 ),
               ),
             ),
@@ -1574,7 +1574,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(height: 40, width: 40, child: CircularProgressIndicator(color: Colors.red[600], strokeWidth: 3)),
+              SizedBox(height: 40, width: 40, child: CircularProgressIndicator(color: Colors.amber[600], strokeWidth: 3)),
               const SizedBox(height: 16),
               const Text('Loading menu...', style: TextStyle(fontSize: 12, color: Colors.grey)),
             ],
@@ -1594,7 +1594,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: _loadAll, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white), child: const Text('Retry')),
+              ElevatedButton(onPressed: _loadAll, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.white), child: const Text('Retry')),
             ],
           ),
         ),

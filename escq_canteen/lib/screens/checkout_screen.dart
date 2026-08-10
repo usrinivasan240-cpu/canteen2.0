@@ -57,7 +57,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.shopping_cart_outlined, size: 64, color: Colors.red[100]),
+                  Icon(Icons.shopping_cart_outlined, size: 64, color: Colors.amber[100]),
                   const SizedBox(height: 16),
                   const Text('Your cart is empty', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))),
                   const SizedBox(height: 8),
@@ -65,7 +65,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     child: const Text('Browse Menu', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
                 ],
@@ -81,9 +81,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(8)),
                     child: Row(
                       children: [
-                        Icon(Icons.store, size: 14, color: Colors.red[700]),
+                        Icon(Icons.store, size: 14, color: Colors.amber[700]),
                         const SizedBox(width: 6),
-                        Text('Ordering from this canteen only', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.red[700])),
+                        Text('Ordering from this canteen only', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.amber[700])),
                       ],
                     ),
                   ),
@@ -108,7 +108,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               children: [
                                 Container(
                                   width: 44, height: 44,
-                                  decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(10)),
+                                  decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(10)),
                                   child: item.menuItem.imageUrl != null && item.menuItem.imageUrl!.isNotEmpty
                                       ? ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(item.menuItem.imageUrl!, fit: BoxFit.cover))
                                       : const Center(child: Text('🍲', style: TextStyle(fontSize: 18))),
@@ -120,12 +120,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                     children: [
                                       Text(item.menuItem.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
                                       const SizedBox(height: 2),
-                                      Text('₹${item.menuItem.price.toStringAsFixed(2)}', style: TextStyle(fontSize: 11, color: Colors.red[700], fontWeight: FontWeight.bold)),
+                                      Text('₹${item.menuItem.price.toStringAsFixed(2)}', style: TextStyle(fontSize: 11, color: Colors.amber[700], fontWeight: FontWeight.bold)),
                                     ],
                                   ),
                                 ),
                                 Container(
-                                  decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(8)),
+                                  decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(8)),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -150,7 +150,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                 const SizedBox(width: 8),
                                 GestureDetector(
                                   onTap: () => setState(() => cart.removeItem(item.menuItem.id)),
-                                  child: Icon(Icons.delete_outline, size: 16, color: Colors.red[400]),
+                                  child: Icon(Icons.delete_outline, size: 16, color: Colors.amber[400]),
                                 ),
                               ],
                             ),
@@ -227,7 +227,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00baf2),
+                        backgroundColor: const Color(0xFFF59E0B),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         elevation: 3,
@@ -237,7 +237,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         children: [
                           const Icon(Icons.lock, size: 16),
                           const SizedBox(width: 8),
-                          Text('Pay via Paytm ₹${cart.totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                          Text('Pay via Razorpay ₹${cart.totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
                         ],
                       ),
                     ),
@@ -259,7 +259,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Container(
         padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
-        child: Icon(icon, size: 12, color: const Color(0xFFDC2626)),
+        child: Icon(icon, size: 12, color: const Color(0xFFF59E0B)),
       ),
     );
   }
@@ -274,7 +274,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           Text(value, style: TextStyle(
             fontSize: bold ? 16 : 13,
             fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-            color: bold ? Colors.red[700] : Colors.grey[700],
+            color: bold ? Colors.amber[700] : Colors.grey[700],
           )),
         ],
       ),
