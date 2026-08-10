@@ -199,8 +199,8 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal }: LoginSc
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden p-8 border border-red-100 transition-all">
         <div className="flex flex-col items-center text-center space-y-2 mb-6">
-          <div className="h-20 w-20 rounded-2xl bg-white flex items-center justify-center shadow-md border border-amber-200 overflow-hidden">
-            <img src="/escq-logo.png" alt="Esc(Q) Logo" className="h-full w-full object-contain p-1" />
+          <div className="h-20 w-20 rounded-2xl bg-amber-600 flex items-center justify-center shadow-md border border-amber-200 overflow-hidden">
+            <span className="text-white font-display font-bold text-xl">Esc(Q)</span>
           </div>
           <div>
              <h1 className="font-display font-bold text-2xl text-gray-900 tracking-tight">Esc(Q)</h1>

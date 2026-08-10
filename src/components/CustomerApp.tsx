@@ -156,10 +156,10 @@ export default function CustomerApp({
    const bContactAddress = branding.contactAddress || 'AUTO HUB SOLUTION (AHS), Tamil Nadu, India';
    const bFooterCopyright = branding.footerCopyright || `\u00a9 2026 Esc(Q). All Rights Reserved.`;
   const bFooterLinks = branding.footerLinks || [
-    { label: 'Menu &amp; Order', action: 'menu' },
+    { label: 'Menu & Order', action: 'menu' },
     { label: 'Order History', action: 'history' },
     { label: 'My Profile', action: 'profile' },
-    { label: 'Help &amp; Support', action: 'help' }
+    { label: 'Help & Support', action: 'help' }
   ];
 
   // Alignment & layout controls
