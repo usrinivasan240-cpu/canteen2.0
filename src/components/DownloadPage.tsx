@@ -122,6 +122,9 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
                 <span>•</span>
                 <span>Free</span>
               </div>
+              <div className="text-[10px] text-gray-600 mt-2">
+                Last updated: {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </div>
             </div>
           </div>
         </div>
