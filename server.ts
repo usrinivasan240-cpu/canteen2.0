@@ -1241,6 +1241,35 @@ app.post('/api/subcanteens', async (req, res) => {
   res.json({ success: true, subCanteen: sub });
 });
 
+app.put('/api/subcanteens/:id', async (req, res) => {
+  const { id } = req.params;
+  const updates = req.body as Partial<{ name: string; canteenId: string; status: string }>;
+  if (!updates || Object.keys(updates).length === 0) {
+    return res.status(400).json({ success: false, error: 'No updates provided.' });
+  }
+  const allowedFields = ['name', 'canteenId', 'status'];
+  const cleanUpdates: Record<string, string> = {};
+  for (const [k, v] of Object.entries(updates)) {
+    if (allowedFields.includes(k) && typeof v === 'string') cleanUpdates[k] = v;
+  }
+  if (Object.keys(cleanUpdates).length === 0) {
+    return res.status(400).json({ success: false, error: 'No valid fields to update.' });
+  }
+  if (db) {
+    try {
+      await db.collection('subcanteens').doc(id).set(cleanUpdates, { merge: true });
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ success: false, error: 'Failed to update sub-canteen.' });
+    }
+  }
+  const idx = subCanteensState.findIndex(s => s.id === id);
+  if (idx !== -1) subCanteensState[idx] = { ...subCanteensState[idx], ...cleanUpdates } as SubCanteen;
+  firestoreCache.delete('subcanteens');
+  saveLocalDB();
+  res.json({ success: true, subCanteen: subCanteensState[idx] || cleanUpdates });
+});
+
 app.delete('/api/subcanteens/:id', async (req, res) => {
   const { id } = req.params;
   if (db) {

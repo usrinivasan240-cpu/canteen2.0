@@ -120,6 +120,23 @@ export default function ServicePanel({
   const [editSubId, setEditSubId] = useState('');
   const [editPosting, setEditPosting] = useState('');
 
+  // Edit college modal state
+  const [editingCollege, setEditingCollege] = useState<any>(null);
+  const [editColName, setEditColName] = useState('');
+  const [editColLoc, setEditColLoc] = useState('');
+
+  // Edit canteen modal state
+  const [editingCanteen, setEditingCanteen] = useState<any>(null);
+  const [editCantName, setEditCantName] = useState('');
+  const [editCantCol, setEditCantCol] = useState('');
+  const [editCantOwnName, setEditCantOwnName] = useState('');
+  const [editCantLoc, setEditCantLoc] = useState('');
+
+  // Edit sub-canteen modal state
+  const [editingSubCanteen, setEditingSubCanteen] = useState<any>(null);
+  const [editSubName, setEditSubName] = useState('');
+  const [editSubCantId, setEditSubCantId] = useState('');
+
   const [imageEditorOpen, setImageEditorOpen] = useState(false);
   const [imageEditorType, setImageEditorType] = useState<'logo' | 'banner'>('logo');
   const [imageEditorCollegeId, setImageEditorCollegeId] = useState<string>('');
@@ -433,6 +450,92 @@ export default function ServicePanel({
     setEditPosting(usr.posting || '');
   };
 
+  // ── Edit College ──────────────────────────────────────────────────────────
+  const openEditCollege = (col: any) => {
+    setEditingCollege(col);
+    setEditColName(col.name || '');
+    setEditColLoc(col.location || '');
+  };
+
+  const handleUpdateCollege = async () => {
+    if (!editingCollege || !editColName) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/colleges/${editingCollege.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editColName, location: editColLoc })
+      });
+      const d = await resp.json();
+      if (d.success) {
+        setEditingCollege(null);
+        setScanStatus({ success: true, text: `College "${editColName}" updated successfully` });
+        await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || 'Failed to update college' });
+      }
+    } catch (e) {
+      setScanStatus({ success: false, text: 'Network failure updating college.' });
+    }
+  };
+
+  // ── Edit Canteen ──────────────────────────────────────────────────────────
+  const openEditCanteen = (cant: any) => {
+    setEditingCanteen(cant);
+    setEditCantName(cant.name || '');
+    setEditCantCol(cant.collegeId || '');
+    setEditCantOwnName(cant.ownerName || '');
+    setEditCantLoc(cant.location || '');
+  };
+
+  const handleUpdateCanteen = async () => {
+    if (!editingCanteen || !editCantName) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteens/${editingCanteen.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editCantName, collegeId: editCantCol, ownerName: editCantOwnName, location: editCantLoc })
+      });
+      const d = await resp.json();
+      if (d.success) {
+        setEditingCanteen(null);
+        setScanStatus({ success: true, text: `Canteen "${editCantName}" updated successfully` });
+        await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || 'Failed to update canteen' });
+      }
+    } catch (e) {
+      setScanStatus({ success: false, text: 'Network failure updating canteen.' });
+    }
+  };
+
+  // ── Edit Sub-Canteen ──────────────────────────────────────────────────────
+  const openEditSubCanteen = (sub: any) => {
+    setEditingSubCanteen(sub);
+    setEditSubName(sub.name || '');
+    setEditSubCantId(sub.canteenId || '');
+  };
+
+  const handleUpdateSubCanteen = async () => {
+    if (!editingSubCanteen || !editSubName) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/subcanteens/${editingSubCanteen.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editSubName, canteenId: editSubCantId })
+      });
+      const d = await resp.json();
+      if (d.success) {
+        setEditingSubCanteen(null);
+        setScanStatus({ success: true, text: `Counter "${editSubName}" updated successfully` });
+        await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || 'Failed to update counter' });
+      }
+    } catch (e) {
+      setScanStatus({ success: false, text: 'Network failure updating counter.' });
+    }
+  };
+
   const filteredCanteens = canteens.filter(c => {
     if (isSuperAdmin && selectedCollegeFilter === 'all') return true;
     const targetColId = isSuperAdmin ? selectedCollegeFilter : activeCollegeId;
@@ -717,12 +820,21 @@ export default function ServicePanel({
                           </td>
                           <td className="px-6 py-4 text-gray-500">{c.location}</td>
                           <td className="px-6 py-4 text-right">
-                            <button
-                              onClick={() => handleDeleteCollege(c.id)}
-                              className="text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 p-2 rounded-xl transition cursor-pointer flex items-center justify-center ml-auto border border-rose-100/25"
-                            >
-                              <Trash2 className="h-4.5 w-4.5" />
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => openEditCollege(c)}
+                                className="text-amber-600 hover:text-amber-800 hover:bg-amber-50/60 p-2 rounded-xl transition cursor-pointer border border-amber-100/25"
+                                title="Edit College"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCollege(c.id)}
+                                className="text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 p-2 rounded-xl transition cursor-pointer flex items-center justify-center border border-rose-100/25"
+                              >
+                                <Trash2 className="h-4.5 w-4.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -991,6 +1103,13 @@ export default function ServicePanel({
                             </td>
                             <td className="px-6 py-4 text-right flex items-center justify-end space-x-2">
                               <button
+                                onClick={() => openEditCanteen(c)}
+                                className="text-amber-600 hover:text-amber-800 hover:bg-amber-50/60 p-2 rounded-xl transition cursor-pointer border border-amber-100/25"
+                                title="Edit Canteen"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                              <button
                                 onClick={() => {
                                   setActiveTab('dashboards');
                                   handleLoadCanteenDashboard(c.id);
@@ -1043,12 +1162,21 @@ export default function ServicePanel({
                               {canteens.find(c => c.id === s.canteenId)?.name || s.canteenId}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <button
-                                onClick={() => handleDeleteSubCanteen(s.id)}
-                                className="text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 p-2 rounded-xl transition cursor-pointer flex items-center justify-center ml-auto border border-rose-100/25"
-                              >
-                                <Trash2 className="h-4.5 w-4.5" />
-                              </button>
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => openEditSubCanteen(s)}
+                                  className="text-amber-600 hover:text-amber-800 hover:bg-amber-50/60 p-2 rounded-xl transition cursor-pointer border border-amber-100/25"
+                                  title="Edit Counter"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSubCanteen(s.id)}
+                                  className="text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 p-2 rounded-xl transition cursor-pointer flex items-center justify-center border border-rose-100/25"
+                                >
+                                  <Trash2 className="h-4.5 w-4.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -1974,6 +2102,107 @@ export default function ServicePanel({
           }}
           onCancel={() => setImageEditorOpen(false)}
         />
+      )}
+
+      {/* EDIT COLLEGE MODAL */}
+      {editingCollege && (
+        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-red-50">
+              <div>
+                <h3 className="font-display font-black text-sm text-gray-900 uppercase">Edit College</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">Update details for {editingCollege.name}</p>
+              </div>
+              <button onClick={() => setEditingCollege(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition cursor-pointer"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">College Name</label>
+                <input type="text" value={editColName} onChange={e => setEditColName(e.target.value)} className="w-full bg-red-50/30 text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Location / Address</label>
+                <input type="text" value={editColLoc} onChange={e => setEditColLoc(e.target.value)} className="w-full bg-red-50/30 text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditingCollege(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer">Cancel</button>
+                <button onClick={handleUpdateCollege} className="flex-1 bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 text-white rounded-xl py-2.5 text-xs font-bold transition-all shadow-md cursor-pointer">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT CANTEEN MODAL */}
+      {editingCanteen && (
+        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-red-50">
+              <div>
+                <h3 className="font-display font-black text-sm text-gray-900 uppercase">Edit Canteen</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">Update details for {editingCanteen.name}</p>
+              </div>
+              <button onClick={() => setEditingCanteen(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition cursor-pointer"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Canteen Name</label>
+                <input type="text" value={editCantName} onChange={e => setEditCantName(e.target.value)} className="w-full bg-red-50/30 text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">College</label>
+                <select value={editCantCol} onChange={e => setEditCantCol(e.target.value)} className="w-full bg-red-50/30 text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold cursor-pointer">
+                  <option value="">Select College</option>
+                  {colleges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Owner Name</label>
+                <input type="text" value={editCantOwnName} onChange={e => setEditCantOwnName(e.target.value)} className="w-full bg-red-50/30 text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Location</label>
+                <input type="text" value={editCantLoc} onChange={e => setEditCantLoc(e.target.value)} className="w-full bg-red-50/30 text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditingCanteen(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer">Cancel</button>
+                <button onClick={handleUpdateCanteen} className="flex-1 bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 text-white rounded-xl py-2.5 text-xs font-bold transition-all shadow-md cursor-pointer">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT SUB-CANTEEN MODAL */}
+      {editingSubCanteen && (
+        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-red-50">
+              <div>
+                <h3 className="font-display font-black text-sm text-gray-900 uppercase">Edit Counter / Sub-Canteen</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">Update details for {editingSubCanteen.name}</p>
+              </div>
+              <button onClick={() => setEditingSubCanteen(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition cursor-pointer"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Counter Name</label>
+                <input type="text" value={editSubName} onChange={e => setEditSubName(e.target.value)} className="w-full bg-red-50/30 text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Parent Canteen</label>
+                <select value={editSubCantId} onChange={e => setEditSubCantId(e.target.value)} className="w-full bg-red-50/30 text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold cursor-pointer">
+                  <option value="">Select Canteen</option>
+                  {canteens.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditingSubCanteen(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer">Cancel</button>
+                <button onClick={handleUpdateSubCanteen} className="flex-1 bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 text-white rounded-xl py-2.5 text-xs font-bold transition-all shadow-md cursor-pointer">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
