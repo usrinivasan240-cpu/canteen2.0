@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/menu_provider.dart';
 import '../providers/order_provider.dart';
+import '../providers/theme_provider.dart';
 import 'home_screen.dart';
 import 'staff_home_screen.dart';
 
@@ -95,9 +96,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final colleges = context.watch<MenuProvider>().colleges;
+    final themeProv = context.watch<ThemeProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: themeProv.isDark ? const Color(0xFF111827) : const Color(0xFFF9FAFB),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -105,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
             width: double.infinity,
             constraints: const BoxConstraints(maxWidth: 420),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
@@ -154,12 +156,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   'Esc(Q)',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF111827),
+                    color: themeProv.isDark ? Colors.white : const Color(0xFF111827),
                     letterSpacing: -0.5,
                   ),
                 ),
@@ -177,9 +179,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Sign In / Sign Up toggle
                 Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
+                    color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFFEE2E2).withOpacity(0.5)),
+                    border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2).withOpacity(0.5)),
                   ),
                   padding: const EdgeInsets.all(4),
                   child: Row(
@@ -190,21 +192,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: !isSignUp ? const Color(0xFFF59E0B) : Colors.transparent,
+                              color: !isSignUp ? const Color(0xFFF59E0B) : themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: !isSignUp ? [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 6)] : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.login, size: 14, color: !isSignUp ? Colors.white : const Color(0xFF6B7280)),
+                                Icon(Icons.login, size: 14, color: !isSignUp ? Colors.white : (themeProv.isDark ? Colors.grey[400] : const Color(0xFF6B7280))),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Sign In',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: !isSignUp ? Colors.white : const Color(0xFF6B7280),
+                                    color: !isSignUp ? Colors.white : (themeProv.isDark ? Colors.grey[400] : const Color(0xFF6B7280)),
                                   ),
                                 ),
                               ],
@@ -218,21 +220,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: isSignUp ? const Color(0xFFF59E0B) : Colors.transparent,
+                              color: isSignUp ? const Color(0xFFF59E0B) : themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: isSignUp ? [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 6)] : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.person_add, size: 14, color: isSignUp ? Colors.white : const Color(0xFF6B7280)),
+                                Icon(Icons.person_add, size: 14, color: isSignUp ? Colors.white : (themeProv.isDark ? Colors.grey[400] : const Color(0xFF6B7280))),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Sign Up',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: isSignUp ? Colors.white : const Color(0xFF6B7280),
+                                    color: isSignUp ? Colors.white : (themeProv.isDark ? Colors.grey[400] : const Color(0xFF6B7280)),
                                   ),
                                 ),
                               ],
@@ -253,14 +255,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       Text(
                         isSignUp ? 'Create Account' : 'Welcome Back',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: themeProv.isDark ? Colors.white : const Color(0xFF111827)),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         isSignUp
                             ? 'Register as a student to start ordering meals.'
                             : 'Enter your credentials to access your account.',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                        style: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.grey[400] : const Color(0xFF6B7280)),
                       ),
                     ],
                   ),
@@ -269,28 +271,28 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // Form fields
                 if (isSignUp) ...[
-                  _buildField(Icons.person, 'Full Name', nameCtrl, 'e.g. Raju Srinivasan'),
+                  _buildField(Icons.person, 'Full Name', nameCtrl, 'e.g. Raju Srinivasan', themeProv),
                   const SizedBox(height: 14),
-                  _buildField(Icons.confirmation_number, 'Register Number', regNoCtrl, 'e.g. 21CS001'),
+                  _buildField(Icons.confirmation_number, 'Register Number', regNoCtrl, 'e.g. 21CS001', themeProv),
                   const SizedBox(height: 14),
-                  _buildField(Icons.phone, 'Phone Number', phoneCtrl, 'e.g. 9940918442', isPhone: true),
+                  _buildField(Icons.phone, 'Phone Number', phoneCtrl, 'e.g. 9940918442', themeProv, isPhone: true),
                   const SizedBox(height: 14),
-                  _buildCollegeDropdown(colleges),
+                  _buildCollegeDropdown(colleges, themeProv),
                   const SizedBox(height: 14),
                 ],
 
-                _buildField(Icons.email, 'Email Address', emailCtrl, 'e.g. rajus@gmail.com', isEmail: true),
+                _buildField(Icons.email, 'Email Address', emailCtrl, 'e.g. rajus@gmail.com', themeProv, isEmail: true),
                 const SizedBox(height: 14),
-                _buildPasswordField(),
+                _buildPasswordField(themeProv),
                 const SizedBox(height: 14),
 
                 // Agreement checkboxes (signup only)
                 if (isSignUp) ...[
-                  _buildCheckbox('I have read and agree to the Privacy Policy', agreePrivacy, (v) => setState(() => agreePrivacy = v)),
+                  _buildCheckbox('I have read and agree to the Privacy Policy', agreePrivacy, (v) => setState(() => agreePrivacy = v), themeProv),
                   const SizedBox(height: 6),
-                  _buildCheckbox('I have read and agree to the Terms & Conditions', agreeTerms, (v) => setState(() => agreeTerms = v)),
+                  _buildCheckbox('I have read and agree to the Terms & Conditions', agreeTerms, (v) => setState(() => agreeTerms = v), themeProv),
                   const SizedBox(height: 6),
-                  _buildCheckbox('I have read and agree to the Refund & Cancellation Policy', agreeRefund, (v) => setState(() => agreeRefund = v)),
+                  _buildCheckbox('I have read and agree to the Refund & Cancellation Policy', agreeRefund, (v) => setState(() => agreeRefund = v), themeProv),
                   const SizedBox(height: 10),
                 ],
 
@@ -326,10 +328,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(10)),
-                    child: const Text(
+                    decoration: BoxDecoration(
+                      color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
                       'Demo: watson777@gmail.com / password123',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
+                      style: TextStyle(fontSize: 11, color: themeProv.isDark ? Colors.grey[400] : const Color(0xFF6B7280), fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],
@@ -341,110 +346,111 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildField(IconData icon, String label, TextEditingController ctrl, String hint, {bool isEmail = false, bool isPhone = false}) {
+  Widget _buildField(IconData icon, String label, TextEditingController ctrl, String hint, ThemeProvider themeProv, {bool isEmail = false, bool isPhone = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF374151)),
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: themeProv.isDark ? Colors.grey[300] : const Color(0xFF374151)),
         ),
         const SizedBox(height: 6),
         TextField(
           controller: ctrl,
           keyboardType: isEmail ? TextInputType.emailAddress : (isPhone ? TextInputType.phone : TextInputType.text),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, size: 18, color: const Color(0xFF6B7280)),
+            prefixIcon: Icon(icon, size: 18, color: themeProv.isDark ? Colors.grey[400] : const Color(0xFF6B7280)),
             hintText: hint,
-            hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+            hintStyle: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.grey[500] : const Color(0xFF9CA3AF)),
             filled: true,
-            fillColor: const Color(0xFFF9FAFB),
+            fillColor: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFF9FAFB),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              borderSide: BorderSide(color: themeProv.isDark ? const Color(0xFF4B5563) : const Color(0xFFE5E7EB)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              borderSide: BorderSide(color: themeProv.isDark ? const Color(0xFF4B5563) : const Color(0xFFE5E7EB)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 2),
             ),
           ),
-          style: const TextStyle(fontSize: 13, color: Color(0xFF111827)),
+          style: TextStyle(fontSize: 13, color: themeProv.isDark ? Colors.white : const Color(0xFF111827)),
         ),
       ],
     );
   }
 
-  Widget _buildPasswordField() {
+  Widget _buildPasswordField(ThemeProvider themeProv) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'PASSWORD',
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF374151)),
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: themeProv.isDark ? Colors.grey[300] : const Color(0xFF374151)),
         ),
         const SizedBox(height: 6),
         TextField(
           controller: passwordCtrl,
           obscureText: !showPassword,
           decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.lock, size: 18, color: Color(0xFF6B7280)),
+            prefixIcon: Icon(Icons.lock, size: 18, color: themeProv.isDark ? Colors.grey[400] : const Color(0xFF6B7280)),
             suffixIcon: GestureDetector(
               onTap: () => setState(() => showPassword = !showPassword),
-              child: Icon(showPassword ? Icons.visibility_off : Icons.visibility, size: 18, color: const Color(0xFF6B7280)),
+              child: Icon(showPassword ? Icons.visibility_off : Icons.visibility, size: 18, color: themeProv.isDark ? Colors.grey[400] : const Color(0xFF6B7280)),
             ),
             hintText: isSignUp ? 'Create a password' : 'Enter your password',
-            hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+            hintStyle: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.grey[500] : const Color(0xFF9CA3AF)),
             filled: true,
-            fillColor: const Color(0xFFF9FAFB),
+            fillColor: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFF9FAFB),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              borderSide: BorderSide(color: themeProv.isDark ? const Color(0xFF4B5563) : const Color(0xFFE5E7EB)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              borderSide: BorderSide(color: themeProv.isDark ? const Color(0xFF4B5563) : const Color(0xFFE5E7EB)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 2),
             ),
           ),
-          style: const TextStyle(fontSize: 13, color: Color(0xFF111827)),
+          style: TextStyle(fontSize: 13, color: themeProv.isDark ? Colors.white : const Color(0xFF111827)),
         ),
       ],
     );
   }
 
-  Widget _buildCollegeDropdown(List colleges) {
+  Widget _buildCollegeDropdown(List colleges, ThemeProvider themeProv) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'SELECT COLLEGE',
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF374151)),
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: themeProv.isDark ? Colors.grey[300] : const Color(0xFF374151)),
         ),
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFF9FAFB),
+            color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFF9FAFB),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(color: themeProv.isDark ? const Color(0xFF4B5563) : const Color(0xFFE5E7EB)),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: selectedCollegeId.isNotEmpty ? selectedCollegeId : null,
               isExpanded: true,
-              hint: const Text('-- Choose your college --', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+              dropdownColor: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
+              hint: Text('-- Choose your college --', style: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.grey[500] : const Color(0xFF9CA3AF))),
               items: colleges.map<DropdownMenuItem<String>>((c) {
-                return DropdownMenuItem(value: c.id, child: Text(c.name, style: const TextStyle(fontSize: 12, color: Color(0xFF111827))));
+                return DropdownMenuItem(value: c.id, child: Text(c.name, style: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.white : const Color(0xFF111827))));
               }).toList(),
               onChanged: (v) => setState(() => selectedCollegeId = v ?? ''),
             ),
@@ -454,7 +460,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildCheckbox(String label, bool value, ValueChanged<bool> onChanged) {
+  Widget _buildCheckbox(String label, bool value, ValueChanged<bool> onChanged, ThemeProvider themeProv) {
     return GestureDetector(
       onTap: () => onChanged(!value),
       child: Row(
@@ -465,12 +471,12 @@ class _LoginScreenState extends State<LoginScreen> {
               value: value,
               onChanged: (v) => onChanged(v ?? false),
               activeColor: const Color(0xFFF59E0B),
-              side: const BorderSide(color: Color(0xFFD1D5DB)),
+              side: BorderSide(color: themeProv.isDark ? Colors.grey[500]! : const Color(0xFFD1D5DB)),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+            child: Text(label, style: TextStyle(fontSize: 11, color: themeProv.isDark ? Colors.grey[400] : const Color(0xFF6B7280))),
           ),
         ],
       ),

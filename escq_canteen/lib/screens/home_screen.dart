@@ -405,6 +405,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCanteenSelector() {
+    final themeProv = context.watch<ThemeProvider>();
     final collegeCanteens = _collegeCanteens;
     if (collegeCanteens.isEmpty) return const SizedBox.shrink();
 
@@ -415,7 +416,7 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
             'Select Canteen',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500]),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: themeProv.isDark ? Colors.grey[300] : Colors.grey[500]),
           ),
         ),
         SingleChildScrollView(
@@ -434,10 +435,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFF59E0B) : Colors.white,
+                    color: isSelected ? const Color(0xFFF59E0B) : (themeProv.isDark ? const Color(0xFF1F2937) : Colors.white),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFE5E7EB),
+                      color: isSelected ? const Color(0xFFF59E0B) : (themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFE5E7EB)),
                       width: isSelected ? 2 : 1,
                     ),
                     boxShadow: isSelected
@@ -533,7 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _reloadMenuForCanteen(String canteenId) async {
-    setState(() { _error = null; });
+    setState(() { _error = null; _isLoading = true; });
     try {
       final api = ApiService();
       final canteenData = await api.getCanteenData(canteenId).catchError((_) => <String, dynamic>{});
@@ -544,7 +545,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       _error = 'Failed to load canteen data: $e';
     }
-    if (mounted) setState(() {});
+    if (mounted) setState(() => _isLoading = false);
   }
 
   Widget _searchBar() {
@@ -666,7 +667,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisCount: crossCount,
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
-                    childAspectRatio: 0.72,
+                    childAspectRatio: 0.58,
                   ),
                   itemCount: _filteredItems.length,
                   itemBuilder: (ctx, i) => _menuCard(_filteredItems[i]),
@@ -712,6 +713,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final themeProv = context.watch<ThemeProvider>();
 
     return Container(
+      height: 260,
       decoration: BoxDecoration(
         color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -722,27 +724,24 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Image
-          Expanded(
-            flex: 4,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.amber[50],
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              ),
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                child: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
-                    ? Image.network(item.imageUrl!, fit: BoxFit.cover, width: double.infinity,
-                        errorBuilder: (_, __, ___) => const Center(child: Text('🍲', style: TextStyle(fontSize: 28))),
-                      )
-                    : const Center(child: Text('🍲', style: TextStyle(fontSize: 28))),
-              ),
+          Container(
+            height: 110,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.amber[50],
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            ),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              child: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+                  ? Image.network(item.imageUrl!, fit: BoxFit.cover, width: double.infinity,
+                      errorBuilder: (_, __, ___) => const Center(child: Text('🍲', style: TextStyle(fontSize: 28))),
+                    )
+                  : const Center(child: Text('🍲', style: TextStyle(fontSize: 28))),
             ),
           ),
           // Body
           Expanded(
-            flex: 6,
             child: Padding(
               padding: const EdgeInsets.all(8),
               child: Column(
@@ -752,12 +751,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text(item.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: themeProv.isDark ? Colors.white : const Color(0xFF111827)), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        child: Text(item.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: themeProv.isDark ? Colors.white : const Color(0xFF111827)), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       Text('★ ${item.rating}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       _miniTag('Prep: ${item.prepTime}m', Colors.amber[50]!, Colors.amber[800]!),
@@ -765,16 +764,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       _miniTag('Limit: ${item.dailyLimit}', Colors.grey[50]!, Colors.grey[600]!),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text('₹${item.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFFF59E0B))),
+                  const SizedBox(height: 3),
+                  Text('₹${item.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFF59E0B))),
                   const Spacer(),
-                  // BUTTON - always at bottom, full width, explicitly tappable
+                  // BUTTON
                   if (qty > 0)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
                           child: Container(
+                            height: 32,
                             decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(8)),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1570,18 +1570,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = auth.user;
     final themeProv = context.watch<ThemeProvider>();
 
-    if (_isLoading && _menuItems.isEmpty) {
+    if (_isLoading) {
       return Scaffold(
-        backgroundColor: themeProv.isDark ? const Color(0xFF111827) : const Color(0xFFFBFCFF),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset('assets/images/splash_screen.png', width: 200),
-              const SizedBox(height: 24),
-              const CircularProgressIndicator(color: Color(0xFFF59E0B)),
-            ],
-          ),
+        backgroundColor: themeProv.isDark ? const Color(0xFF111827) : const Color(0xFFF59E0B),
+        body: SizedBox.expand(
+          child: Image.asset('assets/images/splash_screen.png', fit: BoxFit.cover),
         ),
       );
     }
@@ -1602,7 +1595,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final scaffold = Scaffold(
       backgroundColor: themeProv.isDark ? const Color(0xFF111827) : const Color(0xFFFBFCFF),
-      floatingActionButton: _buildFloatingCartButton(),
+      floatingActionButton: const SizedBox.shrink(),
       body: Column(
         children: [
           _buildHeader(auth, user),
