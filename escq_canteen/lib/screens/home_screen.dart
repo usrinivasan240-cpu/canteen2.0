@@ -59,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadAll() async {
-    setState(() { _error = null; });
+    setState(() { _error = null; _isLoading = true; });
     try {
       final api = ApiService();
       final auth = context.read<AuthProvider>();
@@ -1569,6 +1569,23 @@ class _HomeScreenState extends State<HomeScreen> {
     final auth = context.watch<AuthProvider>();
     final user = auth.user;
     final themeProv = context.watch<ThemeProvider>();
+
+    if (_isLoading && _menuItems.isEmpty) {
+      return Scaffold(
+        backgroundColor: themeProv.isDark ? const Color(0xFF111827) : const Color(0xFFFBFCFF),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset('assets/images/splash_screen.png', width: 200),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(color: Color(0xFFF59E0B)),
+            ],
+          ),
+        ),
+      );
+    }
+
     final branding = _branding;
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
