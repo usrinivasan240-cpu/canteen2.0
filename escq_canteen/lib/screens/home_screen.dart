@@ -29,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String selectedCategory = 'Meals';
   String customerTab = 'menu';
   Order? successOrder;
-  bool _isLoading = true;
+  bool _isLoading = false;
   String? _error;
 
   MenuItem? selectedReviewItem;
@@ -54,11 +54,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _isLoading = false;
     _loadAll();
   }
 
   Future<void> _loadAll() async {
-    setState(() { _isLoading = true; _error = null; });
+    setState(() { _error = null; });
     try {
       final api = ApiService();
       final auth = context.read<AuthProvider>();
@@ -66,22 +67,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
       _selectedCanteenId = user?.canteenId ?? 'canteen_001';
 
-      final results = await Future.wait([
-        api.getColleges(),
-        api.getCanteens(),
-        api.getSubCanteens(),
-        api.getCanteenData(_selectedCanteenId),
-        api.getUserOrders(user?.id ?? ''),
-      ]);
+      final colleges = await api.getColleges().catchError((_) => <College>[]);
+      final canteens = await api.getCanteens().catchError((_) => <Canteen>[]);
+      final subCanteens = await api.getSubCanteens().catchError((_) => <SubCanteen>[]);
+      final canteenData = await api.getCanteenData(_selectedCanteenId).catchError((_) => <String, dynamic>{});
+      final userOrders = await api.getUserOrders(user?.id ?? '').catchError((_) => <Order>[]);
 
-      _colleges = results[0] as List<College>;
-      _canteens = results[1] as List<Canteen>;
-      _subCanteens = results[2] as List<SubCanteen>;
-      final canteenData = results[3] as Map<String, dynamic>;
-      _userOrders = results[4] as List<Order>;
-
+      _colleges = colleges;
+      _canteens = canteens;
+      _subCanteens = subCanteens;
       _menuItems = api.parseMenuItems(canteenData);
       _reviews = api.parseReviews(canteenData);
+      _userOrders = userOrders;
 
       if (user?.collegeId != null) {
         try {
@@ -536,10 +533,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _reloadMenuForCanteen(String canteenId) async {
-    setState(() { _isLoading = true; _error = null; });
+    setState(() { _error = null; });
     try {
       final api = ApiService();
-      final canteenData = await api.getCanteenData(canteenId);
+      final canteenData = await api.getCanteenData(canteenId).catchError((_) => <String, dynamic>{});
       _menuItems = api.parseMenuItems(canteenData);
       _reviews = api.parseReviews(canteenData);
       _selectedSubCanteenId = '';
@@ -547,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       _error = 'Failed to load canteen data: $e';
     }
-    if (mounted) setState(() => _isLoading = false);
+    if (mounted) setState(() {});
   }
 
   Widget _searchBar() {
@@ -1577,99 +1574,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final isMobile = screenWidth < 600;
     final isTablet = screenWidth >= 600 && screenWidth < 1024;
 
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0D0D12),
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset(
-              'assets/images/splash_screen.png',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.restaurant, color: Color(0xFFF59E0B), size: 48),
-                    SizedBox(height: 16),
-                    Text('Esc(Q)', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
-                  ],
-                ),
-              ),
-            ),
-            const Positioned(
-              bottom: 60,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      height: 28,
-                      width: 28,
-                      child: CircularProgressIndicator(
-                        color: Color(0xFFF59E0B),
-                        strokeWidth: 2.5,
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Loading menu...',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFFF59E0B),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_error != null) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0D0D12),
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset(
-              'assets/images/splash_screen.png',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0D0D12)),
-            ),
-            Center(
-              child: Container(
-                margin: const EdgeInsets.all(32),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
-                    const SizedBox(height: 12),
-                    Text(_error!, style: const TextStyle(fontSize: 13, color: Colors.white70), textAlign: TextAlign.center),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _loadAll,
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.white),
-                      child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    // Show error as non-blocking banner, not full screen
 
     final bMenuTitle = branding.menuTitle ?? "Today's Menu";
     final bMenuSubtitle = branding.menuSubtitle ?? 'Freshly prepared, just for you.';

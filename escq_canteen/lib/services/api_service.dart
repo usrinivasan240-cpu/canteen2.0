@@ -13,12 +13,14 @@ class ApiService {
 
   final String _baseUrl = AppConfig.apiBase;
 
+  static const Duration _timeout = Duration(seconds: 90);
+
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
     final resp = await http.post(
       Uri.parse('$_baseUrl$path'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(body),
-    );
+    ).timeout(_timeout);
     return jsonDecode(resp.body);
   }
 
@@ -27,7 +29,7 @@ class ApiService {
     if (params != null && params.isNotEmpty) {
       uri = uri.replace(queryParameters: params);
     }
-    final resp = await http.get(uri);
+    final resp = await http.get(uri).timeout(_timeout);
     return jsonDecode(resp.body);
   }
 

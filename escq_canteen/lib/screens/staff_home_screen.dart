@@ -18,7 +18,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   int currentTab = 0;
   final ApiService _api = ApiService();
   List<Order> _allOrders = [];
-  bool _isLoading = true;
+  bool _isLoading = false;
   String? _error;
   Timer? _autoRefreshTimer;
 
