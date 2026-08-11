@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/menu_provider.dart';
@@ -16,6 +17,7 @@ import '../services/api_service.dart';
 import 'checkout_screen.dart';
 import '../config.dart';
 import 'settings_screen.dart';
+import 'login_screen.dart';
 import 'help_support_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -175,29 +177,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              // Cart badge
-              GestureDetector(
-                onTap: () => setState(() => customerTab = 'menu'),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: themeProv.isDark ? const Color(0xFF374151) : Colors.grey[100], borderRadius: BorderRadius.circular(8)),
-                      child: Icon(Icons.shopping_cart_outlined, size: 16, color: themeProv.isDark ? Colors.grey[300] : Colors.grey[600]),
-                    ),
-                    if (cartCount > 0)
-                      Positioned(
-                        right: -4, top: -4,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(color: Color(0xFFF59E0B), shape: BoxShape.circle),
-                          child: Text('$cartCount', style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white)),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
               const SizedBox(width: 8),
               // Settings
               GestureDetector(
@@ -210,7 +189,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(width: 6),
               GestureDetector(
-                onTap: () => auth.logout(),
+                onTap: () async {
+                  await auth.logout();
+                  if (mounted) Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+                  );
+                },
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(color: themeProv.isDark ? const Color(0xFF374151) : Colors.grey[50], borderRadius: BorderRadius.circular(8)),
@@ -268,8 +253,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return _defaultLogo();
       }
     }
-    return Image.network(url, width: width, height: height, fit: BoxFit.contain, gaplessPlayback: true,
-      errorBuilder: (_, __, ___) => _defaultLogo(),
+    return CachedNetworkImage(imageUrl: url, width: width, height: height, fit: BoxFit.contain,
+      errorWidget: (_, __, ___) => _defaultLogo(),
     );
   }
 
@@ -287,8 +272,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return _heroLogoFallback();
       }
     }
-    return Image.network(url, width: width, height: height, fit: BoxFit.contain, gaplessPlayback: true,
-      errorBuilder: (_, __, ___) => _heroLogoFallback(),
+    return CachedNetworkImage(imageUrl: url, width: width, height: height, fit: BoxFit.contain,
+      errorWidget: (_, __, ___) => _heroLogoFallback(),
     );
   }
 
@@ -451,7 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Icon(
                         isSelected ? Icons.store : Icons.store_outlined,
                         size: 14,
-                        color: isSelected ? Colors.white : Colors.grey[600],
+                        color: isSelected ? Colors.white : (themeProv.isDark ? Colors.grey[300] : Colors.grey[600]),
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -459,7 +444,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? Colors.white : const Color(0xFF111827),
+                          color: isSelected ? Colors.white : (themeProv.isDark ? Colors.grey[200] : const Color(0xFF111827)),
                         ),
                       ),
                       if (subs.isNotEmpty) ...[
@@ -494,6 +479,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSubCanteenChips() {
     final subs = _subCanteens.where((s) => s.canteenId == _selectedCanteenId).toList();
     if (subs.isEmpty) return const SizedBox.shrink();
+    final themeProv = context.watch<ThemeProvider>();
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -505,11 +491,11 @@ class _HomeScreenState extends State<HomeScreen> {
               margin: const EdgeInsets.only(right: 6),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: _selectedSubCanteenId.isEmpty ? const Color(0xFFFEF2F2) : Colors.white,
+                color: _selectedSubCanteenId.isEmpty ? const Color(0xFFFEF2F2) : (themeProv.isDark ? const Color(0xFF1F2937) : Colors.white),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _selectedSubCanteenId.isEmpty ? const Color(0xFFFECACA) : const Color(0xFFE5E7EB)),
+                border: Border.all(color: _selectedSubCanteenId.isEmpty ? const Color(0xFFFECACA) : (themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFE5E7EB))),
               ),
-              child: Text('All', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _selectedSubCanteenId.isEmpty ? Colors.amber[700] : Colors.grey[600])),
+              child: Text('All', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _selectedSubCanteenId.isEmpty ? Colors.amber[700] : (themeProv.isDark ? Colors.grey[300] : Colors.grey[600]))),
             ),
           ),
           ...subs.map((sub) {
@@ -520,11 +506,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 margin: const EdgeInsets.only(right: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: isActive ? const Color(0xFFFEF2F2) : Colors.white,
+                  color: isActive ? const Color(0xFFFEF2F2) : (themeProv.isDark ? const Color(0xFF1F2937) : Colors.white),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: isActive ? const Color(0xFFFECACA) : const Color(0xFFE5E7EB)),
+                  border: Border.all(color: isActive ? const Color(0xFFFECACA) : (themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFE5E7EB))),
                 ),
-                child: Text(sub.name, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isActive ? Colors.amber[700] : Colors.grey[600])),
+                child: Text(sub.name, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isActive ? Colors.amber[700] : (themeProv.isDark ? Colors.grey[300] : Colors.grey[600]))),
               ),
             );
           }).toList(),
@@ -678,6 +664,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _categoryTabs() {
+    final themeProv = context.watch<ThemeProvider>();
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
@@ -695,11 +682,11 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: isActive ? Colors.white : Colors.transparent,
+                color: isActive ? (themeProv.isDark ? const Color(0xFF374151) : Colors.white) : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: isActive ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : null,
               ),
-              child: Text(cat, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isActive ? Colors.amber[700] : Colors.grey)),
+              child: Text(cat, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isActive ? Colors.amber[700] : (themeProv.isDark ? Colors.grey[300] : Colors.grey))),
             ),
           );
         }).toList(),
@@ -734,8 +721,8 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
               child: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
-                  ? Image.network(item.imageUrl!, fit: BoxFit.cover, width: double.infinity,
-                      errorBuilder: (_, __, ___) => const Center(child: Text('🍲', style: TextStyle(fontSize: 28))),
+                  ? CachedNetworkImage(imageUrl: item.imageUrl!, fit: BoxFit.cover, width: double.infinity,
+                      errorWidget: (_, __, ___) => const Center(child: Text('🍲', style: TextStyle(fontSize: 28))),
                     )
                   : const Center(child: Text('🍲', style: TextStyle(fontSize: 28))),
             ),
@@ -1171,7 +1158,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   margin: const EdgeInsets.only(right: 6),
                   decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(8)),
                   child: (mi?.imageUrl != null && mi!.imageUrl!.isNotEmpty)
-                      ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(mi.imageUrl!, fit: BoxFit.cover))
+                      ? ClipRRect(borderRadius: BorderRadius.circular(8), child: CachedNetworkImage(imageUrl: mi.imageUrl!, fit: BoxFit.cover))
                       : const Center(child: Text('🍲', style: TextStyle(fontSize: 18))),
                 );
               }).toList(),
@@ -1595,7 +1582,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final scaffold = Scaffold(
       backgroundColor: themeProv.isDark ? const Color(0xFF111827) : const Color(0xFFFBFCFF),
-      floatingActionButton: const SizedBox.shrink(),
+      floatingActionButton: _buildFloatingCartButton(),
       body: Column(
         children: [
           _buildHeader(auth, user),

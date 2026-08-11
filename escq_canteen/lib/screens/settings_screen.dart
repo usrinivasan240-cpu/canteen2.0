@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
 import 'help_support_screen.dart';
+import 'login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -271,7 +272,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: ElevatedButton(
         onPressed: () async {
           await auth.logout();
-          if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+          if (mounted) Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            (route) => false,
+          );
         },
         style: ElevatedButton.styleFrom(backgroundColor: Colors.amber[50], foregroundColor: Colors.amber[700], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.amber[200]!))),
         child: const Text('Logout', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
