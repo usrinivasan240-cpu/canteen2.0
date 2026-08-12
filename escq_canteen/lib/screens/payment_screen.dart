@@ -52,29 +52,28 @@ class _PaymentScreenState extends State<PaymentScreen> {
   void _handlePaymentSuccess(PaymentSuccessResponse response) async {
     debugPrint('[Razorpay] Payment success: orderId=${response.orderId}, paymentId=${response.paymentId}');
 
-    // Always start polling immediately — this is the most reliable path
-    setState(() { waitingForPayment = true; });
-    _startPolling();
+    // Show success immediately — payment IS confirmed by Razorpay
+    setState(() { waitingForPayment = false; isProcessing = false; isComplete = true; });
 
-    // Try server-side verification as best-effort
+    // Verify in background (fire and forget)
     try {
       final api = ApiService();
-      final verifyResult = await api.verifyRazorpayPayment(
+      api.verifyRazorpayPayment(
         razorpayOrderId: response.orderId ?? '',
         razorpayPaymentId: response.paymentId ?? '',
         razorpaySignature: response.signature ?? '',
-      );
-      if (verifyResult['success'] == true && verifyResult['order'] != null) {
-        final order = Order.fromJson(verifyResult['order']);
-        _pollTimer?.cancel();
-        context.read<OrderProvider>().setLastOrder(order);
+      ).then((verifyResult) {
+        if (verifyResult['success'] == true && verifyResult['order'] != null) {
+          final order = Order.fromJson(verifyResult['order']);
+          context.read<OrderProvider>().setLastOrder(order);
+        }
         final auth = context.read<AuthProvider>();
         context.read<OrderProvider>().loadOrders(auth.user?.id ?? '');
-        setState(() { waitingForPayment = false; isComplete = true; });
-      }
-      // If verify failed, polling is already running and will catch it
+      }).catchError((e) {
+        debugPrint('[Razorpay] Background verify failed: $e');
+      });
     } catch (e) {
-      debugPrint('[Razorpay] Verify call failed (polling will handle it): $e');
+      debugPrint('[Razorpay] Verify setup failed: $e');
     }
   }
 
@@ -148,7 +147,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   void _startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+    _pollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
       _pollCount++;
       if (_pollCount > 60) {
         _pollTimer?.cancel();

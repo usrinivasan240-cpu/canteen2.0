@@ -195,17 +195,26 @@ class ApiService {
     return [];
   }
 
-  // Razorpay verify
+  // Razorpay verify (fast, no retry)
   Future<Map<String, dynamic>> verifyRazorpayPayment({
     required String razorpayOrderId,
     required String razorpayPaymentId,
     required String razorpaySignature,
   }) async {
-    return _post('/api/razorpay/verify', {
-      'razorpay_order_id': razorpayOrderId,
-      'razorpay_payment_id': razorpayPaymentId,
-      'razorpay_signature': razorpaySignature,
-    });
+    try {
+      final resp = await http.post(
+        Uri.parse('$_baseUrl/api/razorpay/verify'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'razorpay_order_id': razorpayOrderId,
+          'razorpay_payment_id': razorpayPaymentId,
+          'razorpay_signature': razorpaySignature,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      return jsonDecode(resp.body);
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
   }
 
   Future<Map<String, dynamic>> verifyQr(String code) async {
