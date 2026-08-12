@@ -129,6 +129,7 @@ export default function CanteenAdmin({
   ) || null;
   
   // Menu form state
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [showItemModal, setShowItemModal] = useState<boolean>(false);
   const [showConfirmSave, setShowConfirmSave] = useState<boolean>(false);
   const [pendingSavePayload, setPendingSavePayload] = useState<any>(null);
