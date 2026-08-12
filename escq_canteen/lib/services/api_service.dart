@@ -138,12 +138,13 @@ class ApiService {
     String pickupSlot = 'ASAP (Instant)',
     String canteenId = 'canteen_001',
     String? subCanteenId,
+    String? paymentMethod,
   }) async {
     return _post('/api/canteen/order', {
       'userId': userId,
       'userName': userName,
       'items': items,
-      'paymentMethod': 'Razorpay Gateway',
+      'paymentMethod': paymentMethod ?? 'Razorpay Gateway',
       'gateway': 'razorpay',
       'pickupSlot': pickupSlot,
       'canteenId': canteenId,
@@ -194,7 +195,19 @@ class ApiService {
     return [];
   }
 
-  // QR verify - lookup order by QR code
+  // Razorpay verify
+  Future<Map<String, dynamic>> verifyRazorpayPayment({
+    required String razorpayOrderId,
+    required String razorpayPaymentId,
+    required String razorpaySignature,
+  }) async {
+    return _post('/api/razorpay/verify', {
+      'razorpay_order_id': razorpayOrderId,
+      'razorpay_payment_id': razorpayPaymentId,
+      'razorpay_signature': razorpaySignature,
+    });
+  }
+
   Future<Map<String, dynamic>> verifyQr(String code) async {
     return _get('/api/canteen/qr/verify', {'code': code});
   }

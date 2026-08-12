@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
 import '../services/api_service.dart';
+import '../config.dart';
 import '../models/order.dart';
 import 'home_screen.dart';
 
@@ -28,17 +30,53 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String? orderId;
   Timer? _pollTimer;
   int _pollCount = 0;
+  late Razorpay _razorpay;
 
   @override
   void initState() {
     super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
     _initiatePayment();
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _razorpay.clear();
     super.dispose();
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    try {
+      final api = ApiService();
+      final verifyResult = await api.verifyRazorpayPayment(
+        razorpayOrderId: response.orderId ?? '',
+        razorpayPaymentId: response.paymentId ?? '',
+        razorpaySignature: response.signature ?? '',
+      );
+      if (verifyResult['success'] == true) {
+        final order = Order.fromJson(verifyResult['order']);
+        context.read<OrderProvider>().setLastOrder(order);
+        final auth = context.read<AuthProvider>();
+        context.read<OrderProvider>().loadOrders(auth.user?.id ?? '');
+        setState(() { waitingForPayment = false; isComplete = true; });
+      } else {
+        setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment verified but order update failed. Check your orders.'; });
+      }
+    } catch (e) {
+      setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment received but verification failed. Check your orders.'; });
+    }
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    setState(() { waitingForPayment = false; isFailed = true; errorMessage = response.message ?? 'Payment was cancelled or failed.'; });
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    // External wallet selected - payment flow continues via Razorpay
   }
 
   Future<void> _initiatePayment() async {
@@ -193,62 +231,35 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   void _showRazorpayModal(String razorpayOrderId, num amount) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        height: MediaQuery.of(ctx).size.height * 0.5,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 20),
-            Container(
-              width: 64, height: 64,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEA580C)]),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Center(child: Text('R', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white))),
-            ),
-            const SizedBox(height: 16),
-            const Text('Razorpay Payment', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Text('Amount: ₹${amount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFFF59E0B))),
-            const SizedBox(height: 4),
-            Text('Order ID: $razorpayOrderId', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0xFFFEF9E7), borderRadius: BorderRadius.circular(10)),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, size: 16, color: Color(0xFFD97706)),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text('Payment is being processed. This screen will update automatically.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[700]))),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () { Navigator.pop(ctx); setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment cancelled'; }); },
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                child: const Text('Cancel Payment', style: TextStyle(fontSize: 12)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    try {
+      final auth = context.read<AuthProvider>();
+      final user = auth.user;
+
+      var options = {
+        'key': AppConfig.razorpayKeyId,
+        'amount': (amount * 100).toInt(),
+        'currency': 'INR',
+        'name': 'Esc(Q) Canteen',
+        'description': 'Food Order Payment',
+        'order_id': razorpayOrderId,
+        'prefill': {
+          'name': user?.name ?? '',
+          'contact': user?.phone ?? '',
+          'email': user?.email ?? '',
+        },
+        'theme': {
+          'color': '#F59E0B',
+        },
+      };
+
+      _razorpay.open(options);
+    } catch (e) {
+      setState(() {
+        waitingForPayment = false;
+        isFailed = true;
+        errorMessage = 'Failed to open payment gateway: $e';
+      });
+    }
   }
 
   @override
