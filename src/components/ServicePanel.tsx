@@ -759,7 +759,7 @@ export default function ServicePanel({
                     }}
                     className="w-full text-xs text-gray-600 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-red-100 file:text-red-800 hover:file:bg-red-200 cursor-pointer"
                   />
-                  {colLogo && <img src={colLogo} alt="Logo preview" className="h-10 w-10 rounded-lg object-cover border border-red-100 mt-1" />}
+                  {colLogo && <img src={colLogo} alt="Logo preview" className="h-10 w-10 rounded-full object-cover border border-red-100 mt-1" />}
                 </div>
                 <button
                   type="submit"
@@ -810,8 +810,8 @@ export default function ServicePanel({
                                 }}
                                 className="relative group cursor-pointer"
                               >
-                                {c.logoUrl ? <img src={c.logoUrl} alt="" className="h-7 w-7 rounded-lg object-cover border border-red-100 group-hover:opacity-70 transition" /> : <div className="h-7 w-7 rounded-lg bg-red-100 flex items-center justify-center text-amber-600 text-[10px] font-bold group-hover:bg-red-200 transition">{c.name.charAt(0)}</div>}
-                                <div className="absolute inset-0 bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                                {c.logoUrl ? <img src={c.logoUrl} alt="" className="h-8 w-8 rounded-full object-cover border border-red-100 group-hover:opacity-70 transition" /> : <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-400 to-red-500 flex items-center justify-center text-white text-[11px] font-bold group-hover:opacity-70 transition">{c.name.charAt(0)}</div>}
+                                <div className="absolute inset-0 bg-black/30 rounded-full opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
                                   <span className="text-white text-[8px] font-bold">Edit</span>
                                 </div>
                               </button>
@@ -853,7 +853,7 @@ export default function ServicePanel({
                   {colleges.map(c => (
                     <div key={c.id} className="border border-red-100 rounded-xl p-4 space-y-3">
                       <div className="flex items-center gap-2">
-                        <div className="h-6 w-6 rounded bg-red-100 flex items-center justify-center text-red-700 text-[10px] font-bold">{c.name.charAt(0)}</div>
+                        <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-red-500 flex items-center justify-center text-white text-[10px] font-bold">{c.name.charAt(0)}</div>
                         <span className="text-xs font-bold text-gray-900">{c.name}</span>
                       </div>
                       <div className="space-y-1">
@@ -1005,7 +1005,7 @@ export default function ServicePanel({
                       }}
                       className="w-full text-xs text-gray-600 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-red-100 file:text-red-800 hover:file:bg-red-200 cursor-pointer"
                     />
-                    {cantLogo && <img src={cantLogo} alt="Logo preview" className="h-10 w-10 rounded-lg object-cover border border-red-100 mt-1" />}
+                    {cantLogo && <img src={cantLogo} alt="Logo preview" className="h-10 w-10 rounded-full object-cover border border-red-100 mt-1" />}
                   </div>
                   <button
                     type="submit"
@@ -1399,8 +1399,13 @@ export default function ServicePanel({
                       filteredUsers.map(usr => (
                         <tr key={usr.email} className="hover:bg-red-50/15">
                           <td className="px-6 py-4">
-                            <span className="font-bold text-gray-900 block capitalize">{usr.name}</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
+                            <div className="flex items-center gap-3">
+                              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-400 to-red-500 flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 shadow-sm">
+                                {usr.name ? usr.name.charAt(0).toUpperCase() : '?'}
+                              </div>
+                              <div>
+                                <span className="font-bold text-gray-900 block capitalize">{usr.name}</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
                               {isSuperAdmin && (
                                 <span className="text-[9px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold uppercase border border-slate-200">
                                   {colleges.find(c => c.id === usr.collegeId)?.name || usr.collegeId || 'No College'}
@@ -1416,6 +1421,7 @@ export default function ServicePanel({
                                   Posting: {usr.posting}
                                 </span>
                               )}
+                            </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 font-mono text-gray-500 truncate max-w-[160px]">{usr.email}</td>
