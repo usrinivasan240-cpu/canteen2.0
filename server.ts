@@ -2273,6 +2273,8 @@ app.post('/api/razorpay/verify', async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
+    console.log(`[Razorpay Verify] Received: orderId=${razorpay_order_id}, paymentId=${razorpay_payment_id}`);
+
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).json({ success: false, error: 'Missing required payment verification fields' });
     }
@@ -2291,17 +2293,48 @@ app.post('/api/razorpay/verify', async (req, res) => {
 
     console.log(`[Razorpay Verify] ✅ Signature verified for order ${razorpay_order_id}`);
 
-    // Find order by razorpayOrderId
+    // Find order by razorpayOrderId with retry for cold starts
     let targetOrder: Order | undefined;
-    if (db) {
-      const snap = await db.collection('orders').where('razorpayOrderId', '==', razorpay_order_id).get();
-      if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
-    } else {
-      targetOrder = canteenState.orders.find(o => o.razorpayOrderId === razorpay_order_id);
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      if (db) {
+        try {
+          const snap = await db.collection('orders').where('razorpayOrderId', '==', razorpay_order_id).get();
+          if (!snap.empty) {
+            targetOrder = snap.docs[0].data() as Order;
+            break;
+          }
+        } catch (qErr) {
+          console.warn(`[Razorpay Verify] Firestore query attempt ${attempt + 1} failed:`, qErr);
+          if (attempt < MAX_RETRIES - 1) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        }
+      } else {
+        targetOrder = canteenState.orders.find(o => o.razorpayOrderId === razorpay_order_id);
+        if (targetOrder) break;
+      }
+    }
+
+    // Fallback: search by doc ID (order ID itself)
+    if (!targetOrder && db) {
+      try {
+        // Try common order ID patterns
+        const possibleIds = canteenState.orders.filter(o => o.razorpayOrderId === razorpay_order_id).map(o => o.id);
+        for (const docId of possibleIds) {
+          const doc = await db.collection('orders').doc(docId).get();
+          if (doc.exists) {
+            targetOrder = doc.data() as Order;
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn('[Razorpay Verify] Fallback doc lookup failed:', e);
+      }
     }
 
     if (!targetOrder) {
-      return res.status(404).json({ success: false, error: 'Order not found for this payment' });
+      console.error(`[Razorpay Verify] Order not found for razorpayOrderId: ${razorpay_order_id}`);
+      // Don't fail hard — return success so the app starts polling
+      return res.json({ success: false, error: 'Order not found for this payment', retryable: true });
     }
 
     if (targetOrder.paymentStatus === 'paid') {

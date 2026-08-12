@@ -50,6 +50,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    debugPrint('[Razorpay] Payment success: orderId=${response.orderId}, paymentId=${response.paymentId}');
+
+    // Always start polling immediately — this is the most reliable path
+    setState(() { waitingForPayment = true; });
+    _startPolling();
+
+    // Try server-side verification as best-effort
     try {
       final api = ApiService();
       final verifyResult = await api.verifyRazorpayPayment(
@@ -57,17 +64,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
         razorpayPaymentId: response.paymentId ?? '',
         razorpaySignature: response.signature ?? '',
       );
-      if (verifyResult['success'] == true) {
+      if (verifyResult['success'] == true && verifyResult['order'] != null) {
         final order = Order.fromJson(verifyResult['order']);
+        _pollTimer?.cancel();
         context.read<OrderProvider>().setLastOrder(order);
         final auth = context.read<AuthProvider>();
         context.read<OrderProvider>().loadOrders(auth.user?.id ?? '');
         setState(() { waitingForPayment = false; isComplete = true; });
-      } else {
-        setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment verified but order update failed. Check your orders.'; });
       }
+      // If verify failed, polling is already running and will catch it
     } catch (e) {
-      setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment received but verification failed. Check your orders.'; });
+      debugPrint('[Razorpay] Verify call failed (polling will handle it): $e');
     }
   }
 
@@ -140,6 +147,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   void _startPolling() {
+    _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
       _pollCount++;
       if (_pollCount > 60) {
