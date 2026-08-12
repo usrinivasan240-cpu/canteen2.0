@@ -460,7 +460,8 @@ export default function CustomerApp({
               description: 'Food Order Payment',
               order_id: res.razorpayOrderId,
               handler: async function (response: any) {
-                // Verify payment on server
+                // Payment succeeded — show success immediately and verify in background
+                showToast('Payment successful! Confirming order...');
                 try {
                   const verifyRes = await fetch(`${API_BASE}/api/razorpay/verify`, {
                     method: 'POST',
@@ -477,10 +478,42 @@ export default function CustomerApp({
                     setQrPayload((verifyData.order || res.order).qrPayload || (verifyData.order || res.order).id);
                     showToast('Payment successful! Order confirmed.');
                   } else {
-                    showToast('Payment verification failed. Check Order History.');
+                    // Verify failed but payment went through — poll for order status
+                    showToast('Payment received. Confirming order...');
+                    const orderId = res.order?.id;
+                    if (orderId) {
+                      const pollInterval = setInterval(async () => {
+                        try {
+                          const statusRes = await fetch(`${API_BASE}/api/canteen/order/status`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: orderId, status: 'check' }),
+                          });
+                          const statusData = await statusRes.json();
+                          if (statusData.success && statusData.order) {
+                            clearInterval(pollInterval);
+                            setSuccessOrder(statusData.order);
+                            setQrPayload(statusData.order.qrPayload || statusData.order.id);
+                            showToast('Order confirmed!');
+                          }
+                        } catch (_) {}
+                      }, 3000);
+                      // Stop polling after 2 minutes
+                      setTimeout(() => clearInterval(pollInterval), 120000);
+                      // Also set the order for optimistic display
+                      if (res.order) {
+                        setSuccessOrder(res.order);
+                        setQrPayload(res.order.qrPayload || res.order.id);
+                      }
+                    }
                   }
                 } catch {
-                  showToast('Could not verify payment. Check Order History.');
+                  // Network error — still show success, order will appear in history
+                  if (res.order) {
+                    setSuccessOrder(res.order);
+                    setQrPayload(res.order.qrPayload || res.order.id);
+                  }
+                  showToast('Payment received! Order will appear in history.');
                 }
               },
               prefill: {
