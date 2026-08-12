@@ -1406,22 +1406,23 @@ export default function ServicePanel({
                               <div>
                                 <span className="font-bold text-gray-900 block capitalize">{usr.name}</span>
                                 <div className="flex flex-wrap gap-1 mt-1">
-                              {isSuperAdmin && (
-                                <span className="text-[9px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold uppercase border border-slate-200">
-                                  {colleges.find(c => c.id === usr.collegeId)?.name || usr.collegeId || 'No College'}
-                                </span>
-                              )}
-                              {usr.canteenId && (
-                                <span className="text-[9px] bg-red-50 text-amber-600 px-2 py-0.5 rounded-full font-bold uppercase border border-red-100/45">
-                                  {canteens.find(c => c.id === usr.canteenId)?.name || usr.canteenId}
-                                </span>
-                              )}
-                              {usr.posting && (
-                                <span className="text-[9px] bg-emerald-50 text-emerald-750 px-2 py-0.5 rounded-full font-bold border border-emerald-100/45">
-                                  Posting: {usr.posting}
-                                </span>
-                              )}
-                            </div>
+                                  {isSuperAdmin && (
+                                    <span className="text-[9px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold uppercase border border-slate-200">
+                                      {colleges.find(c => c.id === usr.collegeId)?.name || usr.collegeId || 'No College'}
+                                    </span>
+                                  )}
+                                  {usr.canteenId && (
+                                    <span className="text-[9px] bg-red-50 text-amber-600 px-2 py-0.5 rounded-full font-bold uppercase border border-red-100/45">
+                                      {canteens.find(c => c.id === usr.canteenId)?.name || usr.canteenId}
+                                    </span>
+                                  )}
+                                  {usr.posting && (
+                                    <span className="text-[9px] bg-emerald-50 text-emerald-750 px-2 py-0.5 rounded-full font-bold border border-emerald-100/45">
+                                      Posting: {usr.posting}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 font-mono text-gray-500 truncate max-w-[160px]">{usr.email}</td>
