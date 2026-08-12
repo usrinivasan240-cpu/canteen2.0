@@ -15,22 +15,48 @@ class ApiService {
 
   static const Duration _timeout = Duration(seconds: 90);
 
+  Future<Map<String, dynamic>> _retryRequest(Future<Map<String, dynamic>> Function() request, {int maxRetries = 2}) async {
+    for (int i = 0; i <= maxRetries; i++) {
+      try {
+        final result = await request();
+        if (result['retryable'] != true || i == maxRetries) return result;
+        await Future.delayed(Duration(seconds: 2 * (i + 1)));
+      } catch (e) {
+        if (i == maxRetries) rethrow;
+        await Future.delayed(Duration(seconds: 2 * (i + 1)));
+      }
+    }
+    return {'success': false, 'error': 'Server unavailable. Please try again.'};
+  }
+
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
-    final resp = await http.post(
-      Uri.parse('$_baseUrl$path'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    ).timeout(_timeout);
-    return jsonDecode(resp.body);
+    return _retryRequest(() async {
+      final resp = await http.post(
+        Uri.parse('$_baseUrl$path'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(_timeout);
+      final data = jsonDecode(resp.body);
+      if (resp.statusCode >= 500 && data['error'] != null) {
+        return {'success': false, 'error': data['error'], 'retryable': true};
+      }
+      return data;
+    });
   }
 
   Future<Map<String, dynamic>> _get(String path, [Map<String, String>? params]) async {
-    var uri = Uri.parse('$_baseUrl$path');
-    if (params != null && params.isNotEmpty) {
-      uri = uri.replace(queryParameters: params);
-    }
-    final resp = await http.get(uri).timeout(_timeout);
-    return jsonDecode(resp.body);
+    return _retryRequest(() async {
+      var uri = Uri.parse('$_baseUrl$path');
+      if (params != null && params.isNotEmpty) {
+        uri = uri.replace(queryParameters: params);
+      }
+      final resp = await http.get(uri).timeout(_timeout);
+      final data = jsonDecode(resp.body);
+      if (resp.statusCode >= 500 && data['error'] != null) {
+        return {'success': false, 'error': data['error'], 'retryable': true};
+      }
+      return data;
+    });
   }
 
   // Auth

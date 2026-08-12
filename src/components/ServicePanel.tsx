@@ -1511,7 +1511,7 @@ export default function ServicePanel({
             </div>
 
             {viewingCanteenId && (
-              <div className="bg-white border border-red-100 rounded-3xl shadow-sm overflow-hidden">
+              <div className="bg-white border border-red-100 rounded-3xl shadow-sm">
                 {viewingLoading || !viewingCanteenData ? (
                   <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center">
                     <div className="h-10 w-10 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mb-4" />

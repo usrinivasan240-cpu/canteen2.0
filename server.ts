@@ -725,69 +725,82 @@ app.post('/api/auth/login', async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   if (db) {
-    try {
-      const userDoc = await db.collection('users').doc(normalizedEmail).get();
-      if (userDoc.exists) {
-        const user = userDoc.data();
-        if (user && user.password === password) {
-          const finalRole = user.role;
-          console.log('--- LOGIN SUCCESS (DB) ---', { email: user.email, resolvedRole: finalRole });
+    const MAX_DB_RETRIES = 2;
+    let dbReady = false;
+    for (let attempt = 0; attempt < MAX_DB_RETRIES; attempt++) {
+      try {
+        const userDoc = await db.collection('users').doc(normalizedEmail).get();
+        dbReady = true;
+
+        if (userDoc.exists) {
+          const user = userDoc.data();
+          if (user && user.password === password) {
+            const finalRole = user.role;
+            console.log('--- LOGIN SUCCESS (DB) ---', { email: user.email, resolvedRole: finalRole });
+            const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
+            return res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId, phone: user.phone, registerNumber: user.registerNumber } });
+          } else {
+            return res.status(400).json({ success: false, error: 'Incorrect password.' });
+          }
+        }
+
+        if (['watson777@gmail.com', 'canteen_owner@gmail.com', 'superadmin@gmail.com', 'college_admin@gmail.com', 'chef@gmail.com', 'staff@gmail.com'].includes(normalizedEmail)) {
+          let defaultRole = 'customer';
+          let defaultName = 'Raju Watson';
+          let collegeId: string | undefined;
+          let canteenId: string | undefined;
+          let subCanteenId: string | undefined;
+
+          if (normalizedEmail === 'canteen_owner@gmail.com') {
+            defaultRole = 'owner';
+            defaultName = 'Canteen Owner';
+            canteenId = 'canteen_001';
+          } else if (normalizedEmail === 'superadmin@gmail.com') {
+            defaultRole = 'superadmin';
+            defaultName = 'Super Admin';
+          } else if (normalizedEmail === 'college_admin@gmail.com') {
+            defaultRole = 'admin';
+            defaultName = 'College Admin';
+            collegeId = 'college_001';
+          } else if (normalizedEmail === 'chef@gmail.com') {
+            defaultRole = 'chef';
+            defaultName = 'Kitchen Chef';
+            canteenId = 'canteen_001';
+            subCanteenId = 'sub_001';
+          } else if (normalizedEmail === 'staff@gmail.com') {
+            defaultRole = 'staff';
+            defaultName = 'Counter Staff';
+            canteenId = 'canteen_001';
+            subCanteenId = 'sub_001';
+          }
+
+          const defaultUser: any = { 
+            id: `user_${defaultRole}_default`, 
+            name: defaultName, 
+            email: normalizedEmail, 
+            password, 
+            role: defaultRole,
+            status: 'active'
+          };
+          if (collegeId) defaultUser.collegeId = collegeId;
+          if (canteenId) defaultUser.canteenId = canteenId;
+          if (subCanteenId) defaultUser.subCanteenId = subCanteenId;
+
+          await db.collection('users').doc(normalizedEmail).set(defaultUser);
           const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-          return res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId, phone: user.phone, registerNumber: user.registerNumber } });
-        } else {
-          return res.status(400).json({ success: false, error: 'Incorrect password.' });
+          return res.json({ success: true, token, user: { id: defaultUser.id, name: defaultUser.name, email: defaultUser.email, role: defaultUser.role, collegeId, canteenId, subCanteenId } });
+        }
+        break;
+      } catch (err) {
+        console.error(`Login DB attempt ${attempt + 1}/${MAX_DB_RETRIES} failed:`, err);
+        if (attempt < MAX_DB_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
         }
       }
-      
-      if (['watson777@gmail.com', 'canteen_owner@gmail.com', 'superadmin@gmail.com', 'college_admin@gmail.com', 'chef@gmail.com', 'staff@gmail.com'].includes(normalizedEmail)) {
-        let defaultRole = 'customer';
-        let defaultName = 'Raju Watson';
-        let collegeId: string | undefined;
-        let canteenId: string | undefined;
-        let subCanteenId: string | undefined;
-
-        if (normalizedEmail === 'canteen_owner@gmail.com') {
-          defaultRole = 'owner';
-          defaultName = 'Canteen Owner';
-          canteenId = 'canteen_001';
-        } else if (normalizedEmail === 'superadmin@gmail.com') {
-          defaultRole = 'superadmin';
-          defaultName = 'Super Admin';
-        } else if (normalizedEmail === 'college_admin@gmail.com') {
-          defaultRole = 'admin';
-          defaultName = 'College Admin';
-          collegeId = 'college_001';
-        } else if (normalizedEmail === 'chef@gmail.com') {
-          defaultRole = 'chef';
-          defaultName = 'Kitchen Chef';
-          canteenId = 'canteen_001';
-          subCanteenId = 'sub_001';
-        } else if (normalizedEmail === 'staff@gmail.com') {
-          defaultRole = 'staff';
-          defaultName = 'Counter Staff';
-          canteenId = 'canteen_001';
-          subCanteenId = 'sub_001';
-        }
-
-        const defaultUser: any = { 
-          id: `user_${defaultRole}_default`, 
-          name: defaultName, 
-          email: normalizedEmail, 
-          password, 
-          role: defaultRole,
-          status: 'active'
-        };
-        if (collegeId) defaultUser.collegeId = collegeId;
-        if (canteenId) defaultUser.canteenId = canteenId;
-        if (subCanteenId) defaultUser.subCanteenId = subCanteenId;
-
-        await db.collection('users').doc(normalizedEmail).set(defaultUser);
-        const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-        return res.json({ success: true, token, user: { id: defaultUser.id, name: defaultUser.name, email: defaultUser.email, role: defaultUser.role, collegeId, canteenId, subCanteenId } });
-      }
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ success: false, error: 'Database access failure.' });
+    }
+    if (!dbReady) {
+      console.warn('Firestore still unavailable after retries, falling back to in-memory login for:', normalizedEmail);
     }
   }
 

@@ -44,13 +44,18 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         return true;
       } else {
-        _error = data['error'] ?? 'Invalid email or password.';
+        final err = data['error'] ?? 'Invalid email or password.';
+        if (err.contains('Database') || err.contains('database')) {
+          _error = 'Server is starting up. Please try again in a moment.';
+        } else {
+          _error = err;
+        }
         _loading = false;
         notifyListeners();
         return false;
       }
     } catch (e) {
-      _error = 'Connection failure to authentication server.';
+      _error = 'Connection failure. Please check your internet and try again.';
       _loading = false;
       notifyListeners();
       return false;
