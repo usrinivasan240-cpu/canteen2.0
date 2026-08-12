@@ -1047,6 +1047,35 @@ app.put('/api/colleges/:id/branding', async (req, res) => {
   res.json({ success: true, branding });
 });
 
+app.put('/api/colleges/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, location } = req.body;
+  if (!name) {
+    return res.status(400).json({ success: false, error: 'College name is required' });
+  }
+  if (db) {
+    try {
+      const doc = await db.collection('colleges').doc(id).get();
+      if (!doc.exists) {
+        return res.status(404).json({ success: false, error: 'College not found' });
+      }
+      const existing = doc.data();
+      const updated = { ...existing, name, location: location ?? existing.location, updatedAt: new Date().toISOString() };
+      await db.collection('colleges').doc(id).update(updated);
+    } catch (e) {
+      console.error('College update error:', e);
+      return res.status(500).json({ success: false, error: 'DB update failed' });
+    }
+  }
+  const idx = collegesState.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    collegesState[idx] = { ...collegesState[idx], name, location: location ?? collegesState[idx].location };
+  }
+  firestoreCache.delete('colleges');
+  saveLocalDB();
+  res.json({ success: true });
+});
+
 app.delete('/api/colleges/:id', async (req, res) => {
   const { id } = req.params;
   if (db) {
