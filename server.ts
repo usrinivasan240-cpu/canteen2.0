@@ -22,10 +22,130 @@ const PORT = 3000;
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Enable CORS for mobile Capacitor WebView clients (http://localhost and capacitor://)
+// ============================================================================
+// SECURITY: Password hashing helpers (crypto.scrypt — no external deps needed)
+// ============================================================================
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  if (!stored || !stored.includes(':')) return false;
+  const [salt, hash] = stored.split(':');
+  const verify = crypto.scryptSync(password, salt, 64).toString('hex');
+  return hash === verify;
+}
+
+// ============================================================================
+// SECURITY: Auth middleware — validates tokens on protected endpoints
+// ============================================================================
+const PROTECTED_PATHS = [
+  '/api/users', '/api/colleges', '/api/canteens', '/api/subcanteens',
+  '/api/canteen/menu', '/api/canteen/order', '/api/canteen/ingredients',
+  '/api/canteen/settings', '/api/support-tickets'
+];
+
+function authMiddleware(req: any, res: any, next: any) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'Authentication required.' });
+  }
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = Buffer.from(token, 'base64').toString('utf-8');
+    const [email, ts] = decoded.split(':');
+    if (!email || !ts || isNaN(Number(ts))) {
+      return res.status(401).json({ success: false, error: 'Invalid token.' });
+    }
+    const tokenAge = Date.now() - Number(ts);
+    if (tokenAge > 7 * 24 * 60 * 60 * 1000) {
+      return res.status(401).json({ success: false, error: 'Token expired.' });
+    }
+    (req as any).authEmail = email.trim().toLowerCase();
+    next();
+  } catch {
+    return res.status(401).json({ success: false, error: 'Invalid token.' });
+  }
+}
+
+// Apply auth to protected write endpoints
+app.use('/api/users', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/colleges', authMiddleware);
+app.use('/api/canteens', authMiddleware);
+app.use('/api/subcanteens', authMiddleware);
+app.use('/api/canteen/menu', authMiddleware);
+app.use('/api/canteen/order', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/canteen/ingredients', authMiddleware);
+app.use('/api/canteen/settings', authMiddleware);
+app.use('/api/support-tickets', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+
+// ============================================================================
+// SECURITY: Rate limiting (in-memory, per IP)
+// ============================================================================
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 30;
+const RATE_LIMIT_WINDOW = 60 * 1000;
+
+function rateLimiter(req: any, res: any, next: any) {
+  const ip = req.headers['x-forwarded-for']?.toString()?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return next();
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX) {
+    return res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' });
+  }
+  next();
+}
+
+// Cleanup stale entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of rateLimitMap) {
+    if (now > val.resetAt) rateLimitMap.delete(key);
+  }
+}, 5 * 60 * 1000);
+
+app.use(rateLimiter);
+
+// ============================================================================
+// SECURITY: Security headers
+// ============================================================================
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
+// SECURITY: CORS — whitelist only known origins
+const ALLOWED_ORIGINS = [
+  'https://canteen20.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'capacitor://localhost',
+  'http://localhost',
+];
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin) {
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -654,14 +774,29 @@ function getCanteenState(canteenId: string): Canteen {
 
 // 0. User Authentication (Register & Login)
 app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password, role, phone, registerNumber, collegeId } = req.body;
+  const { name, email, password, phone, registerNumber, collegeId } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ success: false, error: 'Name, email, and password are required.' });
   }
 
+  // SECURITY: Password strength validation
+  if (password.length < 6) {
+    return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' });
+  }
+
+  // SECURITY: Email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ success: false, error: 'Invalid email format.' });
+  }
+
   const normalizedEmail = email.trim().toLowerCase();
-  const selectedRole = role || 'customer';
+  // SECURITY: Block role escalation — registrations always get 'customer' role
+  const selectedRole = 'customer';
   const userId = `user_${Math.random().toString(36).substring(2, 11)}`;
+
+  // SECURITY: Hash password before storage
+  const hashedPassword = hashPassword(password);
 
   if (db) {
     try {
@@ -673,7 +808,7 @@ app.post('/api/auth/register', async (req, res) => {
         id: userId,
         name,
         email: normalizedEmail,
-        password,
+        password: hashedPassword,
         role: selectedRole,
         phone: phone || '',
         registerNumber: registerNumber || '',
@@ -734,16 +869,37 @@ app.post('/api/auth/login', async (req, res) => {
 
         if (userDoc.exists) {
           const user = userDoc.data();
-          if (user && user.password === password) {
-            const finalRole = user.role;
-            console.log('--- LOGIN SUCCESS (DB) ---', { email: user.email, resolvedRole: finalRole });
-            const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-            return res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId, phone: user.phone, registerNumber: user.registerNumber } });
-          } else {
-            return res.status(400).json({ success: false, error: 'Incorrect password.' });
+          if (user) {
+            // SECURITY: Support both hashed (salt:hash) and legacy plaintext passwords
+            let passwordValid = false;
+            const storedPw = user.password || '';
+            if (storedPw.includes(':')) {
+              passwordValid = verifyPassword(password, storedPw);
+            } else {
+              passwordValid = storedPw === password;
+              // SECURITY: Auto-upgrade plaintext password to hashed on successful login
+              if (passwordValid && db) {
+                try {
+                  await db.collection('users').doc(normalizedEmail).update({ password: hashPassword(password) });
+                  console.log(`Auto-hashed plaintext password for ${normalizedEmail}`);
+                } catch (e) {
+                  console.error('Failed to auto-hash password:', e);
+                }
+              }
+            }
+
+            if (passwordValid) {
+              const finalRole = user.role;
+              console.log('--- LOGIN SUCCESS (DB) ---', { email: user.email, resolvedRole: finalRole });
+              const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
+              return res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId, phone: user.phone, registerNumber: user.registerNumber } });
+            } else {
+              return res.status(400).json({ success: false, error: 'Incorrect password.' });
+            }
           }
         }
 
+        // SECURITY: Hardcoded test accounts — store with hashed passwords
         if (['watson777@gmail.com', 'canteen_owner@gmail.com', 'superadmin@gmail.com', 'college_admin@gmail.com', 'chef@gmail.com', 'staff@gmail.com'].includes(normalizedEmail)) {
           let defaultRole = 'customer';
           let defaultName = 'Raju Watson';
@@ -774,11 +930,11 @@ app.post('/api/auth/login', async (req, res) => {
             subCanteenId = 'sub_001';
           }
 
-          const defaultUser: any = { 
-            id: `user_${defaultRole}_default`, 
-            name: defaultName, 
-            email: normalizedEmail, 
-            password, 
+          const defaultUser: any = {
+            id: `user_${defaultRole}_default`,
+            name: defaultName,
+            email: normalizedEmail,
+            password: hashPassword(password),
             role: defaultRole,
             status: 'active'
           };
@@ -800,24 +956,13 @@ app.post('/api/auth/login', async (req, res) => {
       }
     }
     if (!dbReady) {
-      console.warn('Firestore still unavailable after retries, falling back to in-memory login for:', normalizedEmail);
+      console.warn('Firestore still unavailable after retries, cannot verify login for:', normalizedEmail);
+      return res.status(503).json({ success: false, error: 'Database temporarily unavailable. Please try again.' });
     }
   }
 
-  const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-  return res.json({
-    success: true,
-    token,
-    user: {
-      id: `user_${Math.random().toString(36).substring(2, 11)}`,
-      name: normalizedEmail.split('@')[0],
-      email: normalizedEmail,
-      role: 'customer',
-      collegeId: undefined,
-      canteenId: undefined,
-      subCanteenId: undefined
-    }
-  });
+  // SECURITY: Never allow unauthenticated access as a fallback
+  return res.status(401).json({ success: false, error: 'Invalid credentials.' });
 });
 
 // ============================================================================
@@ -1342,10 +1487,10 @@ app.get('/api/users', async (req, res) => {
       console.error(e);
     }
   }
-  // Fallback default users
+  // Fallback default users — strip passwords
   res.json({
     success: true,
-    users: usersState
+    users: usersState.map(({ password: _pw, ...u }) => u)
   });
 });
 
@@ -1358,6 +1503,7 @@ app.post('/api/users', async (req, res) => {
   if (!user.id) user.id = `user_${Date.now()}`;
   if (!user.status) user.status = 'active';
   if (!user.password) user.password = 'changeme_' + Math.random().toString(36).substring(2, 10);
+  const rawPassword = user.password;
 
   // Create Firebase Auth account so the user can actually log in
   let firebaseUid: string | undefined;
@@ -1365,7 +1511,7 @@ app.post('/api/users', async (req, res) => {
     try {
       const authUser = await admin.auth().createUser({
         email: emailKey,
-        password: user.password,
+        password: rawPassword,
         displayName: user.name,
         disabled: false,
       });
@@ -1411,12 +1557,13 @@ app.post('/api/users', async (req, res) => {
     }
   }
 
-  // Update local in-memory fallback state
+  // Update local in-memory fallback state (hash password for local storage)
+  const hashedUser = { ...user, password: hashPassword(rawPassword) };
   const idx = usersState.findIndex(u => u.email.toLowerCase() === emailKey);
   if (idx !== -1) {
-    usersState[idx] = { ...usersState[idx], ...user };
+    usersState[idx] = { ...usersState[idx], ...hashedUser };
   } else {
-    usersState.push(user);
+    usersState.push(hashedUser);
   }
 
   saveLocalDB();
@@ -1471,7 +1618,7 @@ app.put('/api/users/:email/role', async (req, res) => {
   if (canteenId !== undefined) updates.canteenId = canteenId;
   if (subCanteenId !== undefined) updates.subCanteenId = subCanteenId;
   if (status) updates.status = status;
-  if (password) updates.password = password;
+  if (password) updates.password = hashPassword(password);
 
   if (db) {
     try {
