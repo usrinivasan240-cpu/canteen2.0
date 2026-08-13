@@ -940,12 +940,10 @@ app.post('/api/auth/generate-otp', async (req, res) => {
 
   // Store OTP in PostgreSQL (persists across serverless instances)
   try {
-    await pgSet('otp_store', normalizedEmail, {
-      code,
-      expiresAt,
-      email: normalizedEmail,
-      createdAt: Date.now(),
-    });
+    await execute(
+      `INSERT INTO otp_store (email, code, expires_at, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO UPDATE SET code = $2, expires_at = $3, created_at = $4`,
+      [normalizedEmail, code, expiresAt, Date.now()]
+    );
   } catch (err) {
     console.error('Failed to store OTP in PostgreSQL:', err);
     return res.status(500).json({ success: false, error: 'Failed to generate OTP. Please try again.' });
@@ -997,8 +995,8 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   // Read OTP from PostgreSQL
   let stored: any = null;
   try {
-    const doc = await pgGetById('otp_store', normalizedEmail);
-    if (doc) stored = doc;
+    const rows = await query('SELECT * FROM otp_store WHERE email = $1', [normalizedEmail]);
+    if (rows.length > 0) stored = rows[0];
   } catch (err) {
     console.error('Failed to read OTP from PostgreSQL:', err);
     return res.status(500).json({ success: false, error: 'Failed to verify OTP. Please try again.' });
@@ -1007,8 +1005,8 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   if (!stored) {
     return res.status(400).json({ success: false, error: 'No OTP generated. Please request a new one.' });
   }
-  if (Date.now() > stored.expiresAt) {
-    await pgDelete('otp_store', normalizedEmail).catch(() => {});
+  if (Date.now() > stored.expires_at) {
+    await execute('DELETE FROM otp_store WHERE email = $1', [normalizedEmail]).catch(() => {});
     return res.status(400).json({ success: false, error: 'OTP expired. Please request a new one.' });
   }
 
@@ -1019,7 +1017,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   }
 
   // Delete used OTP
-  await pgDelete('otp_store', normalizedEmail).catch(() => {});
+  await execute('DELETE FROM otp_store WHERE email = $1', [normalizedEmail]).catch(() => {});
   res.json({ success: true, message: 'OTP verified successfully.' });
 });
 
