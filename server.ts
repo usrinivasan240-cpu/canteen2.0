@@ -7,11 +7,11 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import fs from 'fs';
-import admin from 'firebase-admin';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User } from './src/types';
+import { pgGetById, pgGetAll, pgGetWhere, pgGetWhereOrdered, pgSet, pgUpdate, pgDelete, pgDeleteWhere, pgIncrement, pgGetByEmail, isPgAvailable, query, queryOne, execute } from './db';
 
 // Load environment variables
 dotenv.config();
@@ -248,8 +248,9 @@ if (process.env.VERCEL) {
   });
 }
 
-app.get('/api/test', (req, res) => {
-  res.json({ success: true, message: "Server is working!", dbConnected: !!db, envVar: !!process.env.FIREBASE_SERVICE_ACCOUNT, initError: firebaseInitError, envLength: (process.env.FIREBASE_SERVICE_ACCOUNT || '').length, razorpay: { configured: razorpayConfigured, keyPrefix: razorpayKeyId.substring(0, 8) } });
+app.get('/api/test', async (req, res) => {
+  const pgConnected = await isPgAvailable();
+  res.json({ success: true, message: "Server is working!", dbConnected: pgConnected, postgres: pgConnected, envVar: !!process.env.POSTGRES_URL, razorpay: { configured: razorpayConfigured, keyPrefix: razorpayKeyId.substring(0, 8) } });
 });
 
 // App version endpoint - bump this to force update popup on all devices
@@ -260,76 +261,23 @@ app.get('/api/app-version', (req, res) => {
   res.json({ version: APP_VERSION, updateUrl: APP_UPDATE_URL });
 });
 
-// Initialize Firebase Admin using token.json or env variable fallback
-let db: admin.firestore.Firestore | null = null;
-let firebaseInitError: string | null = null;
-try {
-  let envCreds = process.env.FIREBASE_SERVICE_ACCOUNT;
-  const tokenPath = path.join(process.cwd(), 'token.json');
-
-  if (envCreds) {
-    console.log('FIREBASE_SERVICE_ACCOUNT found, length:', envCreds.length);
-    // Attempt 1: direct parse
-    let serviceAccount: any = null;
-    try {
-      serviceAccount = JSON.parse(envCreds);
-    } catch (e: any) {
-      console.log('Direct JSON.parse failed, attempting newline fix...');
-      // Attempt 2: fix literal newlines in private_key
-      try {
-        let fixed = envCreds.replace(/\r/g, '');
-        // Find private_key value and escape any bare newlines inside it
-        const pkStart = fixed.indexOf('"private_key"');
-        if (pkStart !== -1) {
-          // Find the opening quote of the value
-          const afterPk = fixed.indexOf(':"', pkStart) + 2;
-          // Find the closing quote (accounting for escaped quotes)
-          let i = afterPk;
-          let inEscape = false;
-          while (i < fixed.length) {
-            if (inEscape) { inEscape = false; i++; continue; }
-            if (fixed[i] === '\\') { inEscape = true; i++; continue; }
-            if (fixed[i] === '"') break;
-            if (fixed[i] === '\n') { fixed = fixed.substring(0, i) + '\\n' + fixed.substring(i + 1); i += 2; continue; }
-            i++;
-          }
-        }
-        serviceAccount = JSON.parse(fixed);
-      } catch (e2: any) {
-        firebaseInitError = `JSON parse failed: ${e2.message}. Env var length: ${envCreds.length}. First 100 chars: ${envCreds.substring(0, 100)}`;
-        console.error(firebaseInitError);
-      }
+// Initialize PostgreSQL (Supabase)
+let pgReady = false;
+let pgInitError: string | null = null;
+(async () => {
+  try {
+    pgReady = await isPgAvailable();
+    if (pgReady) {
+      console.log('PostgreSQL (Supabase) connected successfully!');
+    } else {
+      pgInitError = 'POSTGRES_URL not set or connection failed';
+      console.warn('PostgreSQL not available. Operating with in-memory state only.');
     }
-
-    if (serviceAccount) {
-      console.log('Parsed service account for project:', serviceAccount.project_id);
-      if (admin.apps.length === 0) {
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
-        });
-      }
-      db = admin.firestore();
-      db.settings({ ignoreUndefinedProperties: true });
-      console.log('Firebase Admin SDK initialized successfully via FIREBASE_SERVICE_ACCOUNT!');
-    }
-  } else if (fs.existsSync(tokenPath)) {
-    const serviceAccount = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
-    if (admin.apps.length === 0) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-    }
-    db = admin.firestore();
-    db.settings({ ignoreUndefinedProperties: true });
-    console.log('Firebase Admin SDK initialized successfully with token.json!');
-  } else {
-    firebaseInitError = 'No FIREBASE_SERVICE_ACCOUNT env var and no token.json file';
-    console.warn('token.json not found and FIREBASE_SERVICE_ACCOUNT not set. Operating with fallback in-memory state.');
+  } catch (error: any) {
+    pgInitError = `PostgreSQL init error: ${error?.message || error}`;
+    console.error('Failed to initialize PostgreSQL:', error?.message || error);
   }
-} catch (error: any) {
-  firebaseInitError = `Init error: ${error?.message || error}`;
-  console.error('Failed to initialize Firebase Admin:', error?.message || error);
-}
+})();
 
 // Initialize Google Gen AI only when needed or gracefully check its existence
 let genAI: GoogleGenAI | null = null;
@@ -353,48 +301,39 @@ if (API_KEY && API_KEY !== 'MY_GEMINI_API_KEY') {
   console.log('GEMINI_API_KEY is not configured or holds placeholder. Using simulated AI fallback.');
 }
 
-async function seedFirestoreIfNeeded() {
-  if (!db) return;
+async function seedPostgresIfNeeded() {
+  if (!pgReady) return;
   try {
-    const itemsSnapshot = await db.collection('items').get();
-    if (itemsSnapshot.empty) {
-      console.log('Seeding initial menu items to Firestore...');
-      const batch = db.batch();
-      INITIAL_MENU_ITEMS.forEach(item => {
-        const ref = db!.collection('items').doc(item.id);
-        batch.set(ref, item);
-      });
-      await batch.commit();
+    const items = await pgGetAll('items');
+    if (items.length === 0) {
+      console.log('Seeding initial menu items to PostgreSQL...');
+      for (const item of INITIAL_MENU_ITEMS) {
+        await pgSet('items', item.id, item);
+      }
     }
 
-    const reviewsSnapshot = await db.collection('reviews').get();
-    if (reviewsSnapshot.empty) {
-      console.log('Seeding initial reviews to Firestore...');
-      const batch = db.batch();
-      INITIAL_REVIEWS.forEach(review => {
-        const ref = db!.collection('reviews').doc(review.id);
-        batch.set(ref, review);
-      });
-      await batch.commit();
+    const reviews = await pgGetAll('reviews');
+    if (reviews.length === 0) {
+      console.log('Seeding initial reviews to PostgreSQL...');
+      for (const review of INITIAL_REVIEWS) {
+        await pgSet('reviews', review.id, review);
+      }
     }
 
-    const ordersSnapshot = await db.collection('orders').get();
-    if (ordersSnapshot.empty) {
-      console.log('Seeding initial orders to Firestore...');
-      const batch = db.batch();
-      INITIAL_ORDERS.forEach(order => {
-        const ref = db!.collection('orders').doc(order.id);
-        batch.set(ref, order);
-      });
-      await batch.commit();
+    const orders = await pgGetAll('orders');
+    if (orders.length === 0) {
+      console.log('Seeding initial orders to PostgreSQL...');
+      for (const order of INITIAL_ORDERS) {
+        await pgSet('orders', order.id, order);
+      }
     }
-    console.log('Firestore check/seeding complete.');
+    console.log('PostgreSQL check/seeding complete.');
   } catch (err) {
-    console.error('Error seeding Firestore:', err);
+    console.error('Error seeding PostgreSQL:', err);
   }
 }
 // Run seed check immediately
-seedFirestoreIfNeeded();
+seedPostgresIfNeeded();
 
 /**
  * Resilient Wrapper for Google GenAI generateContent calls.
@@ -798,10 +737,10 @@ app.post('/api/auth/register', async (req, res) => {
   // SECURITY: Hash password before storage
   const hashedPassword = hashPassword(password);
 
-  if (db) {
+  if (pgReady) {
     try {
-      const userDoc = await db.collection('users').doc(normalizedEmail).get();
-      if (userDoc.exists) {
+      const existingUser = await pgGetByEmail('users', normalizedEmail);
+      if (existingUser) {
         return res.status(400).json({ success: false, error: 'User with this email already exists.' });
       }
       const newUser: any = {
@@ -820,16 +759,16 @@ app.post('/api/auth/register', async (req, res) => {
       };
 
       // Auto-assign first canteen in the user's college
-      if (collegeId && db) {
+      if (collegeId) {
         try {
-          const canteensSnap = await db.collection('canteens').where('collegeId', '==', collegeId).where('status', '==', 'active').limit(1).get();
-          if (!canteensSnap.empty) {
-            const assignedCanteen = canteensSnap.docs[0];
+          const canteens = await pgGetWhereOrdered('canteens', { collegeId, status: 'active' }, 'id', 'asc', 1);
+          if (canteens.length > 0) {
+            const assignedCanteen = canteens[0];
             newUser.canteenId = assignedCanteen.id;
             // Auto-assign first sub-canteen of that canteen
-            const subsSnap = await db.collection('subcanteens').where('canteenId', '==', assignedCanteen.id).where('status', '==', 'active').limit(1).get();
-            if (!subsSnap.empty) {
-              newUser.subCanteenId = subsSnap.docs[0].id;
+            const subs = await pgGetWhereOrdered('subcanteens', { canteenId: assignedCanteen.id, status: 'active' }, 'id', 'asc', 1);
+            if (subs.length > 0) {
+              newUser.subCanteenId = subs[0].id;
             }
           }
         } catch (e) {
@@ -837,7 +776,7 @@ app.post('/api/auth/register', async (req, res) => {
         }
       }
 
-      await db.collection('users').doc(normalizedEmail).set(newUser);
+      await pgSet('users', userId, newUser);
       const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
       return res.json({ success: true, token, user: { id: userId, name, email: normalizedEmail, role: selectedRole, phone: newUser.phone, registerNumber: newUser.registerNumber, collegeId: newUser.collegeId, canteenId: newUser.canteenId, subCanteenId: newUser.subCanteenId } });
     } catch (err) {
@@ -859,17 +798,15 @@ app.post('/api/auth/login', async (req, res) => {
 
   const normalizedEmail = email.trim().toLowerCase();
 
-  if (db) {
+  if (pgReady) {
     const MAX_DB_RETRIES = 2;
     let dbReady = false;
     for (let attempt = 0; attempt < MAX_DB_RETRIES; attempt++) {
       try {
-        const userDoc = await db.collection('users').doc(normalizedEmail).get();
+        const user = await pgGetByEmail('users', normalizedEmail);
         dbReady = true;
 
-        if (userDoc.exists) {
-          const user = userDoc.data();
-          if (user) {
+        if (user) {
             // SECURITY: Support both hashed (salt:hash) and legacy plaintext passwords
             let passwordValid = false;
             const storedPw = user.password || '';
@@ -878,9 +815,9 @@ app.post('/api/auth/login', async (req, res) => {
             } else {
               passwordValid = storedPw === password;
               // SECURITY: Auto-upgrade plaintext password to hashed on successful login
-              if (passwordValid && db) {
+              if (passwordValid) {
                 try {
-                  await db.collection('users').doc(normalizedEmail).update({ password: hashPassword(password) });
+                  await pgUpdate('users', user.id, { password: hashPassword(password) });
                   console.log(`Auto-hashed plaintext password for ${normalizedEmail}`);
                 } catch (e) {
                   console.error('Failed to auto-hash password:', e);
@@ -896,7 +833,6 @@ app.post('/api/auth/login', async (req, res) => {
             } else {
               return res.status(400).json({ success: false, error: 'Incorrect password.' });
             }
-          }
         }
 
         // SECURITY: Hardcoded test accounts — store with hashed passwords
@@ -942,7 +878,7 @@ app.post('/api/auth/login', async (req, res) => {
           if (canteenId) defaultUser.canteenId = canteenId;
           if (subCanteenId) defaultUser.subCanteenId = subCanteenId;
 
-          await db.collection('users').doc(normalizedEmail).set(defaultUser);
+          await pgSet('users', defaultUser.id, defaultUser);
           const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
           return res.json({ success: true, token, user: { id: defaultUser.id, name: defaultUser.name, email: defaultUser.email, role: defaultUser.role, collegeId, canteenId, subCanteenId } });
         }
@@ -956,7 +892,7 @@ app.post('/api/auth/login', async (req, res) => {
       }
     }
     if (!dbReady) {
-      console.warn('Firestore still unavailable after retries, cannot verify login for:', normalizedEmail);
+      console.warn('PostgreSQL still unavailable after retries, cannot verify login for:', normalizedEmail);
       return res.status(503).json({ success: false, error: 'Database temporarily unavailable. Please try again.' });
     }
   }
@@ -988,16 +924,16 @@ app.post('/api/auth/generate-otp', async (req, res) => {
   const code = crypto.randomInt(100000, 999999).toString();
   const expiresAt = Date.now() + OTP_TTL_MS;
 
-  // Store OTP in Firestore (persists across serverless instances)
+  // Store OTP in PostgreSQL (persists across serverless instances)
   try {
-    await db.collection(OTP_COLLECTION).doc(normalizedEmail).set({
+    await pgSet('otp_store', normalizedEmail, {
       code,
       expiresAt,
       email: normalizedEmail,
       createdAt: Date.now(),
     });
   } catch (err) {
-    console.error('Failed to store OTP in Firestore:', err);
+    console.error('Failed to store OTP in PostgreSQL:', err);
     return res.status(500).json({ success: false, error: 'Failed to generate OTP. Please try again.' });
   }
 
@@ -1044,13 +980,13 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   if (!email || !otp) return res.status(400).json({ success: false, error: 'Email and OTP required' });
   const normalizedEmail = email.trim().toLowerCase();
 
-  // Read OTP from Firestore
+  // Read OTP from PostgreSQL
   let stored: any = null;
   try {
-    const doc = await db.collection(OTP_COLLECTION).doc(normalizedEmail).get();
-    if (doc.exists) stored = doc.data();
+    const doc = await pgGetById('otp_store', normalizedEmail);
+    if (doc) stored = doc;
   } catch (err) {
-    console.error('Failed to read OTP from Firestore:', err);
+    console.error('Failed to read OTP from PostgreSQL:', err);
     return res.status(500).json({ success: false, error: 'Failed to verify OTP. Please try again.' });
   }
 
@@ -1058,7 +994,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     return res.status(400).json({ success: false, error: 'No OTP generated. Please request a new one.' });
   }
   if (Date.now() > stored.expiresAt) {
-    await db.collection(OTP_COLLECTION).doc(normalizedEmail).delete().catch(() => {});
+    await pgDelete('otp_store', normalizedEmail).catch(() => {});
     return res.status(400).json({ success: false, error: 'OTP expired. Please request a new one.' });
   }
 
@@ -1069,7 +1005,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   }
 
   // Delete used OTP
-  await db.collection(OTP_COLLECTION).doc(normalizedEmail).delete().catch(() => {});
+  await pgDelete('otp_store', normalizedEmail).catch(() => {});
   res.json({ success: true, message: 'OTP verified successfully.' });
 });
 
@@ -1081,10 +1017,9 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 app.get('/api/colleges', async (req, res) => {
   const cached = getCached('colleges');
   if (cached) return res.json({ success: true, colleges: cached });
-  if (db) {
+  if (pgReady) {
     try {
-      const snap = await db.collection('colleges').get();
-      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as College);
+      const list = await pgGetAll('colleges');
       if (list.length > 0) {
         setCache('colleges', list);
         return res.json({ success: true, colleges: list });
@@ -1102,9 +1037,9 @@ app.post('/api/colleges', async (req, res) => {
   if (!college.id) college.id = `college_${Date.now()}`;
   if (!college.status) college.status = 'active';
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('colleges').doc(college.id).set(college);
+      await pgSet('colleges', college.id, college);
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'DB Save failed' });
@@ -1133,12 +1068,12 @@ app.put('/api/colleges/:id/logo', async (req, res) => {
     compressed = logoUrl; // use original if compression fails
   }
   
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('colleges').doc(id).set({ logoUrl: compressed }, { merge: true });
+      await pgUpdate('colleges', id, { logoUrl: compressed });
       console.log(`Logo saved for college ${id}, size: ${(compressed.length/1024).toFixed(0)}KB`);
     } catch (e: any) {
-      console.error('Firestore logo save error:', e?.message || e);
+      console.error('PostgreSQL logo save error:', e?.message || e);
       return res.status(500).json({ success: false, error: 'Failed to save logo to database. Image may be too large.' });
     }
   } else {
@@ -1166,12 +1101,12 @@ app.put('/api/colleges/:id/banner', async (req, res) => {
   if (bannerSubtitle !== undefined) updates.bannerSubtitle = bannerSubtitle;
   if (bannerFeatures !== undefined) updates.bannerFeatures = bannerFeatures;
   if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('colleges').doc(id).set(updates, { merge: true });
+      await pgUpdate('colleges', id, updates);
       console.log(`Banner saved for college ${id}`);
     } catch (e: any) {
-      console.error('Firestore banner save error:', e?.message || e);
+      console.error('PostgreSQL banner save error:', e?.message || e);
       return res.status(500).json({ success: false, error: 'Failed to save banner. Image may be too large.' });
     }
   } else {
@@ -1190,9 +1125,9 @@ app.put('/api/colleges/:id/branding', async (req, res) => {
   if (!branding || typeof branding !== 'object') {
     return res.status(400).json({ success: false, error: 'Branding object is required' });
   }
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('colleges').doc(id).set({ branding }, { merge: true });
+      await pgUpdate('colleges', id, { branding });
       console.log(`Branding updated for college: ${id}`);
     } catch (e) {
       console.error('Branding save error:', e);
@@ -1211,15 +1146,14 @@ app.put('/api/colleges/:id', async (req, res) => {
   if (!name) {
     return res.status(400).json({ success: false, error: 'College name is required' });
   }
-  if (db) {
+  if (pgReady) {
     try {
-      const doc = await db.collection('colleges').doc(id).get();
-      if (!doc.exists) {
+      const existing = await pgGetById('colleges', id);
+      if (!existing) {
         return res.status(404).json({ success: false, error: 'College not found' });
       }
-      const existing = doc.data();
       const updated = { ...existing, name, location: location ?? existing.location, updatedAt: new Date().toISOString() };
-      await db.collection('colleges').doc(id).update(updated);
+      await pgUpdate('colleges', id, updated);
     } catch (e) {
       console.error('College update error:', e);
       return res.status(500).json({ success: false, error: 'DB update failed' });
@@ -1236,9 +1170,9 @@ app.put('/api/colleges/:id', async (req, res) => {
 
 app.delete('/api/colleges/:id', async (req, res) => {
   const { id } = req.params;
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('colleges').doc(id).delete();
+      await pgDelete('colleges', id);
     } catch (e) {
       console.error(e);
     }
@@ -1253,10 +1187,9 @@ app.delete('/api/colleges/:id', async (req, res) => {
 app.get('/api/canteens', async (req, res) => {
   const cached = getCached('canteens');
   if (cached) return res.json({ success: true, canteens: cached });
-  if (db) {
+  if (pgReady) {
     try {
-      const snap = await db.collection('canteens').get();
-      const list = snap.docs.map(doc => doc.data() as Canteen);
+      const list = await pgGetAll('canteens');
       setCache('canteens', list);
       return res.json({ success: true, canteens: list });
     } catch (e) {
@@ -1274,15 +1207,15 @@ app.post('/api/canteens', async (req, res) => {
   if (!canteenData.id) canteenData.id = `canteen_${Date.now()}`;
   if (!canteenData.status) canteenData.status = 'active';
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('canteens').doc(canteenData.id).set(canteenData);
+      await pgSet('canteens', canteenData.id, canteenData);
       
       // Auto-seed default settings
       const settingsDocId = `settings_${canteenData.id}`;
-      const setDoc = await db.collection('settings').doc(settingsDocId).get();
-      if (!setDoc.exists) {
-        await db.collection('settings').doc(settingsDocId).set({
+      const existingSettings = await pgGetById('settings', settingsDocId);
+      if (!existingSettings) {
+        await pgSet('settings', settingsDocId, {
           noShowMinutes: 30,
           defaultSlotCapacity: 30,
           canteenId: canteenData.id
@@ -1290,14 +1223,11 @@ app.post('/api/canteens', async (req, res) => {
       }
 
       // Auto-seed default ingredients
-      const ingSnap = await db.collection('ingredients').where('canteenId', '==', canteenData.id).get();
-      if (ingSnap.empty) {
-        const batch = db.batch();
-        INITIAL_INGREDIENTS.forEach(ing => {
-          const ref = db!.collection('ingredients').doc(`${ing.id}_${canteenData.id}`);
-          batch.set(ref, { ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id });
-        });
-        await batch.commit();
+      const existingIngs = await pgGetWhere('ingredients', { canteenId: canteenData.id });
+      if (existingIngs.length === 0) {
+        for (const ing of INITIAL_INGREDIENTS) {
+          await pgSet('ingredients', `${ing.id}_${canteenData.id}`, { ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id });
+        }
       }
     } catch (e) {
       console.error(e);
@@ -1327,9 +1257,9 @@ app.post('/api/canteen/update-name', async (req, res) => {
   if (!canteenId || !name) {
     return res.status(400).json({ success: false, error: 'canteenId and name are required.' });
   }
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('canteens').doc(canteenId).update({ name });
+      await pgUpdate('canteens', canteenId, { name });
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'Failed to update canteen name in database.' });
@@ -1355,9 +1285,9 @@ app.put('/api/canteens/:id', async (req, res) => {
   if (Object.keys(cleanUpdates).length === 0) {
     return res.status(400).json({ success: false, error: 'No valid fields to update.' });
   }
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('canteens').doc(id).update(cleanUpdates);
+      await pgUpdate('canteens', id, cleanUpdates);
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'Failed to update canteen.' });
@@ -1371,9 +1301,9 @@ app.put('/api/canteens/:id', async (req, res) => {
 
 app.delete('/api/canteens/:id', async (req, res) => {
   const { id } = req.params;
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('canteens').doc(id).delete();
+      await pgDelete('canteens', id);
     } catch (e) {
       console.error(e);
     }
@@ -1389,10 +1319,9 @@ app.delete('/api/canteens/:id', async (req, res) => {
 app.get('/api/subcanteens', async (req, res) => {
   const cached = getCached('subcanteens');
   if (cached) return res.json({ success: true, subCanteens: cached });
-  if (db) {
+  if (pgReady) {
     try {
-      const snap = await db.collection('subcanteens').get();
-      const list = snap.docs.map(doc => doc.data() as SubCanteen);
+      const list = await pgGetAll('subcanteens');
       setCache('subcanteens', list);
       return res.json({ success: true, subCanteens: list });
     } catch (e) {
@@ -1410,9 +1339,9 @@ app.post('/api/subcanteens', async (req, res) => {
   if (!sub.id) sub.id = `sub_${Date.now()}`;
   if (!sub.status) sub.status = 'active';
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('subcanteens').doc(sub.id).set(sub);
+      await pgSet('subcanteens', sub.id, sub);
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'DB Save failed' });
@@ -1442,9 +1371,9 @@ app.put('/api/subcanteens/:id', async (req, res) => {
   if (Object.keys(cleanUpdates).length === 0) {
     return res.status(400).json({ success: false, error: 'No valid fields to update.' });
   }
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('subcanteens').doc(id).set(cleanUpdates, { merge: true });
+      await pgUpdate('subcanteens', id, cleanUpdates);
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'Failed to update sub-canteen.' });
@@ -1459,9 +1388,9 @@ app.put('/api/subcanteens/:id', async (req, res) => {
 
 app.delete('/api/subcanteens/:id', async (req, res) => {
   const { id } = req.params;
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('subcanteens').doc(id).delete();
+      await pgDelete('subcanteens', id);
     } catch (e) {
       console.error(e);
     }
@@ -1475,11 +1404,10 @@ app.delete('/api/subcanteens/:id', async (req, res) => {
 app.get('/api/users', async (req, res) => {
   const cached = getCached('users');
   if (cached) return res.json({ success: true, users: cached });
-  if (db) {
+  if (pgReady) {
     try {
-      const snap = await db.collection('users').get();
-      const list = snap.docs.map(doc => {
-        const u = doc.data();
+      const allUsers = await pgGetAll('users');
+      const list = allUsers.map((u: any) => {
         return { id: u.id, name: u.name, email: u.email, role: u.role, collegeId: u.collegeId, canteenId: u.canteenId, subCanteenId: u.subCanteenId, status: u.status, posting: u.posting };
       });
       return res.json({ success: true, users: list });
@@ -1505,52 +1433,10 @@ app.post('/api/users', async (req, res) => {
   if (!user.password) user.password = 'changeme_' + Math.random().toString(36).substring(2, 10);
   const rawPassword = user.password;
 
-  // Create Firebase Auth account so the user can actually log in
-  let firebaseUid: string | undefined;
-  if (db) {
-    try {
-      const authUser = await admin.auth().createUser({
-        email: emailKey,
-        password: rawPassword,
-        displayName: user.name,
-        disabled: false,
-      });
-      firebaseUid = authUser.uid;
-      // Set custom claims for role-based access
-      const claims: Record<string, string> = { role: user.role };
-      if (user.collegeId) claims.collegeId = user.collegeId;
-      if (user.canteenId) claims.canteenId = user.canteenId;
-      if (user.subCanteenId) claims.subCanteenId = user.subCanteenId;
-      await admin.auth().setCustomUserClaims(authUser.uid, claims);
-      console.log(`Created Firebase Auth user: ${emailKey} (${firebaseUid}) role=${user.role}`);
-    } catch (authErr: any) {
-      // If user already exists in Auth, just link to existing
-      if (authErr.code === 'auth/email-already-exists') {
-        try {
-          const existingUser = await admin.auth().getUserByEmail(emailKey);
-          firebaseUid = existingUser.uid;
-          const claims: Record<string, string> = { role: user.role };
-          if (user.collegeId) claims.collegeId = user.collegeId;
-          if (user.canteenId) claims.canteenId = user.canteenId;
-          if (user.subCanteenId) claims.subCanteenId = user.subCanteenId;
-          await admin.auth().setCustomUserClaims(existingUser.uid, claims);
-          await admin.auth().updateUser(existingUser.uid, { password: user.password, displayName: user.name });
-          console.log(`Linked existing Auth user: ${emailKey} (${firebaseUid}) role=${user.role}`);
-        } catch (linkErr) {
-          console.error('Failed to link existing Auth user:', linkErr);
-        }
-      } else {
-        console.error('Firebase Auth create failed:', authErr);
-      }
-    }
-  }
-
-  if (firebaseUid) user.id = firebaseUid;
-
-  if (db) {
+  if (pgReady) {
     try {
       const { password: _pw, ...userWithoutPassword } = user;
-      await db.collection('users').doc(emailKey).set(userWithoutPassword);
+      await pgSet('users', emailKey, { ...userWithoutPassword, password: hashPassword(rawPassword) });
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'DB Save failed' });
@@ -1575,23 +1461,10 @@ app.delete('/api/users/:email', async (req, res) => {
   const { email } = req.params;
   const emailKey = email.trim().toLowerCase();
 
-  // Delete from Firebase Auth
-  if (db) {
+  // Delete from PostgreSQL
+  if (pgReady) {
     try {
-      const authUser = await admin.auth().getUserByEmail(emailKey);
-      await admin.auth().deleteUser(authUser.uid);
-      console.log(`Deleted Firebase Auth user: ${emailKey} (${authUser.uid})`);
-    } catch (authErr: any) {
-      if (authErr.code !== 'auth/user-not-found') {
-        console.error('Failed to delete Auth user:', authErr);
-      }
-    }
-  }
-
-  // Delete from Firestore
-  if (db) {
-    try {
-      await db.collection('users').doc(emailKey).delete();
+      await execute('DELETE FROM users WHERE email = $1', [emailKey]);
     } catch (e) {
       console.error(e);
     }
@@ -1620,35 +1493,13 @@ app.put('/api/users/:email/role', async (req, res) => {
   if (status) updates.status = status;
   if (password) updates.password = hashPassword(password);
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('users').doc(emailKey).set(updates, { merge: true });
+      await execute('UPDATE users SET role = $1, posting = COALESCE($2, posting), name = COALESCE($3, name), college_id = COALESCE($4, college_id), canteen_id = COALESCE($5, canteen_id), sub_canteen_id = COALESCE($6, sub_canteen_id), status = COALESCE($7, status), password = COALESCE($8, password) WHERE email = $9',
+        [role, posting || null, name || null, collegeId !== undefined ? collegeId : null, canteenId !== undefined ? canteenId : null, subCanteenId !== undefined ? subCanteenId : null, status || null, password ? hashPassword(password) : null, emailKey]);
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'Failed to update user in DB' });
-    }
-  }
-
-  // Update Firebase Auth custom claims so the user's token reflects the new role
-  if (db) {
-    try {
-      const authUser = await admin.auth().getUserByEmail(emailKey);
-      const claims: Record<string, string> = { role };
-      if (collegeId !== undefined && collegeId) claims.collegeId = collegeId;
-      if (canteenId !== undefined && canteenId) claims.canteenId = canteenId;
-      if (subCanteenId !== undefined && subCanteenId) claims.subCanteenId = subCanteenId;
-      await admin.auth().setCustomUserClaims(authUser.uid, claims);
-      if (name) {
-        await admin.auth().updateUser(authUser.uid, { displayName: name });
-      }
-      console.log(`Updated Auth claims for ${emailKey}: role=${role}`);
-    } catch (authErr: any) {
-      // User may not exist in Auth yet — log but don't fail
-      if (authErr.code === 'auth/user-not-found') {
-        console.warn(`Auth user not found for ${emailKey}, skipping claims update`);
-      } else {
-        console.error('Failed to update Auth claims:', authErr);
-      }
     }
   }
 
@@ -1670,74 +1521,64 @@ app.get('/api/canteen', async (req, res) => {
   if (cached) return res.json({ success: true, canteen: cached });
 
   await checkExpiredOrders();
-  if (db) {
+  if (pgReady) {
     try {
       // Each query wrapped individually - one failure won't kill all
       let items: MenuItem[] = [];
       try {
-        const itemsSnap = await db.collection('items').where('canteenId', '==', canteenId).get();
-        items = itemsSnap.docs.map(doc => doc.data() as MenuItem);
+        items = await pgGetWhere('items', { canteenId }) as MenuItem[];
         if (items.length === 0) {
-          const legacySnap = await db.collection('items').where('canteenId', '==', 'canteen_001').limit(100).get();
-          items = legacySnap.docs.map(doc => doc.data() as MenuItem);
+          items = await pgGetWhereOrdered('items', { canteenId: 'canteen_001' }, 'id', 'asc', 100) as MenuItem[];
         }
         if (items.length === 0) {
-          const allSnap = await db.collection('items').limit(200).get();
-          items = allSnap.docs.map(doc => doc.data() as MenuItem);
+          items = (await query('SELECT * FROM items LIMIT 200')).map((r: any) => {
+            const { created_at, updated_at, ...rest } = r;
+            return rest;
+          }) as MenuItem[];
         }
       } catch (e) { console.warn('Items query failed:', e); }
 
       let orders: Order[] = [];
       try {
-        const ordersSnap = await db.collection('orders').where('canteenId', '==', canteenId).orderBy('createdAt', 'desc').limit(50).get();
-        orders = ordersSnap.docs.map(doc => {
-          const o = doc.data() as Order;
+        orders = await pgGetWhereOrdered('orders', { canteenId }, 'created_at', 'desc', 50) as Order[];
+        orders = orders.map(o => {
           if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
           return o;
         });
       } catch (e) {
-        console.warn('Orders query failed, trying without orderBy:', e);
-        try {
-          const ordersSnap = await db.collection('orders').where('canteenId', '==', canteenId).limit(50).get();
-          orders = ordersSnap.docs.map(doc => {
-            const o = doc.data() as Order;
-            if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
-            return o;
-          }).sort((a, b) => b.createdAt - a.createdAt);
-        } catch (e2) { console.warn('Orders fallback also failed:', e2); }
+        console.warn('Orders query failed:', e);
       }
 
       let reviews: Review[] = [];
       try {
-        const reviewsSnap = await db.collection('reviews').where('canteenId', '==', canteenId).orderBy('createdAt', 'desc').limit(20).get();
-        reviews = reviewsSnap.docs.map(doc => doc.data() as Review);
+        reviews = await pgGetWhereOrdered('reviews', { canteenId }, 'created_at', 'desc', 20) as Review[];
       } catch (e) {
         console.warn('Reviews query failed:', e);
         try {
-          const reviewsSnap = await db.collection('reviews').where('canteenId', '==', canteenId).limit(20).get();
-          reviews = reviewsSnap.docs.map(doc => doc.data() as Review);
+          reviews = await pgGetWhere('reviews', { canteenId }) as Review[];
+          reviews = reviews.slice(0, 20);
         } catch (e2) {}
       }
 
       let ingredients: Ingredient[] = INITIAL_INGREDIENTS.map(ing => ({ ...ing, canteenId }));
       try {
-        const ingSnap = await db.collection('ingredients').where('canteenId', '==', canteenId).get();
-        if (!ingSnap.empty) ingredients = ingSnap.docs.map(doc => doc.data() as Ingredient);
+        const pgIngs = await pgGetWhere('ingredients', { canteenId }) as Ingredient[];
+        if (pgIngs.length > 0) ingredients = pgIngs;
       } catch (e) { console.warn('Ingredients query failed:', e); }
 
       let settings: CanteenSettings = { ...canteenSettings, canteenId };
       try {
-        const settingsSnap = await db.collection('settings').doc(`settings_${canteenId}`).get();
-        if (settingsSnap.exists) settings = settingsSnap.data() as CanteenSettings;
+        const settingsDoc = await pgGetById('settings', `settings_${canteenId || 'canteen_001'}`);
+        if (settingsDoc) settings = settingsDoc as CanteenSettings;
       } catch (e) { console.warn('Settings query failed:', e); }
 
        let canteenName = 'Esc(Q)';
       let ownerName = 'Chef Watson';
       try {
-        const cRef = await db.collection('canteens').doc(canteenId).get();
-        if (cRef.exists) {
-          canteenName = cRef.data()?.name || canteenName;
-          ownerName = cRef.data()?.ownerName || ownerName;
+        const cRef = await pgGetById('canteens', canteenId);
+        if (cRef) {
+          canteenName = cRef.name || canteenName;
+          ownerName = cRef.ownerName || ownerName;
         }
       } catch (e) { console.warn('Canteen doc query failed:', e); }
 
@@ -1755,7 +1596,7 @@ app.get('/api/canteen', async (req, res) => {
       setCache(cacheKey, result, CANTEEN_CACHE_TTL);
       return res.json({ success: true, canteen: result });
     } catch (err) {
-      console.error('Firestore get error, falling back to local memory state:', err);
+      console.error('PostgreSQL get error, falling back to local memory state:', err);
     }
   }
   res.json({ success: true, canteen: getCanteenState(canteenId) });
@@ -1774,15 +1615,14 @@ app.get('/api/user/orders', async (req, res) => {
     .filter(o => o.userId === userId && (!canteenId || o.canteenId === canteenId))
     .slice(0, 50);
 
-  if (db) {
+  if (pgReady) {
     try {
       let orders: Order[] = [];
 
-      // Try simple userId-only query (no composite index needed)
+      // Try simple userId query
       try {
-        const snap = await db.collection('orders').where('userId', '==', userId).orderBy('createdAt', 'desc').limit(100).get();
-        orders = snap.docs.map(doc => {
-          const o = doc.data() as Order;
+        orders = await pgGetWhereOrdered('orders', { userId }, 'created_at', 'desc', 100) as Order[];
+        orders = orders.map(o => {
           if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
           return o;
         });
@@ -1792,33 +1632,16 @@ app.get('/api/user/orders', async (req, res) => {
         orders = orders.slice(0, 50);
       } catch (simpleErr) {
         console.warn('Simple userId query failed:', simpleErr);
-
-        // Last resort: scan without orderBy
-        try {
-          const snap = await db.collection('orders').where('userId', '==', userId).limit(100).get();
-          orders = snap.docs.map(doc => {
-            const o = doc.data() as Order;
-            if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
-            return o;
-          });
-          if (canteenId) {
-            orders = orders.filter(o => o.canteenId === canteenId);
-          }
-          orders.sort((a, b) => b.createdAt - a.createdAt);
-          orders = orders.slice(0, 50);
-        } catch (scanErr) {
-          console.error('All Firestore queries failed for user orders:', scanErr);
-        }
       }
 
-      // Merge: prefer Firestore orders, but keep memory orders not found in Firestore
+      // Merge: prefer PostgreSQL orders, but keep memory orders not found in PostgreSQL
       if (orders.length > 0) {
-        const firestoreIds = new Set(orders.map(o => o.id));
-        const merged = [...orders, ...memoryOrders.filter(o => !firestoreIds.has(o.id))];
+        const pgIds = new Set(orders.map(o => o.id));
+        const merged = [...orders, ...memoryOrders.filter(o => !pgIds.has(o.id))];
         return res.json({ success: true, orders: merged.slice(0, 50) });
       }
 
-      // If Firestore returned nothing but we have memory orders, return those
+      // If PostgreSQL returned nothing but we have memory orders, return those
       if (memoryOrders.length > 0) {
         return res.json({ success: true, orders: memoryOrders });
       }
@@ -1855,11 +1678,11 @@ app.post('/api/canteen/menu', async (req, res) => {
   const resolvedCanteenId = canteenId || 'canteen_001';
 
   let existingItem: MenuItem | undefined;
-  if (db && !isNew) {
+  if (pgReady && !isNew) {
     try {
-      const doc = await db.collection('items').doc(id).get();
-      if (doc.exists) {
-        existingItem = doc.data() as MenuItem;
+      const doc = await pgGetById('items', id);
+      if (doc) {
+        existingItem = doc as MenuItem;
       }
     } catch (e) {
       console.error(e);
@@ -1889,16 +1712,16 @@ app.post('/api/canteen/menu', async (req, res) => {
     requiresChef: requiresChef !== undefined ? !!requiresChef : true
   };
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('items').doc(targetId).set(menuItem);
-      console.log(`Menu item saved to Firestore: ${targetId} for canteen ${resolvedCanteenId}`);
+      await pgSet('items', targetId, menuItem);
+      console.log(`Menu item saved to PostgreSQL: ${targetId} for canteen ${resolvedCanteenId}`);
     } catch (err) {
-      console.error('Firestore save item error:', err);
+      console.error('PostgreSQL save item error:', err);
       return res.status(500).json({ success: false, error: 'Failed to save item to database. Please try again.' });
     }
   } else {
-    console.error('Firestore not initialized, cannot save menu item');
+    console.error('PostgreSQL not initialized, cannot save menu item');
     return res.status(500).json({ success: false, error: 'Database not connected. Please try again.' });
   }
 
@@ -1909,12 +1732,12 @@ app.post('/api/canteen/menu', async (req, res) => {
 // 3. Delete Menu Item (Owner)
 app.delete('/api/canteen/menu/:id', async (req, res) => {
   const { id } = req.params;
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('items').doc(id).delete();
-      console.log(`Menu item deleted from Firestore: ${id}`);
+      await pgDelete('items', id);
+      console.log(`Menu item deleted from PostgreSQL: ${id}`);
     } catch (err) {
-      console.error('Firestore delete error:', err);
+      console.error('PostgreSQL delete error:', err);
       return res.status(500).json({ success: false, error: 'Failed to delete item from database.' });
     }
   }
@@ -1939,11 +1762,11 @@ app.post('/api/canteen/ingredients', async (req, res) => {
     canteenId: targetCanteenId
   };
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('ingredients').doc(targetId).set(ingredient);
+      await pgSet('ingredients', targetId, ingredient);
     } catch (err) {
-      console.error('Firestore save ingredient error:', err);
+      console.error('PostgreSQL save ingredient error:', err);
     }
   }
 
@@ -1974,11 +1797,11 @@ app.post('/api/canteen/ingredients', async (req, res) => {
 app.delete('/api/canteen/ingredients/:id', async (req, res) => {
   const { id } = req.params;
   const canteenId = (req.query.canteenId as string) || 'canteen_001';
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('ingredients').doc(id).delete();
+      await pgDelete('ingredients', id);
     } catch (err) {
-      console.error('Firestore delete ingredient error:', err);
+      console.error('PostgreSQL delete ingredient error:', err);
     }
   }
   const activeC = getCanteenState(canteenId);
@@ -2021,15 +1844,14 @@ app.post('/api/canteen/order', async (req, res) => {
   // 1. Check Slot Capacity
   let capacityLimit = canteenSettings.defaultSlotCapacity;
   let currentSlotBookingsCount = 0;
-  if (db) {
+  if (pgReady) {
     try {
-      const settingsDoc = await db.collection('settings').doc(`settings_${canteenId || 'canteen_001'}`).get();
-      if (settingsDoc.exists) {
-        capacityLimit = (settingsDoc.data() as CanteenSettings).defaultSlotCapacity;
+      const settingsDoc = await pgGetById('settings', `settings_${canteenId || 'canteen_001'}`);
+      if (settingsDoc) {
+        capacityLimit = (settingsDoc as CanteenSettings).defaultSlotCapacity;
       }
-      const ordersInSlot = await db.collection('orders').where('pickupSlot', '==', selectedSlot).where('canteenId', '==', canteenId || 'canteen_001').get();
-      currentSlotBookingsCount = ordersInSlot.docs.filter(doc => {
-        const o = doc.data() as Order;
+      const ordersInSlot = await pgGetWhere('orders', { pickupSlot: selectedSlot, canteenId: canteenId || 'canteen_001' });
+      currentSlotBookingsCount = ordersInSlot.filter((o: any) => {
         return o.status !== 'cancelled' && o.status !== 'expired';
       }).length;
     } catch (err) {
@@ -2046,10 +1868,9 @@ app.post('/api/canteen/order', async (req, res) => {
 
   // Retrieve current items to check stock/limits
   let currentItems: MenuItem[] = [];
-  if (db) {
+  if (pgReady) {
     try {
-      const snap = await db.collection('items').get();
-      currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+      currentItems = await pgGetAll('items') as MenuItem[];
     } catch (err) {
       console.error(err);
       currentItems = canteenState.items;
@@ -2060,10 +1881,9 @@ app.post('/api/canteen/order', async (req, res) => {
 
   // Retrieve current raw ingredients
   let currentIngredients: Ingredient[] = [];
-  if (db) {
+  if (pgReady) {
     try {
-      const snap = await db.collection('ingredients').get();
-      currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+      currentIngredients = await pgGetAll('ingredients') as Ingredient[];
     } catch (err) {
       console.error(err);
       currentIngredients = canteenState.ingredients || [];
@@ -2143,8 +1963,8 @@ app.post('/api/canteen/order', async (req, res) => {
   const prepStartTime = pickupTimestamp - (maxPrepTime * 60 * 1000) - (5 * 60 * 1000); // 5 mins buffer
   let noShowMinutes = 30;
   try {
-    noShowMinutes = db
-      ? ((await db.collection('settings').doc(`settings_${canteenId || 'canteen_001'}`).get()).data()?.noShowMinutes || 30)
+    noShowMinutes = pgReady
+      ? ((await pgGetById('settings', `settings_${canteenId || 'canteen_001'}`))?.noShowMinutes || 30)
       : canteenState.settings?.noShowMinutes || 30;
   } catch (settingsErr) {
     console.warn('Settings query failed, using default noShowMinutes:', settingsErr);
@@ -2188,8 +2008,8 @@ app.post('/api/canteen/order', async (req, res) => {
         subCanteenId: subCanteenId || 'sub_001'
       };
 
-      if (db) {
-        await db.collection('orders').doc(orderId).set(newOrder);
+      if (pgReady) {
+        await pgSet('orders', orderId, newOrder);
       }
       canteenState.orders.unshift(newOrder);
 
@@ -2240,8 +2060,8 @@ app.post('/api/canteen/order', async (req, res) => {
         subCanteenId: subCanteenId || 'sub_001'
       };
 
-      if (db) {
-        await db.collection('orders').doc(orderId).set(newOrder);
+      if (pgReady) {
+        await pgSet('orders', orderId, newOrder);
       }
       canteenState.orders.unshift(newOrder);
 
@@ -2279,8 +2099,8 @@ app.post('/api/canteen/order', async (req, res) => {
             newOrder.upiQrUrl = qrUrl;
             newOrder.upiString = upiString;
 
-            if (db) {
-              await db.collection('orders').doc(orderId).set(newOrder, { merge: true });
+            if (pgReady) {
+              await pgSet('orders', orderId, newOrder);
             }
             canteenState.orders = canteenState.orders.map(o => o.id === orderId ? newOrder : o);
 
@@ -2312,8 +2132,8 @@ app.post('/api/canteen/order', async (req, res) => {
 
       newOrder.vyaparTxnId = sandboxTxnId;
       newOrder.upiString = upiString;
-      if (db) {
-        await db.collection('orders').doc(orderId).set(newOrder, { merge: true });
+      if (pgReady) {
+        await pgSet('orders', orderId, newOrder);
       }
       canteenState.orders = canteenState.orders.map(o => o.id === orderId ? newOrder : o);
 
@@ -2348,8 +2168,8 @@ app.post('/api/canteen/order', async (req, res) => {
       if (itemInMenu.stock <= 0) {
         itemInMenu.available = false;
       }
-      if (db) {
-        await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+      if (pgReady) {
+        await pgSet('items', itemInMenu.id, itemInMenu);
       }
     }
   }
@@ -2359,8 +2179,8 @@ app.post('/api/canteen/order', async (req, res) => {
     const ingredient = currentIngredients.find(i => i.id === ingId);
     if (ingredient) {
       ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
-      if (db) {
-        await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+      if (pgReady) {
+        await pgSet('ingredients', ingredient.id, ingredient);
       }
     }
   }
@@ -2394,11 +2214,11 @@ app.post('/api/canteen/order', async (req, res) => {
     subCanteenId: subCanteenId || 'sub_001'
   };
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('orders').doc(orderId).set(newOrder);
+      await pgSet('orders', orderId, newOrder);
     } catch (err) {
-      console.error('Firestore save order error:', err);
+      console.error('PostgreSQL save order error:', err);
     }
   }
 
@@ -2444,15 +2264,15 @@ app.post('/api/razorpay/verify', async (req, res) => {
     let targetOrder: Order | undefined;
     const MAX_RETRIES = 3;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      if (db) {
+      if (pgReady) {
         try {
-          const snap = await db.collection('orders').where('razorpayOrderId', '==', razorpay_order_id).get();
-          if (!snap.empty) {
-            targetOrder = snap.docs[0].data() as Order;
+          const results = await pgGetWhere('orders', { razorpayOrderId: razorpay_order_id });
+          if (results.length > 0) {
+            targetOrder = results[0] as Order;
             break;
           }
         } catch (qErr) {
-          console.warn(`[Razorpay Verify] Firestore query attempt ${attempt + 1} failed:`, qErr);
+          console.warn(`[Razorpay Verify] PostgreSQL query attempt ${attempt + 1} failed:`, qErr);
           if (attempt < MAX_RETRIES - 1) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
         }
       } else {
@@ -2462,14 +2282,14 @@ app.post('/api/razorpay/verify', async (req, res) => {
     }
 
     // Fallback: search by doc ID (order ID itself)
-    if (!targetOrder && db) {
+    if (!targetOrder && pgReady) {
       try {
         // Try common order ID patterns
         const possibleIds = canteenState.orders.filter(o => o.razorpayOrderId === razorpay_order_id).map(o => o.id);
         for (const docId of possibleIds) {
-          const doc = await db.collection('orders').doc(docId).get();
-          if (doc.exists) {
-            targetOrder = doc.data() as Order;
+          const doc = await pgGetById('orders', docId);
+          if (doc) {
+            targetOrder = doc as Order;
             break;
           }
         }
@@ -2490,17 +2310,15 @@ app.post('/api/razorpay/verify', async (req, res) => {
 
     // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
     let currentItems: MenuItem[] = [];
-    if (db) {
-      const snap = await db.collection('items').get();
-      currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+    if (pgReady) {
+      currentItems = await pgGetAll('items') as MenuItem[];
     } else {
       currentItems = canteenState.items;
     }
 
     let currentIngredients: Ingredient[] = [];
-    if (db) {
-      const snap = await db.collection('ingredients').get();
-      currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+    if (pgReady) {
+      currentIngredients = await pgGetAll('ingredients') as Ingredient[];
     } else {
       currentIngredients = canteenState.ingredients || [];
     }
@@ -2513,8 +2331,8 @@ app.post('/api/razorpay/verify', async (req, res) => {
         if (itemInMenu.stock <= 0) {
           itemInMenu.available = false;
         }
-        if (db) {
-          await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+        if (pgReady) {
+          await pgSet('items', itemInMenu.id, itemInMenu);
         }
 
         if (itemInMenu.recipe) {
@@ -2523,8 +2341,8 @@ app.post('/api/razorpay/verify', async (req, res) => {
             const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
             if (ingredient) {
               ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
-              if (db) {
-                await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+              if (pgReady) {
+                await pgSet('ingredients', ingredient.id, ingredient);
               }
             }
           }
@@ -2548,8 +2366,8 @@ app.post('/api/razorpay/verify', async (req, res) => {
       pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
     };
 
-    if (db) {
-      await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
+    if (pgReady) {
+      await pgSet('orders', updatedOrder.id, updatedOrder);
     }
 
     canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
@@ -2581,9 +2399,9 @@ app.post('/api/vyapar/verify', async (req, res) => {
 
     // Find order
     let targetOrder: Order | undefined;
-    if (db) {
-      const doc = await db.collection('orders').doc(orderId).get();
-      if (doc.exists) targetOrder = doc.data() as Order;
+    if (pgReady) {
+      const doc = await pgGetById('orders', orderId);
+      if (doc) targetOrder = doc as Order;
     } else {
       targetOrder = canteenState.orders.find(o => o.id === orderId);
     }
@@ -2623,17 +2441,15 @@ app.post('/api/vyapar/verify', async (req, res) => {
     // Mark order as paid (sandbox auto-verify or real API confirmed)
     // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
     let currentItems: MenuItem[] = [];
-    if (db) {
-      const snap = await db.collection('items').get();
-      currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+    if (pgReady) {
+      currentItems = await pgGetAll('items') as MenuItem[];
     } else {
       currentItems = canteenState.items;
     }
 
     let currentIngredients: Ingredient[] = [];
-    if (db) {
-      const snap = await db.collection('ingredients').get();
-      currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+    if (pgReady) {
+      currentIngredients = await pgGetAll('ingredients') as Ingredient[];
     } else {
       currentIngredients = canteenState.ingredients || [];
     }
@@ -2646,8 +2462,8 @@ app.post('/api/vyapar/verify', async (req, res) => {
         if (itemInMenu.stock <= 0) {
           itemInMenu.available = false;
         }
-        if (db) {
-          await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+        if (pgReady) {
+          await pgSet('items', itemInMenu.id, itemInMenu);
         }
 
         if (itemInMenu.recipe) {
@@ -2656,8 +2472,8 @@ app.post('/api/vyapar/verify', async (req, res) => {
             const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
             if (ingredient) {
               ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
-              if (db) {
-                await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+              if (pgReady) {
+                await pgSet('ingredients', ingredient.id, ingredient);
               }
             }
           }
@@ -2679,8 +2495,8 @@ app.post('/api/vyapar/verify', async (req, res) => {
       pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
     };
 
-    if (db) {
-      await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
+    if (pgReady) {
+      await pgSet('orders', updatedOrder.id, updatedOrder);
     }
     canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
 
@@ -2709,9 +2525,9 @@ app.post('/api/vyapar/webhook', async (req, res) => {
 
     // Find order
     let targetOrder: Order | undefined;
-    if (db) {
-      const doc = await db.collection('orders').doc(order_id).get();
-      if (doc.exists) targetOrder = doc.data() as Order;
+    if (pgReady) {
+      const doc = await pgGetById('orders', order_id);
+      if (doc) targetOrder = doc as Order;
     } else {
       targetOrder = canteenState.orders.find(o => o.id === order_id);
     }
@@ -2727,17 +2543,15 @@ app.post('/api/vyapar/webhook', async (req, res) => {
     if (txnStatus === 'success' || txnStatus === 'completed' || txnStatus === 'captured') {
       // Deduct stock, same as verify
       let currentItems: MenuItem[] = [];
-      if (db) {
-        const snap = await db.collection('items').get();
-        currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+      if (pgReady) {
+        currentItems = await pgGetAll('items') as MenuItem[];
       } else {
         currentItems = canteenState.items;
       }
 
       let currentIngredients: Ingredient[] = [];
-      if (db) {
-        const snap = await db.collection('ingredients').get();
-        currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+      if (pgReady) {
+        currentIngredients = await pgGetAll('ingredients') as Ingredient[];
       } else {
         currentIngredients = canteenState.ingredients || [];
       }
@@ -2748,7 +2562,7 @@ app.post('/api/vyapar/webhook', async (req, res) => {
           itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
           itemInMenu.bookedToday += item.quantity;
           if (itemInMenu.stock <= 0) itemInMenu.available = false;
-          if (db) await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+          if (pgReady) await pgSet('items', itemInMenu.id, itemInMenu);
 
           if (itemInMenu.recipe) {
             for (const recipeItem of itemInMenu.recipe) {
@@ -2756,7 +2570,7 @@ app.post('/api/vyapar/webhook', async (req, res) => {
               const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
               if (ingredient) {
                 ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
-                if (db) await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+                if (pgReady) await pgSet('ingredients', ingredient.id, ingredient);
               }
             }
           }
@@ -2777,8 +2591,8 @@ app.post('/api/vyapar/webhook', async (req, res) => {
         pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
       };
 
-      if (db) {
-        await db.collection('orders').doc(order_id).set(updatedOrder);
+      if (pgReady) {
+        await pgSet('orders', order_id, updatedOrder);
       }
       canteenState.orders = canteenState.orders.map(o => o.id === order_id ? updatedOrder : o);
 
@@ -2789,8 +2603,8 @@ app.post('/api/vyapar/webhook', async (req, res) => {
         paymentStatus: 'failed',
         status: 'cancelled'
       };
-      if (db) {
-        await db.collection('orders').doc(order_id).set(failedOrder);
+      if (pgReady) {
+        await pgSet('orders', order_id, failedOrder);
       }
       canteenState.orders = canteenState.orders.map(o => o.id === order_id ? failedOrder : o);
       console.log(`[VyaparGateway Webhook] Order ${order_id} marked as failed`);
@@ -2812,9 +2626,9 @@ app.get('/api/vyapar/status', async (req, res) => {
 
   try {
     let targetOrder: Order | undefined;
-    if (db) {
-      const doc = await db.collection('orders').doc(orderId).get();
-      if (doc.exists) targetOrder = doc.data() as Order;
+    if (pgReady) {
+      const doc = await pgGetById('orders', orderId);
+      if (doc) targetOrder = doc as Order;
     } else {
       targetOrder = canteenState.orders.find(o => o.id === orderId);
     }
@@ -2842,9 +2656,9 @@ app.get('/api/vyapar/callback', async (req, res) => {
 
   // Try to verify payment
   let targetOrder: Order | undefined;
-  if (db) {
-    const doc = await db.collection('orders').doc(orderId).get();
-    if (doc.exists) targetOrder = doc.data() as Order;
+  if (pgReady) {
+    const doc = await pgGetById('orders', orderId);
+    if (doc) targetOrder = doc as Order;
   } else {
     targetOrder = canteenState.orders.find(o => o.id === orderId);
   }
@@ -2895,17 +2709,15 @@ async function autoVerifyVyaparOrder(targetOrder: Order) {
   if (targetOrder.paymentStatus === 'paid') return;
 
   let currentItems: MenuItem[] = [];
-  if (db) {
-    const snap = await db.collection('items').get();
-    currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+  if (pgReady) {
+    currentItems = await pgGetAll('items') as MenuItem[];
   } else {
     currentItems = canteenState.items;
   }
 
   let currentIngredients: Ingredient[] = [];
-  if (db) {
-    const snap = await db.collection('ingredients').get();
-    currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+  if (pgReady) {
+    currentIngredients = await pgGetAll('ingredients') as Ingredient[];
   } else {
     currentIngredients = canteenState.ingredients || [];
   }
@@ -2916,7 +2728,7 @@ async function autoVerifyVyaparOrder(targetOrder: Order) {
       itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
       itemInMenu.bookedToday += item.quantity;
       if (itemInMenu.stock <= 0) itemInMenu.available = false;
-      if (db) await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+      if (pgReady) await pgSet('items', itemInMenu.id, itemInMenu);
 
       if (itemInMenu.recipe) {
         for (const recipeItem of itemInMenu.recipe) {
@@ -2924,7 +2736,7 @@ async function autoVerifyVyaparOrder(targetOrder: Order) {
           const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
           if (ingredient) {
             ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
-            if (db) await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+            if (pgReady) await pgSet('ingredients', ingredient.id, ingredient);
           }
         }
       }
@@ -2945,8 +2757,8 @@ async function autoVerifyVyaparOrder(targetOrder: Order) {
     pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
   };
 
-  if (db) {
-    await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
+  if (pgReady) {
+    await pgSet('orders', updatedOrder.id, updatedOrder);
   }
   canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
   console.log(`[VyaparGateway AutoVerify] Order ${targetOrder.id} marked as paid`);
@@ -2962,9 +2774,9 @@ app.get('/api/razorpay/status', async (req, res) => {
 
   try {
     let targetOrder: Order | undefined;
-    if (db) {
-      const snap = await db.collection('orders').where('razorpayOrderId', '==', orderId).get();
-      if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
+    if (pgReady) {
+      const results = await pgGetWhere('orders', { razorpayOrderId: orderId });
+      if (results.length > 0) targetOrder = results[0] as Order;
     } else {
       targetOrder = canteenState.orders.find(o => o.razorpayOrderId === orderId);
     }
@@ -3003,9 +2815,9 @@ app.post('/api/payment/razorpay-verify', async (req, res) => {
 
     // Find order by razorpayOrderId
     let targetOrder: Order | undefined;
-    if (db) {
-      const snap = await db.collection('orders').where('razorpayOrderId', '==', razorpay_order_id).get();
-      if (!snap.empty) targetOrder = snap.docs[0].data() as Order;
+    if (pgReady) {
+      const results = await pgGetWhere('orders', { razorpayOrderId: razorpay_order_id });
+      if (results.length > 0) targetOrder = results[0] as Order;
     } else {
       targetOrder = canteenState.orders.find(o => o.razorpayOrderId === razorpay_order_id);
     }
@@ -3020,17 +2832,15 @@ app.post('/api/payment/razorpay-verify', async (req, res) => {
 
     // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
     let currentItems: MenuItem[] = [];
-    if (db) {
-      const snap = await db.collection('items').get();
-      currentItems = snap.docs.map(doc => doc.data() as MenuItem);
+    if (pgReady) {
+      currentItems = await pgGetAll('items') as MenuItem[];
     } else {
       currentItems = canteenState.items;
     }
 
     let currentIngredients: Ingredient[] = [];
-    if (db) {
-      const snap = await db.collection('ingredients').get();
-      currentIngredients = snap.docs.map(doc => doc.data() as Ingredient);
+    if (pgReady) {
+      currentIngredients = await pgGetAll('ingredients') as Ingredient[];
     } else {
       currentIngredients = canteenState.ingredients || [];
     }
@@ -3043,8 +2853,8 @@ app.post('/api/payment/razorpay-verify', async (req, res) => {
         if (itemInMenu.stock <= 0) {
           itemInMenu.available = false;
         }
-        if (db) {
-          await db.collection('items').doc(itemInMenu.id).set(itemInMenu);
+        if (pgReady) {
+          await pgSet('items', itemInMenu.id, itemInMenu);
         }
 
         if (itemInMenu.recipe) {
@@ -3053,8 +2863,8 @@ app.post('/api/payment/razorpay-verify', async (req, res) => {
             const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
             if (ingredient) {
               ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
-              if (db) {
-                await db.collection('ingredients').doc(ingredient.id).set(ingredient);
+              if (pgReady) {
+                await pgSet('ingredients', ingredient.id, ingredient);
               }
             }
           }
@@ -3078,8 +2888,8 @@ app.post('/api/payment/razorpay-verify', async (req, res) => {
       pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
     };
 
-    if (db) {
-      await db.collection('orders').doc(updatedOrder.id).set(updatedOrder);
+    if (pgReady) {
+      await pgSet('orders', updatedOrder.id, updatedOrder);
     }
 
     canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
@@ -3134,12 +2944,12 @@ app.post('/api/support/submit', async (req, res) => {
       collegeId: collegeId || '',
     };
 
-    // Save to Firestore
-    if (db) {
+    // Save to PostgreSQL
+    if (pgReady) {
       try {
-        await db.collection('support_tickets').doc(ticketId).set(ticket);
+        await pgSet('support_tickets', ticketId, ticket);
       } catch (err) {
-        console.error('Failed to save support ticket to Firestore:', err);
+        console.error('Failed to save support ticket to PostgreSQL:', err);
       }
     }
 
@@ -3203,9 +3013,8 @@ app.post('/api/support/submit', async (req, res) => {
 app.get('/api/support/all', async (req, res) => {
   try {
     let tickets: any[] = [];
-    if (db) {
-      const snap = await db.collection('support_tickets').limit(200).get();
-      tickets = snap.docs.map(doc => doc.data());
+    if (pgReady) {
+      tickets = await pgGetAll('support_tickets');
       tickets.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
     }
     return res.json({ success: true, tickets });
@@ -3221,9 +3030,8 @@ app.get('/api/support/user', async (req, res) => {
 
   try {
     let tickets: any[] = [];
-    if (db) {
-      const snap = await db.collection('support_tickets').where('userId', '==', userId).get();
-      tickets = snap.docs.map(doc => doc.data());
+    if (pgReady) {
+      tickets = await pgGetWhere('support_tickets', { userId });
       tickets.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
     }
     return res.json({ success: true, tickets });
@@ -3243,15 +3051,15 @@ app.post('/api/support/reply', async (req, res) => {
     const updates: any = { adminReply, updatedAt: Date.now() };
     if (status) updates.status = status;
 
-    if (db) {
-      await db.collection('support_tickets').doc(ticketId).set(updates, { merge: true });
+    if (pgReady) {
+      await pgUpdate('support_tickets', ticketId, updates);
     }
 
     // Fetch ticket to send reply email
     let ticket: any = null;
-    if (db) {
-      const doc = await db.collection('support_tickets').doc(ticketId).get();
-      if (doc.exists) ticket = doc.data();
+    if (pgReady) {
+      const doc = await pgGetById('support_tickets', ticketId);
+      if (doc) ticket = doc;
     }
 
     // Send reply email to customer
@@ -3325,16 +3133,16 @@ app.get('/api/canteen/qr/verify', async (req, res) => {
       orderId = code.replace(/^QR_/, '').split('_')[0];
     }
 
-    // Look up order in Firestore or in-memory
+    // Look up order in PostgreSQL or in-memory
     let targetOrder: Order | undefined;
-    if (db) {
+    if (pgReady) {
       try {
-        const doc = await db.collection('orders').doc(orderId).get();
-        if (doc.exists) {
-          targetOrder = doc.data() as Order;
+        const doc = await pgGetById('orders', orderId);
+        if (doc) {
+          targetOrder = doc as Order;
         }
       } catch (err) {
-        console.error('QR verify Firestore error:', err);
+        console.error('QR verify PostgreSQL error:', err);
       }
     }
 
@@ -3410,16 +3218,15 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
 
     let targetOrder: any = null;
 
-    // --- Walk-in bill lookup (Firestore) ---
+    // --- Walk-in bill lookup (PostgreSQL) ---
     // Check orders collection first (has correct 'ready' status), then walkin_bills
-    if (isWalkin && billNumber && db) {
+    if (isWalkin && billNumber && pgReady) {
       // 0. Check orders collection first (walkin bills now saved here with correct status)
       try {
-        const orderDoc = await db.collection('orders').doc(billNumber).get();
-        console.log('--- QR VERIFY --- orders by doc ID:', orderDoc.exists);
-        if (orderDoc.exists) {
-          const order = orderDoc.data()!;
-          targetOrder = { id: orderDoc.id, ...order };
+        const order = await pgGetById('orders', billNumber);
+        console.log('--- QR VERIFY --- orders by doc ID:', order !== null);
+        if (order) {
+          targetOrder = { id: billNumber, ...order };
         }
       } catch (err) {
         console.error('QR verify orders doc ID lookup error:', err);
@@ -3428,12 +3235,11 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
       // 1. Direct doc ID lookup in walkin_bills (fallback)
       if (!targetOrder) {
         try {
-          const doc = await db.collection('walkin_bills').doc(billNumber).get();
-          console.log('--- QR VERIFY --- walkin_bills by doc ID:', doc.exists);
-          if (doc.exists) {
-            const bill = doc.data()!;
+          const bill = await pgGetById('walkin_bills', billNumber);
+          console.log('--- QR VERIFY --- walkin_bills by doc ID:', bill !== null);
+          if (bill) {
             targetOrder = {
-              id: doc.id,
+              id: billNumber,
               userId: bill.customerRegNo || 'walkin',
               userName: bill.customerName || 'Walk-in Customer',
               items: bill.items || [],
@@ -3460,13 +3266,12 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
       // 2. Fallback: query by billNumber field (for bills saved before doc ID change)
       if (!targetOrder) {
         try {
-          const snap = await db.collection('walkin_bills').where('billNumber', '==', billNumber).limit(1).get();
-          console.log('--- QR VERIFY --- walkin_bills by billNumber field:', snap.size, 'docs');
-          if (!snap.empty) {
-            const doc = snap.docs[0];
-            const bill = doc.data();
+          const results = await pgGetWhere('walkin_bills', { billNumber });
+          console.log('--- QR VERIFY --- walkin_bills by billNumber field:', results.length, 'docs');
+          if (results.length > 0) {
+            const bill = results[0];
             targetOrder = {
-              id: doc.id,
+              id: billNumber,
               userId: bill.customerRegNo || 'walkin',
               userName: bill.customerName || 'Walk-in Customer',
               items: bill.items || [],
@@ -3494,14 +3299,14 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
     // --- Regular order lookup ---
     if (!targetOrder) {
       const searchOrderId = orderId || billNumber;
-      if (searchOrderId && db) {
+      if (searchOrderId && pgReady) {
         try {
-          const doc = await db.collection('orders').doc(searchOrderId).get();
-          if (doc.exists) {
-            targetOrder = doc.data() as Order;
+          const doc = await pgGetById('orders', searchOrderId);
+          if (doc) {
+            targetOrder = doc as Order;
           }
         } catch (err) {
-          console.error('QR verify POST Firestore error:', err);
+          console.error('QR verify POST PostgreSQL error:', err);
         }
       }
 
@@ -3535,9 +3340,9 @@ app.post('/api/canteen/qr/verify', async (req, res) => {
         });
       }
       // Update status to collected
-      if (db) {
+      if (pgReady) {
         try {
-          await db.collection('orders').doc(targetOrder.id).set({ status: 'collected' }, { merge: true });
+          await pgUpdate('orders', targetOrder.id, { status: 'collected' });
         } catch (e) {
           console.error('Error updating order status:', e);
         }
@@ -3569,28 +3374,28 @@ app.post('/api/canteen/order/status', async (req, res) => {
   const mappedStatus = (status === 'delivered') ? 'collected' : status;
 
   // Try walkin_bills first
-  if (db) {
+  if (pgReady) {
     try {
-      const walkinDoc = await db.collection('walkin_bills').doc(id).get();
-      if (walkinDoc.exists) {
-        const bill = walkinDoc.data();
+      const walkinDoc = await pgGetById('walkin_bills', id);
+      if (walkinDoc) {
+        const bill = walkinDoc;
         const updated = { ...bill, paymentStatus: mappedStatus === 'collected' || mappedStatus === 'delivered' ? 'paid' : bill.paymentStatus, status: mappedStatus };
-        await db.collection('walkin_bills').doc(id).set(updated, { merge: true });
+        await pgUpdate('walkin_bills', id, updated);
         // Update in-memory state too
         canteenState.orders = canteenState.orders.map(order => order.id === id ? { ...order, status: mappedStatus } : order);
         return res.json({ success: true, message: `Walk-in bill status set to: ${mappedStatus}` });
       }
     } catch (err) {
-      console.error('Firestore walkin bill status update error:', err);
+      console.error('PostgreSQL walkin bill status update error:', err);
     }
   }
 
   let targetOrder: Order | undefined;
-  if (db) {
+  if (pgReady) {
     try {
-      const doc = await db.collection('orders').doc(id).get();
-      if (doc.exists) {
-        targetOrder = doc.data() as Order;
+      const doc = await pgGetById('orders', id);
+      if (doc) {
+        targetOrder = doc as Order;
       }
     } catch (err) {
       console.error(err);
@@ -3614,11 +3419,11 @@ app.post('/api/canteen/order/status', async (req, res) => {
 
   const updatedOrder = { ...targetOrder, status: mappedStatus, pickupTimeText: pickupText };
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('orders').doc(id).set(updatedOrder);
+      await pgSet('orders', id, updatedOrder);
     } catch (err) {
-      console.error('Firestore order update status error:', err);
+      console.error('PostgreSQL order update status error:', err);
     }
   }
 
@@ -3634,11 +3439,11 @@ app.post('/api/canteen/order/update-slot', async (req, res) => {
   }
 
   let targetOrder: Order | undefined;
-  if (db) {
+  if (pgReady) {
     try {
-      const doc = await db.collection('orders').doc(id).get();
-      if (doc.exists) {
-        targetOrder = doc.data() as Order;
+      const doc = await pgGetById('orders', id);
+      if (doc) {
+        targetOrder = doc as Order;
       }
     } catch (err) {
       console.error(err);
@@ -3655,9 +3460,9 @@ app.post('/api/canteen/order/update-slot', async (req, res) => {
 
   const updatedOrder = { ...targetOrder, pickupSlot };
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('orders').doc(id).set(updatedOrder);
+      await pgSet('orders', id, updatedOrder);
     } catch (err) {
       console.error(err);
     }
@@ -3679,11 +3484,11 @@ app.post('/api/canteen/order/batch-status', async (req, res) => {
 
   for (const id of ids) {
     let targetOrder: Order | undefined;
-    if (db) {
+    if (pgReady) {
       try {
-        const doc = await db.collection('orders').doc(id).get();
-        if (doc.exists) {
-          targetOrder = doc.data() as Order;
+        const doc = await pgGetById('orders', id);
+        if (doc) {
+          targetOrder = doc as Order;
         }
       } catch (e) {}
     } else {
@@ -3701,8 +3506,8 @@ app.post('/api/canteen/order/batch-status', async (req, res) => {
       const mappedStatus = (status === 'delivered') ? 'collected' : status;
       const updated = { ...targetOrder, status: mappedStatus, pickupTimeText: pickupText };
 
-      if (db) {
-        await db.collection('orders').doc(id).set(updated);
+      if (pgReady) {
+        await pgSet('orders', id, updated);
       }
       canteenState.orders = canteenState.orders.map(o => o.id === id ? updated : o);
       updatedOrders.push(updated);
@@ -3753,23 +3558,22 @@ app.post('/api/canteen/review', async (req, res) => {
     menuItemName,
   };
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('reviews').doc(reviewId).set(newReview);
+      await pgSet('reviews', reviewId, newReview);
       if (menuItemId) {
-        const itemDoc = await db.collection('items').doc(menuItemId).get();
-        if (itemDoc.exists) {
-          const item = itemDoc.data() as MenuItem;
+        const item = await pgGetById('items', menuItemId);
+        if (item) {
           const count = item.ratingCount || 0;
           const currentRating = item.rating || 5.0;
           const newRating = ((currentRating * count) + Number(rating)) / (count + 1);
           item.rating = Number(newRating.toFixed(1));
           item.ratingCount = count + 1;
-          await db.collection('items').doc(menuItemId).set(item);
+          await pgSet('items', menuItemId, item);
         }
       }
     } catch (err) {
-      console.error('Firestore save review error:', err);
+      console.error('PostgreSQL save review error:', err);
     }
   }
 
@@ -3796,17 +3600,14 @@ app.post('/api/canteen/review', async (req, res) => {
 
 // 7. Reset state (for demo debugging)
 app.post('/api/canteen/reset', async (req, res) => {
-  if (db) {
+  if (pgReady) {
     try {
-      const items = await db.collection('items').get();
-      for (const doc of items.docs) await doc.ref.delete();
-      const orders = await db.collection('orders').get();
-      for (const doc of orders.docs) await doc.ref.delete();
-      const reviews = await db.collection('reviews').get();
-      for (const doc of reviews.docs) await doc.ref.delete();
-      await seedFirestoreIfNeeded();
+      await pgDeleteWhere('items', {});
+      await pgDeleteWhere('orders', {});
+      await pgDeleteWhere('reviews', {});
+      await seedPostgresIfNeeded();
     } catch (err) {
-      console.error('Firestore reset error:', err);
+      console.error('PostgreSQL reset error:', err);
     }
   }
 
@@ -3836,20 +3637,19 @@ app.post('/api/canteen/reset', async (req, res) => {
 async function checkExpiredOrders() {
   const now = Date.now();
   let ordersToUpdate: Order[] = [];
-  if (db) {
+  if (pgReady) {
     try {
-      const snap = await db.collection('orders').where('status', '==', 'ready').get();
-      for (const doc of snap.docs) {
-        const o = doc.data() as Order;
+      const results = await pgGetWhere('orders', { status: 'ready' });
+      for (const o of results) {
         if (o.expiryTime && now > o.expiryTime) {
           o.status = 'expired';
           o.pickupTimeText = 'Expired (Not collected on time)';
-          await doc.ref.set(o);
+          await pgSet('orders', o.id, o);
           ordersToUpdate.push(o);
         }
       }
     } catch (e) {
-      console.error('Firestore expiry check error:', e);
+      console.error('PostgreSQL expiry check error:', e);
     }
   } else {
     canteenState.orders = canteenState.orders.map(o => {
@@ -3873,9 +3673,9 @@ app.post('/api/canteen/settings', async (req, res) => {
   if (noShowMinutes !== undefined) canteenSettings.noShowMinutes = Number(noShowMinutes);
   if (defaultSlotCapacity !== undefined) canteenSettings.defaultSlotCapacity = Number(defaultSlotCapacity);
 
-  if (db) {
+  if (pgReady) {
     try {
-      await db.collection('settings').doc('settings_canteen_001').set(canteenSettings);
+      await pgSet('settings', 'settings_canteen_001', canteenSettings);
     } catch (e) {
       console.error(e);
     }
@@ -3900,9 +3700,9 @@ app.post('/api/canteen/ingredients/batch', async (req, res) => {
     } else {
       canteenState.ingredients?.push(ing);
     }
-    if (db) {
+    if (pgReady) {
       try {
-        await db.collection('ingredients').doc(ing.id).set(ing);
+        await pgSet('ingredients', ing.id, ing);
       } catch (e) {
         console.error(e);
       }
@@ -3936,7 +3736,7 @@ app.post('/api/canteen/walkin-bill', async (req, res) => {
     const bill = req.body;
     const docId = bill.billNumber || `walkin_${Date.now()}`;
     bill.id = docId;
-    bill.synced = !!db;
+    bill.synced = !!pgReady;
 
     // Build the order object (same structure as online orders)
     const orderData: any = {
@@ -3961,18 +3761,18 @@ app.post('/api/canteen/walkin-bill', async (req, res) => {
       grandTotal: bill.grandTotal,
     };
 
-    console.log('--- WALKIN BILL --- docId:', docId, 'db:', !!db);
+    console.log('--- WALKIN BILL --- docId:', docId, 'db:', !!pgReady);
 
-    if (db) {
+    if (pgReady) {
       // Save to BOTH collections for maximum reliability
       try {
-        await db.collection('walkin_bills').doc(docId).set({ ...bill, id: docId });
+        await pgSet('walkin_bills', docId, { ...bill, id: docId });
         console.log('--- WALKIN BILL SAVED to walkin_bills ---');
       } catch (e: any) {
         console.error('--- WALKIN BILL walkin_bills save FAILED ---', e?.message);
       }
       try {
-        await db.collection('orders').doc(docId).set(orderData);
+        await pgSet('orders', docId, orderData);
         console.log('--- WALKIN BILL SAVED to orders ---');
       } catch (e: any) {
         console.error('--- WALKIN BILL orders save FAILED ---', e?.message);
@@ -3991,17 +3791,15 @@ app.post('/api/canteen/walkin-bill', async (req, res) => {
       }
     }
 
-    // Update Firestore inventory if available
-    if (db) {
+    // Update PostgreSQL inventory if available
+    if (pgReady) {
       for (const item of bill.items) {
         try {
-          const menuDoc = await db.collection('items').where('id', '==', item.itemId).get();
-          if (!menuDoc.empty) {
-            const doc = menuDoc.docs[0];
-            await doc.ref.update({
-              bookedToday: admin.firestore.FieldValue.increment(item.quantity),
-              stock: admin.firestore.FieldValue.increment(-item.quantity),
-            });
+          const results = await pgGetWhere('items', { id: item.itemId });
+          if (results.length > 0) {
+            const doc = results[0];
+            await pgIncrement('items', doc.id, 'bookedToday', item.quantity);
+            await pgIncrement('items', doc.id, 'stock', -item.quantity);
           }
         } catch (e: any) {
           console.error('--- WALKIN BILL inventory update FAILED ---', e?.message);
@@ -4027,15 +3825,14 @@ app.get('/api/canteen/walkin-bill/lookup', async (req, res) => {
       return res.status(400).json({ success: false, error: 'billNumber is required' });
     }
     console.log('--- WALKIN LOOKUP --- billNumber:', billNumber);
-    if (db) {
+    if (pgReady) {
       // 1. Direct doc ID lookup
-      const doc = await db.collection('walkin_bills').doc(String(billNumber)).get();
-      if (doc.exists) {
-        const bill = doc.data()!;
+      const bill = await pgGetById('walkin_bills', String(billNumber));
+      if (bill) {
         return res.json({
           success: true,
           order: {
-            id: doc.id,
+            id: String(billNumber),
             userId: bill.customerRegNo || 'walkin',
             userName: bill.customerName || 'Walk-in Customer',
             items: bill.items || [],
@@ -4056,14 +3853,13 @@ app.get('/api/canteen/walkin-bill/lookup', async (req, res) => {
         });
       }
       // 2. Field query fallback
-      const snap = await db.collection('walkin_bills').where('billNumber', '==', String(billNumber)).limit(1).get();
-      if (!snap.empty) {
-        const doc = snap.docs[0];
-        const bill = doc.data();
+      const results = await pgGetWhere('walkin_bills', { billNumber: String(billNumber) });
+      if (results.length > 0) {
+        const bill = results[0];
         return res.json({
           success: true,
           order: {
-            id: doc.id,
+            id: String(billNumber),
             userId: bill.customerRegNo || 'walkin',
             userName: bill.customerName || 'Walk-in Customer',
             items: bill.items || [],
@@ -4095,11 +3891,13 @@ app.get('/api/canteen/walkin-bill/lookup', async (req, res) => {
 app.get('/api/canteen/walkin-bills', async (req, res) => {
   try {
     const { canteenId, from, to } = req.query;
-    if (db) {
-      let query: FirebaseFirestore.Query = db.collection('walkin_bills');
-      if (canteenId) query = query.where('canteenId', '==', canteenId);
-      const snapshot = await query.orderBy('createdAt', 'desc').limit(500).get();
-      const bills = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    if (pgReady) {
+      let bills: any[] = [];
+      if (canteenId) {
+        bills = await pgGetWhereOrdered('walkin_bills', { canteenId }, 'created_at', 'desc', 500);
+      } else {
+        bills = await pgGetAll('walkin_bills');
+      }
       res.json({ success: true, bills });
     } else {
       const bills = canteenState.orders.filter((o: any) => o.type === 'walkin');
@@ -4115,9 +3913,8 @@ app.get('/api/canteen/walkin-bills', async (req, res) => {
 app.post('/api/canteen/walkin-bill/mark-paid', async (req, res) => {
   try {
     const { billId, paymentMethod } = req.body;
-    if (db) {
-      const docRef = db.collection('walkin_bills').doc(billId);
-      await docRef.update({ paymentStatus: 'paid', paymentMethod: paymentMethod || 'cash' });
+    if (pgReady) {
+      await pgUpdate('walkin_bills', billId, { paymentStatus: 'paid', paymentMethod: paymentMethod || 'cash' });
     }
     const order = canteenState.orders.find((o: any) => o.id === billId || o.qrCode === billId);
     if (order) {
@@ -4228,13 +4025,13 @@ Your output must be structured exactly in JSON matching this schema:
 // VITE DEV SERVER OR STATIC PROD PRODUCTION MIDDLEWARE Setup
 // -------------------------------------------------------------
 async function seedCollegesToFirestore() {
-  if (!db) return;
+  if (!pgReady) return;
   try {
-    const snap = await db.collection('colleges').get();
-    if (snap.empty) {
-      console.log('Seeding default colleges to Firestore...');
+    const list = await pgGetAll('colleges');
+    if (list.length === 0) {
+      console.log('Seeding default colleges to PostgreSQL...');
       for (const c of collegesState) {
-        await db.collection('colleges').doc(c.id).set(c);
+        await pgSet('colleges', c.id, c);
       }
       console.log('Seeded', collegesState.length, 'colleges.');
     }
