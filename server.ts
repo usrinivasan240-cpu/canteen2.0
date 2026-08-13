@@ -249,8 +249,7 @@ if (process.env.VERCEL) {
 }
 
 app.get('/api/test', async (req, res) => {
-  const pgConnected = await isPgAvailable();
-  res.json({ success: true, message: "Server is working!", dbConnected: pgConnected, postgres: pgConnected, envVar: !!process.env.POSTGRES_URL, razorpay: { configured: razorpayConfigured, keyPrefix: razorpayKeyId.substring(0, 8) } });
+  res.json({ success: true, message: "Server is working!", dbConnected: pgReady, postgres: pgReady, envVar: !!process.env.POSTGRES_URL, razorpay: { configured: razorpayConfigured, keyPrefix: razorpayKeyId.substring(0, 8) } });
 });
 
 // App version endpoint - bump this to force update popup on all devices
@@ -278,6 +277,21 @@ let pgInitError: string | null = null;
     console.error('Failed to initialize PostgreSQL:', error?.message || error);
   }
 })();
+
+// Lazy PG check: if pgReady is stale (new serverless instance), test live
+async function ensurePgReady(): Promise<boolean> {
+  if (pgReady) return true;
+  pgReady = await isPgAvailable();
+  return pgReady;
+}
+
+// Middleware: ensure pgReady is accurate before every request
+app.use(async (_req, _res, next) => {
+  if (!pgReady) {
+    try { pgReady = await isPgAvailable(); } catch {}
+  }
+  next();
+});
 
 // Initialize Google Gen AI only when needed or gracefully check its existence
 let genAI: GoogleGenAI | null = null;
