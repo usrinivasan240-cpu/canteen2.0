@@ -188,7 +188,7 @@ if (vyaparConfigured) {
 }
 
 // ============================================================================
-// SERVER-SIDE IMAGE COMPRESSION (reduces Firestore document sizes by 90%+)
+// SERVER-SIDE IMAGE COMPRESSION (reduces payload sizes by 90%+)
 // ============================================================================
 let sharpLib: any = null;
 try {
@@ -1567,7 +1567,7 @@ app.get('/api/canteen', async (req, res) => {
         try {
           reviews = await pgGetWhere('reviews', { canteenId }) as Review[];
           reviews = reviews.slice(0, 20);
-        } catch (e2) {}
+        } catch (e2) { console.warn('Reviews fallback query failed:', e2); }
       }
 
       let ingredients: Ingredient[] = INITIAL_INGREDIENTS.map(ing => ({ ...ing, canteenId }));
@@ -1673,7 +1673,7 @@ app.post('/api/canteen/menu', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Name, valid price and stock are required.' });
   }
 
-  // Compress base64 images to prevent Firestore document size limit
+  // Compress base64 images to prevent large payloads
   let processedImageUrl = imageUrl;
   if (imageUrl && imageUrl.startsWith('data:image')) {
     try {
@@ -3500,7 +3500,7 @@ app.post('/api/canteen/order/batch-status', async (req, res) => {
         if (doc) {
           targetOrder = doc as Order;
         }
-      } catch (e) {}
+        } catch (e) { console.warn('Order lookup failed:', e); }
     } else {
       targetOrder = canteenState.orders.find(o => o.id === id);
     }
@@ -3792,7 +3792,7 @@ app.post('/api/canteen/walkin-bill', async (req, res) => {
       bill.synced = true;
     }
 
-    // Always update in-memory inventory (works with or without Firestore)
+    // Always update in-memory inventory (works with or without PostgreSQL)
     for (const item of orderData.items) {
       const menuItem = canteenState.items.find(m => m.id === item.itemId);
       if (menuItem) {
@@ -4034,7 +4034,7 @@ Your output must be structured exactly in JSON matching this schema:
 // -------------------------------------------------------------
 // VITE DEV SERVER OR STATIC PROD PRODUCTION MIDDLEWARE Setup
 // -------------------------------------------------------------
-async function seedCollegesToFirestore() {
+async function seedCollegesToPostgres() {
   if (!pgReady) return;
   try {
     const list = await pgGetAll('colleges');
@@ -4051,7 +4051,7 @@ async function seedCollegesToFirestore() {
 }
 
 async function startServer() {
-  await seedCollegesToFirestore();
+  await seedCollegesToPostgres();
   if (process.env.NODE_ENV !== 'production') {
     const { createServer } = await import('vite');
     const vite = await createServer({
