@@ -145,6 +145,9 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
         });
         const data = await resp.json();
         if (data.success && data.user) {
+          if (data.token) {
+            localStorage.setItem('bb_token', data.token);
+          }
           onLoginSuccess({ ...data.user, role: 'customer' });
         } else {
           setError(data.error || 'Failed to create account.');
@@ -160,7 +163,9 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
         });
         const data = await resp.json();
         if (data.success && data.user) {
-          // Check if superadmin — require OTP verification
+          if (data.token) {
+            localStorage.setItem('bb_token', data.token);
+          }
           if (data.user.role === 'superadmin') {
             setPendingSuperadminUser(data.user);
             setShowOtpModal(true);

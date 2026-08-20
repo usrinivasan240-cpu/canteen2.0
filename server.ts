@@ -75,7 +75,10 @@ app.use('/api/users', (req, res, next) => {
   if (req.method === 'GET') return next();
   authMiddleware(req, res, next);
 });
-app.use('/api/colleges', authMiddleware);
+app.use('/api/colleges', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
 app.use('/api/canteens', authMiddleware);
 app.use('/api/subcanteens', authMiddleware);
 app.use('/api/canteen/menu', authMiddleware);
