@@ -219,23 +219,23 @@ async function compressBase64Image(dataUrl: string, maxWidth = 300): Promise<str
 // ============================================================================
 // FIRESTORE READ CACHE (reduces reads by 80-90%)
 // ============================================================================
-const firestoreCache = new Map<string, { data: any; expiresAt: number }>();
+const dataCache = new Map<string, { data: any; expiresAt: number }>();
 const CACHE_TTL = 60000; // 60 seconds for static data
 const CANTEEN_CACHE_TTL = 30000; // 30 seconds for canteen data
 
 function getCached(key: string): any | null {
-  const entry = firestoreCache.get(key);
+  const entry = dataCache.get(key);
   if (entry && Date.now() < entry.expiresAt) return entry.data;
-  firestoreCache.delete(key);
+  dataCache.delete(key);
   return null;
 }
 
 function setCache(key: string, data: any, ttl: number = CACHE_TTL) {
-  firestoreCache.set(key, { data, expiresAt: Date.now() + ttl });
+  dataCache.set(key, { data, expiresAt: Date.now() + ttl });
 }
 
 function invalidateCanteenCache(canteenId: string) {
-  firestoreCache.delete(`canteen_${canteenId}`);
+  dataCache.delete(`canteen_${canteenId}`);
 }
 
 // Vercel path rewriting middleware to ensure backend routes match Express definitions
@@ -268,6 +268,7 @@ let pgInitError: string | null = null;
     pgReady = await isPgAvailable();
     if (pgReady) {
       console.log('PostgreSQL (Supabase) connected successfully!');
+      await seedPostgresIfNeeded();
     } else {
       pgInitError = 'POSTGRES_URL not set or connection failed';
       console.warn('PostgreSQL not available. Operating with in-memory state only.');
@@ -346,8 +347,6 @@ async function seedPostgresIfNeeded() {
     console.error('Error seeding PostgreSQL:', err);
   }
 }
-// Run seed check immediately
-seedPostgresIfNeeded();
 
 /**
  * Resilient Wrapper for Google GenAI generateContent calls.
@@ -916,12 +915,11 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ============================================================================
-// OTP VERIFICATION FOR SUPERADMIN LOGIN (Firestore-backed)
+// OTP VERIFICATION FOR SUPERADMIN LOGIN (PostgreSQL-backed)
 // ============================================================================
 
 const SUPERADMIN_EMAIL = 'usrinivasan240@gmail.com';
 const SUPERADMIN_CHECK_EMAIL = 'superadmin@gmail.com';
-const OTP_COLLECTION = 'otp_store';
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 app.post('/api/auth/generate-otp', async (req, res) => {
@@ -1094,7 +1092,7 @@ app.put('/api/colleges/:id/logo', async (req, res) => {
   
   const idx = collegesState.findIndex(c => c.id === id);
   if (idx !== -1) collegesState[idx] = { ...collegesState[idx], logoUrl: compressed };
-  firestoreCache.delete('colleges');
+  dataCache.delete('colleges');
   res.json({ success: true, message: 'Logo saved successfully' });
 });
 
@@ -1126,7 +1124,7 @@ app.put('/api/colleges/:id/banner', async (req, res) => {
   }
   const idx = collegesState.findIndex(c => c.id === id);
   if (idx !== -1) collegesState[idx] = { ...collegesState[idx], ...updates };
-  firestoreCache.delete('colleges');
+  dataCache.delete('colleges');
   res.json({ success: true, message: 'Banner saved successfully' });
 });
 
@@ -1148,7 +1146,7 @@ app.put('/api/colleges/:id/branding', async (req, res) => {
   }
   const idx = collegesState.findIndex(c => c.id === id);
   if (idx !== -1) collegesState[idx] = { ...collegesState[idx], branding };
-  firestoreCache.delete('colleges');
+  dataCache.delete('colleges');
   res.json({ success: true, branding });
 });
 
@@ -1175,7 +1173,7 @@ app.put('/api/colleges/:id', async (req, res) => {
   if (idx !== -1) {
     collegesState[idx] = { ...collegesState[idx], name, location: location ?? collegesState[idx].location };
   }
-  firestoreCache.delete('colleges');
+  dataCache.delete('colleges');
   saveLocalDB();
   res.json({ success: true });
 });
@@ -1189,7 +1187,7 @@ app.delete('/api/colleges/:id', async (req, res) => {
       console.error(e);
     }
   }
-  firestoreCache.delete('colleges');
+  dataCache.delete('colleges');
   collegesState = collegesState.filter(c => c.id !== id);
   saveLocalDB();
   res.json({ success: true });
@@ -1320,8 +1318,8 @@ app.delete('/api/canteens/:id', async (req, res) => {
       console.error(e);
     }
   }
-  firestoreCache.delete('canteens');
-  firestoreCache.delete(`canteen_${id}`);
+  dataCache.delete('canteens');
+  dataCache.delete(`canteen_${id}`);
   canteensState = canteensState.filter(c => c.id !== id);
   saveLocalDB();
   res.json({ success: true });
@@ -1393,7 +1391,7 @@ app.put('/api/subcanteens/:id', async (req, res) => {
   }
   const idx = subCanteensState.findIndex(s => s.id === id);
   if (idx !== -1) subCanteensState[idx] = { ...subCanteensState[idx], ...cleanUpdates } as SubCanteen;
-  firestoreCache.delete('subcanteens');
+  dataCache.delete('subcanteens');
   saveLocalDB();
   res.json({ success: true, subCanteen: subCanteensState[idx] || cleanUpdates });
 });
@@ -1408,7 +1406,7 @@ app.delete('/api/subcanteens/:id', async (req, res) => {
     }
   }
   subCanteensState = subCanteensState.filter(s => s.id !== id);
-  firestoreCache.delete('subcanteens');
+  dataCache.delete('subcanteens');
   saveLocalDB();
   res.json({ success: true });
 });
