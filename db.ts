@@ -5,12 +5,11 @@
 
 import { Pool } from 'pg';
 
-const DATABASE_URL = process.env.POSTGRES_URL || process.env.DATABASE_URL || '';
-
 let pool: Pool | null = null;
 
 function getPool(): Pool {
   if (!pool) {
+    const DATABASE_URL = process.env.POSTGRES_URL || process.env.DATABASE_URL || '';
     if (!DATABASE_URL) {
       throw new Error('POSTGRES_URL or DATABASE_URL environment variable is not set');
     }
@@ -149,7 +148,11 @@ export async function pgSet(table: string, id: string, data: any): Promise<void>
   const columns = Object.keys(snakeData);
   const placeholders = columns.map((_, i) => `$${i + 1}`);
   const updateClauses = columns.filter(c => c !== 'id').map((c, i) => `${c} = $${i + 2}`);
-  const values = columns.map(c => snakeData[c]);
+  const values = columns.map(c => {
+    const v = snakeData[c];
+    // node-postgres doesn't auto-serialize JS objects/arrays for JSONB columns
+    return (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v;
+  });
   const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) ON CONFLICT (id) DO UPDATE SET ${updateClauses.join(', ')}`;
   await execute(sql, values);
 }
@@ -160,7 +163,10 @@ export async function pgUpdate(table: string, id: string, data: any): Promise<vo
   const columns = Object.keys(snakeData);
   if (columns.length === 0) return;
   const setClauses = columns.map((c, i) => `${c} = $${i + 1}`);
-  const values = [...columns.map(c => snakeData[c]), id];
+  const values = [...columns.map(c => {
+    const v = snakeData[c];
+    return (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v;
+  }), id];
   await execute(`UPDATE ${table} SET ${setClauses.join(', ')} WHERE id = $${columns.length + 1}`, values);
 }
 
