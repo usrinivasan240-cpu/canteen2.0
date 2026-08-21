@@ -9,6 +9,14 @@ interface LoginScreenProps {
   onNavigateDownload?: () => void;
 }
 
+interface AuthResponse {
+  success: boolean;
+  token?: string;
+  refreshToken?: string;
+  user?: any;
+  error?: string;
+}
+
 export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigateDownload }: LoginScreenProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -80,14 +88,24 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
       const resp = await fetch(`${API_BASE}/api/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailInput.trim(), otp: otpInput.trim() })
+        body: JSON.stringify({ 
+          email: emailInput.trim(), 
+          otp: otpInput.trim(),
+          password: passwordInput
+        })
       });
       const data = await resp.json();
-      if (data.success) {
+      if (data.success && data.user) {
+        if (data.token) {
+          localStorage.setItem('bb_token', data.token);
+        }
+        if (data.refreshToken) {
+          localStorage.setItem('bb_refresh_token', data.refreshToken);
+        }
         setShowOtpModal(false);
         setPendingSuperadminUser(null);
         setOtpInput('');
-        onLoginSuccess({ ...pendingSuperadminUser, role: pendingSuperadminUser.role });
+        onLoginSuccess({ ...data.user, role: data.user.role });
       } else {
         setOtpError(data.error || 'Invalid OTP. Please try again.');
       }
@@ -143,10 +161,13 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
             collegeId: selectedCollegeId
           })
         });
-        const data = await resp.json();
+        const data: AuthResponse = await resp.json();
         if (data.success && data.user) {
           if (data.token) {
             localStorage.setItem('bb_token', data.token);
+          }
+          if (data.refreshToken) {
+            localStorage.setItem('bb_refresh_token', data.refreshToken);
           }
           onLoginSuccess({ ...data.user, role: 'customer' });
         } else {
@@ -161,10 +182,13 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
             password: passwordInput
           })
         });
-        const data = await resp.json();
+        const data: AuthResponse = await resp.json();
         if (data.success && data.user) {
           if (data.token) {
             localStorage.setItem('bb_token', data.token);
+          }
+          if (data.refreshToken) {
+            localStorage.setItem('bb_refresh_token', data.refreshToken);
           }
           if (data.user.role === 'superadmin') {
             setPendingSuperadminUser(data.user);

@@ -397,6 +397,7 @@ export default function App() {
       localStorage.removeItem('bb_loggedIn');
       localStorage.removeItem('bb_orders');
       localStorage.removeItem('bb_token');
+      localStorage.removeItem('bb_refresh_token');
     } catch {}
   };
 

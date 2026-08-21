@@ -10,11 +10,25 @@ import fs from 'fs';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { GoogleGenAI, Type } from '@google/genai';
+import { createClient, SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
 import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User } from './src/types';
 import { pgGetById, pgGetAll, pgGetWhere, pgGetWhereOrdered, pgSet, pgUpdate, pgDelete, pgDeleteWhere, pgIncrement, pgGetByEmail, isPgAvailable, query, queryOne, execute } from './db';
 
 // Load environment variables
 dotenv.config();
+
+// Supabase Auth client (service role for admin operations, anon for verification)
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!;
+
+const supabaseAdmin: SupabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  auth: { autoRefreshToken: false, persistSession: false }
+});
+
+const supabaseClient: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: { autoRefreshToken: false, persistSession: false }
+});
 
 const app = express();
 const PORT = 3000;
@@ -39,7 +53,7 @@ function verifyPassword(password: string, stored: string): boolean {
 }
 
 // ============================================================================
-// SECURITY: Auth middleware — validates tokens on protected endpoints
+// SECURITY: Auth middleware — validates Supabase JWT on protected endpoints
 // ============================================================================
 const PROTECTED_PATHS = [
   '/api/users', '/api/colleges', '/api/canteens', '/api/subcanteens',
@@ -47,23 +61,24 @@ const PROTECTED_PATHS = [
   '/api/canteen/settings', '/api/support-tickets'
 ];
 
-function authMiddleware(req: any, res: any, next: any) {
+async function authMiddleware(req: any, res: any, next: any) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, error: 'Authentication required.' });
   }
   const token = authHeader.split(' ')[1];
+  
   try {
-    const decoded = Buffer.from(token, 'base64').toString('utf-8');
-    const [email, ts] = decoded.split(':');
-    if (!email || !ts || isNaN(Number(ts))) {
-      return res.status(401).json({ success: false, error: 'Invalid token.' });
+    // Verify JWT with Supabase
+    const { data: { user }, error } = await supabaseClient.auth.getUser(token);
+    
+    if (error || !user) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token.' });
     }
-    const tokenAge = Date.now() - Number(ts);
-    if (tokenAge > 7 * 24 * 60 * 60 * 1000) {
-      return res.status(401).json({ success: false, error: 'Token expired.' });
-    }
-    (req as any).authEmail = email.trim().toLowerCase();
+    
+    // Attach user info to request
+    (req as any).authUser = user;
+    (req as any).authEmail = user.email?.trim().toLowerCase();
     next();
   } catch {
     return res.status(401).json({ success: false, error: 'Invalid token.' });
@@ -764,63 +779,93 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  // SECURITY: Block role escalation — registrations always get 'customer' role
-  const selectedRole = 'customer';
-  const userId = `user_${Math.random().toString(36).substring(2, 11)}`;
-
-  // SECURITY: Hash password before storage
-  const hashedPassword = hashPassword(password);
 
   if (pgReady) {
     try {
+      // Check if user already exists in public.users
       const existingUser = await pgGetByEmail('users', normalizedEmail);
       if (existingUser) {
         return res.status(400).json({ success: false, error: 'User with this email already exists.' });
       }
-      const newUser: any = {
-        id: userId,
-        name,
-        email: normalizedEmail,
-        password: hashedPassword,
-        role: selectedRole,
-        phone: phone || '',
-        registerNumber: registerNumber || '',
-        collegeId: collegeId || '',
-        canteenId: '',
-        subCanteenId: '',
-        status: 'active',
-        createdAt: Date.now()
-      };
 
-      // Auto-assign first canteen in the user's college
-      if (collegeId) {
-        try {
-          const canteens = await pgGetWhereOrdered('canteens', { collegeId, status: 'active' }, 'id', 'asc', 1);
-          if (canteens.length > 0) {
-            const assignedCanteen = canteens[0];
-            newUser.canteenId = assignedCanteen.id;
-            // Auto-assign first sub-canteen of that canteen
-            const subs = await pgGetWhereOrdered('subcanteens', { canteenId: assignedCanteen.id, status: 'active' }, 'id', 'asc', 1);
-            if (subs.length > 0) {
-              newUser.subCanteenId = subs[0].id;
-            }
-          }
-        } catch (e) {
-          console.error('Failed to auto-assign canteen:', e);
+      // Create user in Supabase Auth
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: normalizedEmail,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          name,
+          phone: phone || '',
+          register_number: registerNumber || '',
+          college_id: collegeId || ''
         }
+      });
+
+      if (authError) {
+        if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
+          return res.status(400).json({ success: false, error: 'User with this email already exists.' });
+        }
+        console.error('Supabase Auth createUser error:', authError);
+        return res.status(500).json({ success: false, error: 'Failed to create user account.' });
       }
 
-      await pgSet('users', userId, newUser);
-      const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-      return res.json({ success: true, token, user: { id: userId, name, email: normalizedEmail, role: selectedRole, phone: newUser.phone, registerNumber: newUser.registerNumber, collegeId: newUser.collegeId, canteenId: newUser.canteenId, subCanteenId: newUser.subCanteenId } });
+      const authUser = authData.user;
+      if (!authUser) {
+        return res.status(500).json({ success: false, error: 'Failed to create user account.' });
+      }
+
+      // Get the public user profile (created by DB trigger)
+      let publicUser = await pgGetByEmail('users', normalizedEmail);
+      
+      // If trigger hasn't run yet, wait a bit and retry
+      if (!publicUser) {
+        await new Promise(r => setTimeout(r, 500));
+        publicUser = await pgGetByEmail('users', normalizedEmail);
+      }
+
+      // Sign in to get session tokens
+      const { data: sessionData, error: sessionError } = await supabaseClient.auth.signInWithPassword({
+        email: normalizedEmail,
+        password
+      });
+
+      if (sessionError || !sessionData.session) {
+        console.error('Supabase signIn after register error:', sessionError);
+        return res.status(500).json({ success: false, error: 'Account created but failed to sign in.' });
+      }
+
+      return res.json({ 
+        success: true, 
+        token: sessionData.session.access_token,
+        refreshToken: sessionData.session.refresh_token,
+        user: publicUser ? { 
+          id: publicUser.id, 
+          name: publicUser.name, 
+          email: publicUser.email, 
+          role: publicUser.role,
+          collegeId: publicUser.collegeId,
+          canteenId: publicUser.canteenId,
+          subCanteenId: publicUser.subCanteenId,
+          phone: publicUser.phone,
+          registerNumber: publicUser.registerNumber
+        } : { 
+          id: authUser.id, 
+          name, 
+          email: normalizedEmail, 
+          role: 'customer',
+          phone: phone || '',
+          registerNumber: registerNumber || '',
+          collegeId: collegeId || ''
+        }
+      });
     } catch (err) {
       console.error(err);
       return res.status(500).json({ success: false, error: 'Server authentication database error.' });
     }
   }
 
-  const regToken = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-  return res.json({ success: true, token: regToken, user: { id: userId, name, email: normalizedEmail, role: selectedRole } });
+  // Fallback for when PostgreSQL is not ready (should rarely happen)
+  return res.status(503).json({ success: false, error: 'Database temporarily unavailable. Please try again.' });
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -832,107 +877,94 @@ app.post('/api/auth/login', async (req, res) => {
 
   const normalizedEmail = email.trim().toLowerCase();
 
-  if (pgReady) {
-    const MAX_DB_RETRIES = 2;
-    let dbReady = false;
-    for (let attempt = 0; attempt < MAX_DB_RETRIES; attempt++) {
-      try {
-        const user = await pgGetByEmail('users', normalizedEmail);
-        dbReady = true;
+  try {
+    // Verify credentials with Supabase Auth (but don't create session yet for superadmin)
+    const { data: verifyData, error: verifyError } = await supabaseClient.auth.signInWithPassword({
+      email: normalizedEmail,
+      password
+    });
 
-        if (user) {
-            // SECURITY: Support both hashed (salt:hash) and legacy plaintext passwords
-            let passwordValid = false;
-            const storedPw = user.password || '';
-            if (storedPw.includes(':')) {
-              passwordValid = verifyPassword(password, storedPw);
-            } else {
-              passwordValid = storedPw === password;
-              // SECURITY: Auto-upgrade plaintext password to hashed on successful login
-              if (passwordValid) {
-                try {
-                  await pgUpdate('users', user.id, { password: hashPassword(password) });
-                  console.log(`Auto-hashed plaintext password for ${normalizedEmail}`);
-                } catch (e) {
-                  console.error('Failed to auto-hash password:', e);
-                }
-              }
-            }
+    if (verifyError) {
+      console.log('--- LOGIN FAILED (Auth) ---', { email: normalizedEmail, error: verifyError.message });
+      return res.status(400).json({ success: false, error: 'Incorrect email or password.' });
+    }
 
-            if (passwordValid) {
-              const finalRole = user.role;
-              console.log('--- LOGIN SUCCESS (DB) ---', { email: user.email, resolvedRole: finalRole });
-              const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-              return res.json({ success: true, token, user: { id: user.id, name: user.name, email: user.email, role: finalRole, collegeId: user.collegeId, canteenId: user.canteenId, subCanteenId: user.subCanteenId, phone: user.phone, registerNumber: user.registerNumber } });
-            } else {
-              return res.status(400).json({ success: false, error: 'Incorrect password.' });
-            }
+    if (!verifyData.user) {
+      return res.status(400).json({ success: false, error: 'Authentication failed.' });
+    }
+
+    // Get user profile from public.users
+    let publicUser = await pgGetByEmail('users', normalizedEmail);
+    
+    if (!publicUser) {
+      // User exists in Supabase Auth but not in public.users (shouldn't happen with trigger)
+      // Create minimal profile
+      publicUser = {
+        id: verifyData.user.id,
+        name: verifyData.user.user_metadata?.name || 'User',
+        email: normalizedEmail,
+        role: 'customer',
+        collegeId: verifyData.user.user_metadata?.college_id || '',
+        canteenId: '',
+        subCanteenId: '',
+        phone: verifyData.user.user_metadata?.phone || '',
+        registerNumber: verifyData.user.user_metadata?.register_number || ''
+      };
+    }
+
+    // Check if superadmin - require OTP verification before issuing tokens
+    if (publicUser.role === 'superadmin' && normalizedEmail === SUPERADMIN_CHECK_EMAIL) {
+      console.log('--- LOGIN PENDING OTP (Superadmin) ---', { email: publicUser.email });
+      // Sign out the temporary session
+      await supabaseClient.auth.signOut();
+      return res.json({ 
+        success: true, 
+        pendingOtp: true,
+        user: { 
+          id: publicUser.id, 
+          name: publicUser.name, 
+          email: publicUser.email, 
+          role: publicUser.role,
+          collegeId: publicUser.collegeId,
+          canteenId: publicUser.canteenId,
+          subCanteenId: publicUser.subCanteenId,
+          phone: publicUser.phone,
+          registerNumber: publicUser.registerNumber
         }
+      });
+    }
 
-        // SECURITY: Hardcoded test accounts — store with hashed passwords
-        if (['watson777@gmail.com', 'canteen_owner@gmail.com', 'superadmin@gmail.com', 'college_admin@gmail.com', 'chef@gmail.com', 'staff@gmail.com', 'customer@gmail.com'].includes(normalizedEmail)) {
-          let defaultRole = 'customer';
-          let defaultName = 'Raju Watson';
-          let collegeId: string | undefined;
-          let canteenId: string | undefined;
-          let subCanteenId: string | undefined;
+    // For non-superadmin, create full session and return tokens
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.signInWithPassword({
+      email: normalizedEmail,
+      password
+    });
 
-          if (normalizedEmail === 'canteen_owner@gmail.com') {
-            defaultRole = 'owner';
-            defaultName = 'Canteen Owner';
-            canteenId = 'canteen_001';
-          } else if (normalizedEmail === 'superadmin@gmail.com') {
-            defaultRole = 'superadmin';
-            defaultName = 'Super Admin';
-          } else if (normalizedEmail === 'college_admin@gmail.com') {
-            defaultRole = 'admin';
-            defaultName = 'College Admin';
-            collegeId = 'college_001';
-          } else if (normalizedEmail === 'chef@gmail.com') {
-            defaultRole = 'chef';
-            defaultName = 'Kitchen Chef';
-            canteenId = 'canteen_001';
-            subCanteenId = 'sub_001';
-          } else if (normalizedEmail === 'staff@gmail.com') {
-            defaultRole = 'staff';
-            defaultName = 'Counter Staff';
-            canteenId = 'canteen_001';
-            subCanteenId = 'sub_001';
-          }
+    if (sessionError || !sessionData.session) {
+      return res.status(400).json({ success: false, error: 'Failed to create session.' });
+    }
 
-          const defaultUser: any = {
-            id: `user_${defaultRole}_default`,
-            name: defaultName,
-            email: normalizedEmail,
-            password: hashPassword(password),
-            role: defaultRole,
-            status: 'active'
-          };
-          if (collegeId) defaultUser.collegeId = collegeId;
-          if (canteenId) defaultUser.canteenId = canteenId;
-          if (subCanteenId) defaultUser.subCanteenId = subCanteenId;
-
-          await pgSet('users', defaultUser.id, defaultUser);
-          const token = Buffer.from(`${normalizedEmail}:${Date.now()}`).toString('base64');
-          return res.json({ success: true, token, user: { id: defaultUser.id, name: defaultUser.name, email: defaultUser.email, role: defaultUser.role, collegeId, canteenId, subCanteenId } });
-        }
-        break;
-      } catch (err) {
-        console.error(`Login DB attempt ${attempt + 1}/${MAX_DB_RETRIES} failed:`, err);
-        if (attempt < MAX_DB_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-          continue;
-        }
+    console.log('--- LOGIN SUCCESS ---', { email: publicUser.email, role: publicUser.role });
+    return res.json({ 
+      success: true, 
+      token: sessionData.session.access_token,
+      refreshToken: sessionData.session.refresh_token,
+      user: { 
+        id: publicUser.id, 
+        name: publicUser.name, 
+        email: publicUser.email, 
+        role: publicUser.role,
+        collegeId: publicUser.collegeId,
+        canteenId: publicUser.canteenId,
+        subCanteenId: publicUser.subCanteenId,
+        phone: publicUser.phone,
+        registerNumber: publicUser.registerNumber
       }
-    }
-    if (!dbReady) {
-      console.warn('PostgreSQL still unavailable after retries, cannot verify login for:', normalizedEmail);
-      return res.status(503).json({ success: false, error: 'Database temporarily unavailable. Please try again.' });
-    }
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).json({ success: false, error: 'Server authentication error.' });
   }
-
-  // SECURITY: Never allow unauthenticated access as a fallback
-  return res.status(401).json({ success: false, error: 'Invalid credentials.' });
 });
 
 // ============================================================================
@@ -1037,7 +1069,59 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 
   // Delete used OTP
   await execute('DELETE FROM otp_store WHERE email = $1', [normalizedEmail]).catch(() => {});
-  res.json({ success: true, message: 'OTP verified successfully.' });
+
+  // Get password from request body (sent by frontend during OTP flow)
+  const { password } = req.body;
+  
+  if (!password) {
+    return res.status(400).json({ success: false, error: 'Password required for session creation.' });
+  }
+
+  // Sign in with Supabase to get session tokens
+  const { data: sessionData, error: sessionError } = await supabaseClient.auth.signInWithPassword({
+    email: normalizedEmail,
+    password
+  });
+
+  if (sessionError || !sessionData.session || !sessionData.user) {
+    console.error('Session creation after OTP failed:', sessionError);
+    return res.status(500).json({ success: false, error: 'Failed to create session after OTP verification.' });
+  }
+
+  // Get user profile from public.users
+  let publicUser = await pgGetByEmail('users', normalizedEmail);
+  
+  if (!publicUser) {
+    publicUser = {
+      id: sessionData.user.id,
+      name: sessionData.user.user_metadata?.name || 'User',
+      email: normalizedEmail,
+      role: 'superadmin',
+      collegeId: sessionData.user.user_metadata?.college_id || '',
+      canteenId: '',
+      subCanteenId: '',
+      phone: sessionData.user.user_metadata?.phone || '',
+      registerNumber: sessionData.user.user_metadata?.register_number || ''
+    };
+  }
+
+  console.log('--- LOGIN SUCCESS (Superadmin OTP) ---', { email: publicUser.email, role: publicUser.role });
+  res.json({ 
+    success: true, 
+    token: sessionData.session.access_token,
+    refreshToken: sessionData.session.refresh_token,
+    user: { 
+      id: publicUser.id, 
+      name: publicUser.name, 
+      email: publicUser.email, 
+      role: publicUser.role,
+      collegeId: publicUser.collegeId,
+      canteenId: publicUser.canteenId,
+      subCanteenId: publicUser.subCanteenId,
+      phone: publicUser.phone,
+      registerNumber: publicUser.registerNumber
+    }
+  });
 });
 
 // ============================================================================
