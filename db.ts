@@ -147,7 +147,7 @@ export async function pgSet(table: string, id: string, data: any): Promise<void>
   const snakeData = toSnakeCase({ ...data, id });
   const columns = Object.keys(snakeData);
   const placeholders = columns.map((_, i) => `$${i + 1}`);
-  const updateClauses = columns.filter(c => c !== 'id').map((c, i) => `${c} = $${i + 2}`);
+  const updateClauses = columns.filter(c => c !== 'id').map(c => `${c} = $${columns.indexOf(c) + 1}`);
   const values = columns.map(c => {
     const v = snakeData[c];
     // node-postgres doesn't auto-serialize JS objects/arrays for JSONB columns

@@ -103,6 +103,51 @@ async function authMiddleware(req: any, res: any, next: any) {
 }
 
 // ============================================================================
+// SECURITY: Role-based access control for management endpoints
+// ============================================================================
+async function getCallerProfile(req: any): Promise<User | null> {
+  const authEmail = req.authEmail;
+  if (!authEmail) return null;
+  if (pgReady) {
+    try {
+      return await pgGetByEmail('users', authEmail);
+    } catch { /* fall through to in-memory */ }
+  }
+  return usersState.find((u: User) => u.email?.trim().toLowerCase() === authEmail) || null;
+}
+
+function isProfileActive(p: User | null): p is User {
+  return !!p && !!p.role && (p.status === undefined || p.status === null || p.status === 'active');
+}
+
+async function requireSuperadmin(req: any, res: any, next: any) {
+  try {
+    const profile = await getCallerProfile(req);
+    if (!isProfileActive(profile) || profile!.role !== 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Forbidden: superadmin access required' });
+    }
+    (req as any).callerProfile = profile;
+    next();
+  } catch {
+    return res.status(500).json({ success: false, error: 'Authorization check failed' });
+  }
+}
+
+// superadmin OR admin — used for user directory management
+async function requireManagementAccess(req: any, res: any, next: any) {
+  try {
+    const profile = await getCallerProfile(req);
+    if (!isProfileActive(profile) || !['superadmin', 'admin'].includes(profile!.role)) {
+      return res.status(403).json({ success: false, error: 'Forbidden: management access required' });
+    }
+    (req as any).callerProfile = profile;
+    next();
+  } catch {
+    return res.status(500).json({ success: false, error: 'Authorization check failed' });
+  }
+}
+
+// ============================================================================
 // SECURITY: CORS — whitelist only known origins
 // MUST be before auth middleware so OPTIONS preflight gets 200, not 401
 // ============================================================================
@@ -173,22 +218,24 @@ app.use((_req, res, next) => {
   next();
 });
 
-// Apply auth to protected write endpoints (after CORS so OPTIONS preflight works)
+// Apply auth + role checks to protected write endpoints (after CORS so OPTIONS preflight works)
+// User directory writes: superadmin OR admin (admins manage their college's accounts)
 app.use('/api/users', (req, res, next) => {
   if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
+  authMiddleware(req, res, () => requireManagementAccess(req, res, next));
 });
+// Tenant CRUD writes: superadmin ONLY
 app.use('/api/colleges', (req, res, next) => {
   if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
+  authMiddleware(req, res, () => requireSuperadmin(req, res, next));
 });
 app.use('/api/canteens', (req, res, next) => {
   if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
+  authMiddleware(req, res, () => requireSuperadmin(req, res, next));
 });
 app.use('/api/subcanteens', (req, res, next) => {
   if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
+  authMiddleware(req, res, () => requireSuperadmin(req, res, next));
 });
 app.use('/api/canteen/menu', (req, res, next) => {
   if (req.method === 'GET') return next();
@@ -1562,16 +1609,59 @@ app.post('/api/users', async (req, res) => {
   if (!user.name || !user.email || !user.role) {
     return res.status(400).json({ success: false, error: 'Name, email, and role are required' });
   }
+  if (!ensureSupabaseClients()) {
+    return supabaseNotConfigured(res);
+  }
   const emailKey = user.email.trim().toLowerCase();
   if (!user.id) user.id = `user_${Date.now()}`;
   if (!user.status) user.status = 'active';
   if (!user.password) user.password = 'changeme_' + Math.random().toString(36).substring(2, 10);
   const rawPassword = user.password;
 
+  // Create the Supabase Auth account first (without it the profile can never log in).
+  let authUserId: string | null = null;
+  try {
+    // Reuse an existing profile's id when the email is already registered
+    let existing: any = null;
+    try { existing = pgReady ? await pgGetByEmail('users', emailKey) : null; } catch { existing = null; }
+
+    const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+      email: emailKey,
+      password: rawPassword,
+      email_confirm: true,
+      user_metadata: {
+        name: user.name,
+        phone: user.phone,
+        register_number: user.registerNumber,
+        college_id: user.collegeId,
+        role: user.role
+      }
+    });
+    if (authErr && !/already|registered|exists/i.test(authErr.message || '')) {
+      console.error('[users] Supabase Auth createUser failed:', authErr.message);
+    }
+    if (authData?.user?.id) {
+      authUserId = authData.user.id;
+    } else if (existing?.id) {
+      authUserId = existing.id;
+      // Account exists but may have a stale password — keep it in sync with what we return
+      await supabaseAdmin.auth.admin.updateUserById(existing.id, { password: rawPassword }).catch((e: any) => console.error('[users] password sync failed:', e?.message));
+    }
+  } catch (e: any) {
+    if (!/already|registered|exists/i.test(e?.message || '')) {
+      console.error('[users] Supabase Auth createUser failed:', e?.message);
+    }
+  }
+  if (authUserId) user.id = authUserId;
+
   if (pgReady) {
     try {
       const { password: _pw, ...userWithoutPassword } = user;
-      await pgSet('users', emailKey, { ...userWithoutPassword, password: hashPassword(rawPassword) });
+      // pgSet forces row.id = key param; if the auth trigger already inserted
+      // a profile (UUID id), reuse that row's id so the email UNIQUE holds.
+      const existingProfile = await pgGetByEmail('users', emailKey);
+      const rowKey = existingProfile?.id || authUserId || emailKey;
+      await pgSet('users', rowKey, { ...userWithoutPassword, password: hashPassword(rawPassword) });
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'DB Save failed' });
@@ -1587,6 +1677,7 @@ app.post('/api/users', async (req, res) => {
     usersState.push(hashedUser);
   }
 
+  dataCache.delete('users');
   saveLocalDB();
   const { password: _pw, ...safeUser } = user;
   res.json({ success: true, user: safeUser });
@@ -1595,6 +1686,15 @@ app.post('/api/users', async (req, res) => {
 app.delete('/api/users/:email', async (req, res) => {
   const { email } = req.params;
   const emailKey = email.trim().toLowerCase();
+
+  // Look up the profile BEFORE deleting so we can find the auth account id
+  let profile: any = null;
+  if (pgReady) {
+    try { profile = await pgGetByEmail('users', emailKey); } catch { profile = null; }
+  }
+  if (!profile) {
+    profile = usersState.find((u: User) => u.email?.toLowerCase() === emailKey) || null;
+  }
 
   // Delete from PostgreSQL
   if (pgReady) {
@@ -1605,7 +1705,14 @@ app.delete('/api/users/:email', async (req, res) => {
     }
   }
 
+  // Delete the Supabase Auth account (otherwise the login fallback re-provisions the profile)
+  if (ensureSupabaseClients() && profile?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(profile.id)) {
+    const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(profile.id);
+    if (delErr) console.error('[users] auth deleteUser failed:', delErr.message);
+  }
+
   usersState = usersState.filter(u => u.email.toLowerCase() !== emailKey);
+  dataCache.delete('users');
   saveLocalDB();
   res.json({ success: true });
 });
@@ -1614,9 +1721,15 @@ app.put('/api/users/:email/role', async (req, res) => {
   const { email } = req.params;
   const { role, posting, name, collegeId, canteenId, subCanteenId, status, password } = req.body;
   const emailKey = email.trim().toLowerCase();
+  const caller: User | undefined = (req as any).callerProfile;
 
   if (!role) {
     return res.status(400).json({ success: false, error: 'Role is required' });
+  }
+
+  // Escalation guard: only superadmin may grant admin/superadmin roles
+  if (caller && caller.role !== 'superadmin' && ['admin', 'superadmin'].includes(role)) {
+    return res.status(403).json({ success: false, error: 'Only superadmin can assign this role' });
   }
 
   const updates: Record<string, string> = { role };
@@ -1628,6 +1741,18 @@ app.put('/api/users/:email/role', async (req, res) => {
   if (status) updates.status = status;
   if (password) updates.password = hashPassword(password);
 
+  // Prevent admins from modifying superadmin/admin accounts
+  let targetProfile: any = null;
+  try {
+    targetProfile = pgReady ? await pgGetByEmail('users', emailKey) : null;
+  } catch { targetProfile = null; }
+  if (!targetProfile) {
+    targetProfile = usersState.find((u: User) => u.email?.toLowerCase() === emailKey) || null;
+  }
+  if (targetProfile && ['admin', 'superadmin'].includes(targetProfile.role) && caller && caller.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Only superadmin can modify this account' });
+  }
+
   if (pgReady) {
     try {
       await execute('UPDATE users SET role = $1, posting = COALESCE($2, posting), name = COALESCE($3, name), college_id = COALESCE($4, college_id), canteen_id = COALESCE($5, canteen_id), sub_canteen_id = COALESCE($6, sub_canteen_id), status = COALESCE($7, status), password = COALESCE($8, password) WHERE email = $9',
@@ -1638,11 +1763,34 @@ app.put('/api/users/:email/role', async (req, res) => {
     }
   }
 
+  // Keep the Supabase Auth account in sync (role metadata + password reset)
+  if (ensureSupabaseClients() && (password || name || role || collegeId)) {
+    try {
+      let authId: string | null = targetProfile?.id || null;
+      if (!authId) {
+        // Profile missing/legacy id — resolve via auth user list by email
+        const { data } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+        const match = (data?.users || []).find((u: SupabaseUser) => u.email?.trim().toLowerCase() === emailKey);
+        authId = match?.id || null;
+      }
+      if (authId && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(authId)) {
+        const attrs: any = {};
+        if (password) attrs.password = password;
+        attrs.user_metadata = { ...(targetProfile ? {} : {}), ...(name ? { name } : {}), role, college_id: collegeId !== undefined ? collegeId : targetProfile?.collegeId };
+        const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(authId, attrs);
+        if (updErr) console.error('[users] auth updateUserById failed:', updErr.message);
+      }
+    } catch (e: any) {
+      console.error('[users] auth sync failed:', e?.message);
+    }
+  }
+
   const idx = usersState.findIndex(u => u.email.toLowerCase() === emailKey);
   if (idx !== -1) {
     usersState[idx] = { ...usersState[idx], ...updates };
   }
 
+  dataCache.delete('users');
   saveLocalDB();
   return res.json({ success: true, message: 'User updated successfully' });
 });
