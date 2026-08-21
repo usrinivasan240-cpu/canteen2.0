@@ -79,15 +79,30 @@ app.use('/api/colleges', (req, res, next) => {
   if (req.method === 'GET') return next();
   authMiddleware(req, res, next);
 });
-app.use('/api/canteens', authMiddleware);
-app.use('/api/subcanteens', authMiddleware);
-app.use('/api/canteen/menu', authMiddleware);
+app.use('/api/canteens', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/subcanteens', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/canteen/menu', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
 app.use('/api/canteen/order', (req, res, next) => {
   if (req.method === 'GET') return next();
   authMiddleware(req, res, next);
 });
-app.use('/api/canteen/ingredients', authMiddleware);
-app.use('/api/canteen/settings', authMiddleware);
+app.use('/api/canteen/ingredients', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/canteen/settings', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
 app.use('/api/support-tickets', (req, res, next) => {
   if (req.method === 'GET') return next();
   authMiddleware(req, res, next);
