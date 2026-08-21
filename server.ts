@@ -870,7 +870,7 @@ app.post('/api/auth/login', async (req, res) => {
         }
 
         // SECURITY: Hardcoded test accounts — store with hashed passwords
-        if (['watson777@gmail.com', 'canteen_owner@gmail.com', 'superadmin@gmail.com', 'college_admin@gmail.com', 'chef@gmail.com', 'staff@gmail.com'].includes(normalizedEmail)) {
+        if (['watson777@gmail.com', 'canteen_owner@gmail.com', 'superadmin@gmail.com', 'college_admin@gmail.com', 'chef@gmail.com', 'staff@gmail.com', 'customer@gmail.com'].includes(normalizedEmail)) {
           let defaultRole = 'customer';
           let defaultName = 'Raju Watson';
           let collegeId: string | undefined;
