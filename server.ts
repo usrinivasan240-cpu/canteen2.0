@@ -17,18 +17,32 @@ import { pgGetById, pgGetAll, pgGetWhere, pgGetWhereOrdered, pgSet, pgUpdate, pg
 // Load environment variables
 dotenv.config();
 
-// Supabase Auth client (service role for admin operations, anon for verification)
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!;
+// Supabase Auth clients — lazily initialized so missing SUPABASE_* env vars
+// don't crash the whole serverless function at import time (Vercel cold start).
+let supabaseAdmin!: SupabaseClient;
+let supabaseClient!: SupabaseClient;
 
-const supabaseAdmin: SupabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: { autoRefreshToken: false, persistSession: false }
-});
+function ensureSupabaseClients(): boolean {
+  if (supabaseAdmin && supabaseClient) return true;
+  const url = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.SUPABASE_ANON_KEY;
+  if (!url || !serviceRoleKey || !anonKey) {
+    console.warn('[auth] SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY not set — auth endpoints disabled.');
+    return false;
+  }
+  supabaseAdmin = createClient(url, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  supabaseClient = createClient(url, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  return true;
+}
 
-const supabaseClient: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { autoRefreshToken: false, persistSession: false }
-});
+function supabaseNotConfigured(res: any) {
+  return res.status(503).json({ success: false, error: 'Authentication server is not configured. Please contact support.' });
+}
 
 const app = express();
 const PORT = 3000;
@@ -62,6 +76,9 @@ const PROTECTED_PATHS = [
 ];
 
 async function authMiddleware(req: any, res: any, next: any) {
+  if (!ensureSupabaseClients()) {
+    return supabaseNotConfigured(res);
+  }
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, error: 'Authentication required.' });
@@ -762,6 +779,7 @@ function getCanteenState(canteenId: string): Canteen {
 
 // 0. User Authentication (Register & Login)
 app.post('/api/auth/register', async (req, res) => {
+  if (!ensureSupabaseClients()) return supabaseNotConfigured(res);
   const { name, email, password, phone, registerNumber, collegeId } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ success: false, error: 'Name, email, and password are required.' });
@@ -869,6 +887,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
+  if (!ensureSupabaseClients()) return supabaseNotConfigured(res);
   const { email, password } = req.body;
   console.log('--- LOGIN ATTEMPT ---', { email });
   if (!email || !password) {
@@ -1039,6 +1058,7 @@ app.post('/api/auth/generate-otp', async (req, res) => {
 });
 
 app.post('/api/auth/verify-otp', async (req, res) => {
+  if (!ensureSupabaseClients()) return supabaseNotConfigured(res);
   const { email, otp } = req.body;
   if (!email || !otp) return res.status(400).json({ success: false, error: 'Email and OTP required' });
   const normalizedEmail = email.trim().toLowerCase();
