@@ -70,42 +70,31 @@ function authMiddleware(req: any, res: any, next: any) {
   }
 }
 
-// Apply auth to protected write endpoints
-app.use('/api/users', (req, res, next) => {
-  if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
-});
-app.use('/api/colleges', (req, res, next) => {
-  if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
-});
-app.use('/api/canteens', (req, res, next) => {
-  if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
-});
-app.use('/api/subcanteens', (req, res, next) => {
-  if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
-});
-app.use('/api/canteen/menu', (req, res, next) => {
-  if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
-});
-app.use('/api/canteen/order', (req, res, next) => {
-  if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
-});
-app.use('/api/canteen/ingredients', (req, res, next) => {
-  if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
-});
-app.use('/api/canteen/settings', (req, res, next) => {
-  if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
-});
-app.use('/api/support-tickets', (req, res, next) => {
-  if (req.method === 'GET') return next();
-  authMiddleware(req, res, next);
+// ============================================================================
+// SECURITY: CORS — whitelist only known origins
+// MUST be before auth middleware so OPTIONS preflight gets 200, not 401
+// ============================================================================
+const ALLOWED_ORIGINS = [
+  'https://canteen20.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'capacitor://localhost',
+  'http://localhost',
+];
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
 });
 
 // ============================================================================
@@ -152,28 +141,42 @@ app.use((_req, res, next) => {
   next();
 });
 
-// SECURITY: CORS — whitelist only known origins
-const ALLOWED_ORIGINS = [
-  'https://canteen20.vercel.app',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'capacitor://localhost',
-  'http://localhost',
-];
-
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
+// Apply auth to protected write endpoints (after CORS so OPTIONS preflight works)
+app.use('/api/users', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/colleges', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/canteens', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/subcanteens', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/canteen/menu', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/canteen/order', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/canteen/ingredients', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/canteen/settings', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
+app.use('/api/support-tickets', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
 });
 
 // Razorpay configuration
