@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw, Download, X } from 'lucide-react';
 import { API_BASE } from '../config';
 
-const BUNDLED_VERSION = '1.1.0';
+const BUNDLED_VERSION = '2.4.0';
 
 export default function UpdatePopup() {
   const [showUpdate, setShowUpdate] = useState(false);
@@ -52,7 +52,7 @@ export default function UpdatePopup() {
 
           <div className="flex flex-col gap-3 pt-2">
             <a
-              href={`${API_BASE}/app-debug.apk`}
+              href={`${API_BASE}/EscQ-v2.4.0.apk`}
               download
               className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-sm font-semibold transition-all flex items-center justify-center space-x-2 shadow-md"
             >

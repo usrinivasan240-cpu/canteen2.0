@@ -18,8 +18,8 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
 
   const handleDownload = () => {
     const link = document.createElement('a');
-    link.href = '/EscQ-v2.3.0.apk';
-    link.download = 'EscQ-v2.3.0.apk';
+    link.href = '/EscQ-v2.4.0.apk';
+    link.download = 'EscQ-v2.4.0.apk';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -100,7 +100,7 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
                 </div>
                 <div className="text-left">
                   <div className="text-xs font-normal opacity-80">Download APK</div>
-                  <div className="text-sm font-bold">EscQ-v2.3.0.apk</div>
+                  <div className="text-sm font-bold">EscQ-v2.4.0.apk</div>
                 </div>
                 <ExternalLink className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
               </button>

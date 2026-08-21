@@ -353,7 +353,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '2.4.0';
 const APP_UPDATE_URL = 'https://canteen20.vercel.app';
 
 app.get('/api/app-version', (req, res) => {
@@ -3694,6 +3694,11 @@ app.post('/api/canteen/order/status', async (req, res) => {
 
   if (!targetOrder) {
     return res.status(404).json({ success: false, error: 'Order not found.' });
+  }
+
+  // Read-only status probe used by client payment polling — must NEVER mutate the order
+  if (status === 'check') {
+    return res.json({ success: true, order: targetOrder });
   }
 
   let pickupText = targetOrder.pickupTimeText;
