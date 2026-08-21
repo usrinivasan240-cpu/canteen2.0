@@ -1430,6 +1430,7 @@ app.post('/api/canteens', async (req, res) => {
       settings: { noShowMinutes: 30, defaultSlotCapacity: 30, canteenId: canteenData.id }
     });
   }
+  dataCache.delete('canteens');
   saveLocalDB();
   res.json({ success: true, canteen: getCanteenState(canteenData.id) });
 });
@@ -1477,6 +1478,7 @@ app.put('/api/canteens/:id', async (req, res) => {
   }
   const idx = canteensState.findIndex(c => c.id === id);
   if (idx !== -1) canteensState[idx] = { ...canteensState[idx], ...cleanUpdates };
+  dataCache.delete('canteens');
   saveLocalDB();
   res.json({ success: true, canteen: canteensState[idx] || cleanUpdates });
 });
@@ -1535,6 +1537,7 @@ app.post('/api/subcanteens', async (req, res) => {
   } else {
     subCanteensState.push(sub);
   }
+  dataCache.delete('subcanteens');
   saveLocalDB();
   res.json({ success: true, subCanteen: sub });
 });
@@ -3951,16 +3954,22 @@ async function checkExpiredOrders() {
 
 // 7b. Update Settings (Owner)
 app.post('/api/canteen/settings', async (req, res) => {
-  const { noShowMinutes, defaultSlotCapacity } = req.body;
-  
+  const { noShowMinutes, defaultSlotCapacity, canteenId } = req.body;
+  const targetCanteenId = (typeof canteenId === 'string' && canteenId.trim()) ? canteenId.trim() : 'canteen_001';
+
   if (noShowMinutes !== undefined) canteenSettings.noShowMinutes = Number(noShowMinutes);
   if (defaultSlotCapacity !== undefined) canteenSettings.defaultSlotCapacity = Number(defaultSlotCapacity);
 
   if (pgReady) {
     try {
-      await pgSet('settings', 'settings_canteen_001', canteenSettings);
+      await pgSet('settings', `settings_${targetCanteenId}`, {
+        noShowMinutes: Number(canteenSettings.noShowMinutes),
+        defaultSlotCapacity: Number(canteenSettings.defaultSlotCapacity),
+        canteenId: targetCanteenId
+      });
     } catch (e) {
       console.error(e);
+      return res.status(500).json({ success: false, error: 'Failed to save settings to database.' });
     }
   }
   canteenState.settings = canteenSettings;

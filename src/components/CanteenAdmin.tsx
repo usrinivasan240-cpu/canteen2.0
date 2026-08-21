@@ -22,6 +22,7 @@ interface CanteenAdminProps {
   onLogout: () => void;
   userRole?: 'owner' | 'chef' | 'staff';
   subCanteenId?: string;
+  canteenId?: string;
 }
 
 function parseSlotToTimestamp(slot: string): number {
@@ -50,7 +51,8 @@ export default function CanteenAdmin({
   onFetchCanteen,
   onLogout,
   userRole,
-  subCanteenId
+  subCanteenId,
+  canteenId
 }: CanteenAdminProps) {
   const orders = subCanteenId
     ? rawOrders.filter(o => !o.subCanteenId || o.subCanteenId === subCanteenId)
@@ -496,6 +498,7 @@ export default function CanteenAdmin({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          canteenId: canteenId,
           noShowMinutes: Number(noShowMinutesVal),
           defaultSlotCapacity: Number(defaultSlotCapacityVal)
         })

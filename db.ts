@@ -98,9 +98,53 @@ function toCamelCase(obj: any): any {
   return result;
 }
 
+// ============================================================================
+// Schema introspection: per-table primary keys and real column names.
+// Keeps the Firestore-style helpers safe against extra/unknown fields and
+// non-'id' primary keys (e.g. settings.canteen_id, otp_store.email).
+// ============================================================================
+
+/** Tables whose primary key is NOT 'id'. */
+const TABLE_PK: Record<string, string> = {
+  settings: 'canteen_id',
+  otp_store: 'email',
+};
+
+function getPkColumn(table: string): string {
+  return TABLE_PK[table] || 'id';
+}
+
+const tableColumnsCache = new Map<string, Set<string>>();
+
+async function getTableColumns(table: string): Promise<Set<string> | null> {
+  const cached = tableColumnsCache.get(table);
+  if (cached) return cached;
+  try {
+    const rows = await query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
+      [table]
+    );
+    if (rows.length === 0) return null;
+    const cols = new Set(rows.map((r: any) => r.column_name));
+    tableColumnsCache.set(table, cols);
+    return cols;
+  } catch {
+    return null;
+  }
+}
+
+function filterKnownColumns(snakeData: Record<string, any>, cols: Set<string>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(snakeData)) {
+    if (cols.has(key)) result[key] = value;
+  }
+  return result;
+}
+
 /** pgGetById('users', 'test@gmail.com') — equivalent to db.collection('users').doc(id).get() */
 export async function pgGetById(table: string, id: string): Promise<any | null> {
-  const row = await queryOne(`SELECT * FROM ${table} WHERE id = $1`, [id]);
+  const pk = getPkColumn(table);
+  const row = await queryOne(`SELECT * FROM ${table} WHERE ${pk} = $1`, [id]);
   return row ? toCamelCase(row) : null;
 }
 
@@ -144,22 +188,42 @@ export async function pgGetWhereOrdered(
 
 /** pgSet('users', 'test@gmail.com', userData) — upsert */
 export async function pgSet(table: string, id: string, data: any): Promise<void> {
-  const snakeData = toSnakeCase({ ...data, id });
-  const columns = Object.keys(snakeData);
+  const pk = getPkColumn(table);
+  const snakeData = toSnakeCase({ ...data });
+  snakeData[pk] = id;
+
+  // Drop fields that don't exist as real columns (schema-drift safety).
+  const cols = await getTableColumns(table);
+  const knownData = cols ? filterKnownColumns(snakeData, cols) : snakeData;
+
+  const columns = Object.keys(knownData);
+  if (!columns.includes(pk)) return; // cannot upsert without the key
+
   const placeholders = columns.map((_, i) => `$${i + 1}`);
-  const updateClauses = columns.filter(c => c !== 'id').map(c => `${c} = $${columns.indexOf(c) + 1}`);
+  const updateColumns = columns.filter(c => c !== pk);
   const values = columns.map(c => {
-    const v = snakeData[c];
+    const v = knownData[c];
     // node-postgres doesn't auto-serialize JS objects/arrays for JSONB columns
     return (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v;
   });
-  const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) ON CONFLICT (id) DO UPDATE SET ${updateClauses.join(', ')}`;
+
+  let sql: string;
+  if (updateColumns.length === 0) {
+    sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) ON CONFLICT (${pk}) DO NOTHING`;
+  } else {
+    const updateClauses = updateColumns.map(c => `${c} = $${columns.indexOf(c) + 1}`);
+    sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) ON CONFLICT (${pk}) DO UPDATE SET ${updateClauses.join(', ')}`;
+  }
   await execute(sql, values);
 }
 
 /** pgUpdate('users', 'test@gmail.com', {role: 'admin'}) — partial update */
 export async function pgUpdate(table: string, id: string, data: any): Promise<void> {
-  const snakeData = toSnakeCase(data);
+  const pk = getPkColumn(table);
+  let snakeData = toSnakeCase(data);
+  const cols = await getTableColumns(table);
+  if (cols) snakeData = filterKnownColumns(snakeData, cols);
+  delete snakeData[pk]; // never overwrite the key itself
   const columns = Object.keys(snakeData);
   if (columns.length === 0) return;
   const setClauses = columns.map((c, i) => `${c} = $${i + 1}`);
@@ -167,12 +231,13 @@ export async function pgUpdate(table: string, id: string, data: any): Promise<vo
     const v = snakeData[c];
     return (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v;
   }), id];
-  await execute(`UPDATE ${table} SET ${setClauses.join(', ')} WHERE id = $${columns.length + 1}`, values);
+  await execute(`UPDATE ${table} SET ${setClauses.join(', ')} WHERE ${pk} = $${columns.length + 1}`, values);
 }
 
 /** pgDelete('users', 'test@gmail.com') */
 export async function pgDelete(table: string, id: string): Promise<void> {
-  await execute(`DELETE FROM ${table} WHERE id = $1`, [id]);
+  const pk = getPkColumn(table);
+  await execute(`DELETE FROM ${table} WHERE ${pk} = $1`, [id]);
 }
 
 /** pgDeleteWhere('items', {canteenId: 'c_001'}) */
@@ -186,7 +251,9 @@ export async function pgDeleteWhere(table: string, conditions: Record<string, an
 
 /** pgIncrement('items', 'item_001', 'bookedToday', 1) */
 export async function pgIncrement(table: string, id: string, column: string, amount: number): Promise<void> {
-  await execute(`UPDATE ${table} SET ${camelToSnake(column)} = ${camelToSnake(column)} + $1 WHERE id = $2`, [amount, id]);
+  const pk = getPkColumn(table);
+  const col = camelToSnake(column);
+  await execute(`UPDATE ${table} SET ${col} = ${col} + $1 WHERE ${pk} = $2`, [amount, id]);
 }
 
 /** pgGetByEmail('users', 'test@gmail.com') — query by email field */

@@ -528,6 +528,7 @@ export default function App() {
             onLogout={handleLogout}
             userRole={role}
             subCanteenId={currentUser?.subCanteenId}
+            canteenId={selectedCanteenId || currentUser?.canteenId}
           />
         ) : (
           <ServicePanel
