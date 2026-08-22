@@ -18,8 +18,8 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
 
   const handleDownload = () => {
     const link = document.createElement('a');
-    link.href = '/EscQ-v2.3.1.apk';
-    link.download = 'EscQ-v2.3.1.apk';
+    link.href = '/EscQ-v2.3.1-arm64.apk';
+    link.download = 'EscQ-v2.3.1-arm64.apk';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -100,7 +100,7 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
                 </div>
                 <div className="text-left">
                   <div className="text-xs font-normal opacity-80">Download APK</div>
-                  <div className="text-sm font-bold">EscQ-v2.3.1.apk</div>
+                  <div className="text-sm font-bold">EscQ v2.3.1 (29 MB)</div>
                 </div>
                 <ExternalLink className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
               </button>
@@ -112,13 +112,19 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
                 </div>
               )}
 
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] text-gray-500 mt-1">
+                <a href="/EscQ-v2.3.1-arm32.apk" download className="underline hover:text-amber-400 transition-colors">Older phone (32-bit, 26 MB)</a>
+                <span>•</span>
+                <a href="/EscQ-v2.3.1.apk" download className="underline hover:text-amber-400 transition-colors">All devices (70 MB)</a>
+              </div>
+
               <div className="flex items-center gap-4 text-[10px] text-gray-500 mt-1">
                 <span className="flex items-center gap-1">
                   <Smartphone className="h-3 w-3" />
                   Android 5.0+
                 </span>
                 <span>•</span>
-                  <span>~70 MB</span>
+                  <span>~29 MB</span>
                 <span>•</span>
                 <span>Free</span>
               </div>
