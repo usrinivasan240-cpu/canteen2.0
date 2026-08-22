@@ -11,12 +11,27 @@ class OrderItem {
     required this.quantity,
   });
 
+  static int _asInt(dynamic v, [int fallback = 0]) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
+  }
+
+  static double _asDouble(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0;
+    return 0;
+  }
+
   factory OrderItem.fromJson(Map<String, dynamic> json) {
     return OrderItem(
-      itemId: json['itemId'] ?? '',
+      itemId: json['itemId'] ?? json['id'] ?? '',
       name: json['name'] ?? '',
-      price: (json['price'] ?? 0).toDouble(),
-      quantity: json['quantity'] ?? 1,
+      price: _asDouble(json['price']),
+      quantity: _asInt(json['quantity'], 1),
     );
   }
 
@@ -107,21 +122,21 @@ class Order {
       items: (json['items'] as List<dynamic>?)
           ?.map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
           .toList() ?? [],
-      totalPrice: (json['totalPrice'] ?? 0).toDouble(),
+      totalPrice: OrderItem._asDouble(json['totalPrice']),
       paymentStatus: json['paymentStatus'] ?? 'pending',
       paymentMethod: json['paymentMethod'] ?? '',
       qrCode: json['qrCode'] ?? '',
-      qrPayload: json['qrPayload'],
+      qrPayload: json['qrPayload']?.toString(),
       status: json['status'] ?? 'scheduled',
-      timestamp: json['timestamp'],
-      createdAt: json['createdAt'],
-      pickupTimeText: json['pickupTimeText'],
-      pickupSlot: json['pickupSlot'],
-      prepStartTime: json['prepStartTime'],
-      expiryTime: json['expiryTime'],
-      canteenId: json['canteenId'],
-      subCanteenId: json['subCanteenId'],
-      collegeId: json['collegeId'],
+      timestamp: json['timestamp']?.toString(),
+      createdAt: OrderItem._asInt(json['createdAt']),
+      pickupTimeText: json['pickupTimeText']?.toString(),
+      pickupSlot: json['pickupSlot']?.toString(),
+      prepStartTime: OrderItem._asInt(json['prepStartTime']),
+      expiryTime: OrderItem._asInt(json['expiryTime']),
+      canteenId: json['canteenId']?.toString(),
+      subCanteenId: json['subCanteenId']?.toString(),
+      collegeId: json['collegeId']?.toString(),
     );
   }
 }
