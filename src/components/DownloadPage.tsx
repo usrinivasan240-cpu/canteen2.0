@@ -18,8 +18,8 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
 
   const handleDownload = () => {
     const link = document.createElement('a');
-    link.href = '/EscQ-v2.3.1-arm64.apk';
-    link.download = 'EscQ-v2.3.1-arm64.apk';
+    link.href = '/EscQ-v2.3.2-arm64.apk';
+    link.download = 'EscQ-v2.3.2-arm64.apk';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -100,7 +100,7 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
                 </div>
                 <div className="text-left">
                   <div className="text-xs font-normal opacity-80">Download APK</div>
-                  <div className="text-sm font-bold">EscQ v2.3.1 (29 MB)</div>
+                  <div className="text-sm font-bold">EscQ v2.3.2 (29 MB)</div>
                 </div>
                 <ExternalLink className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
               </button>
@@ -113,9 +113,9 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
               )}
 
               <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] text-gray-500 mt-1">
-                <a href="/EscQ-v2.3.1-arm32.apk" download className="underline hover:text-amber-400 transition-colors">Older phone (32-bit, 26 MB)</a>
+                <a href="/EscQ-v2.3.2-arm32.apk" download className="underline hover:text-amber-400 transition-colors">Older phone (32-bit, 26 MB)</a>
                 <span>•</span>
-                <a href="/EscQ-v2.3.1.apk" download className="underline hover:text-amber-400 transition-colors">All devices (70 MB)</a>
+                <span>v2.3.2 — QR ticket after payment</span>
               </div>
 
               <div className="flex items-center gap-4 text-[10px] text-gray-500 mt-1">
