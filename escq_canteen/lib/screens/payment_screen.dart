@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../providers/cart_provider.dart';
@@ -32,6 +31,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
   Timer? _pollTimer;
   int _pollCount = 0;
   late Razorpay _razorpay;
+  Timer? _recoveryTimer;
+  int _recoverySeconds = 0;
 
   @override
   void initState() {
@@ -46,36 +47,77 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _recoveryTimer?.cancel();
     _razorpay.clear();
     super.dispose();
   }
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) async {
     debugPrint('[Razorpay] Payment success: orderId=${response.orderId}, paymentId=${response.paymentId}');
+    _pollTimer?.cancel();
 
-    // Show success immediately — payment IS confirmed by Razorpay
+    if (!mounted) return;
     setState(() { waitingForPayment = false; isProcessing = false; isComplete = true; });
 
-    // Verify in background (fire and forget)
-    try {
-      final api = ApiService();
-      api.verifyRazorpayPayment(
-        razorpayOrderId: response.orderId ?? '',
-        razorpayPaymentId: response.paymentId ?? '',
-        razorpaySignature: response.signature ?? '',
-      ).then((verifyResult) {
+    final api = ApiService();
+    final auth = context.read<AuthProvider>();
+    final orderProv = context.read<OrderProvider>();
+    final userId = auth.user?.id ?? '';
+
+    for (int attempt = 0; attempt < 4; attempt++) {
+      if (!mounted) return;
+      try {
+        debugPrint('[Razorpay] Verify attempt ${attempt + 1}/4');
+        final verifyResult = await api.verifyRazorpayPayment(
+          razorpayOrderId: response.orderId ?? '',
+          razorpayPaymentId: response.paymentId ?? '',
+          razorpaySignature: response.signature ?? '',
+        );
+        debugPrint('[Razorpay] Verify result: success=${verifyResult['success']}, hasOrder=${verifyResult['order'] != null}');
         if (verifyResult['success'] == true && verifyResult['order'] != null) {
-          final order = Order.fromJson(verifyResult['order']);
-          context.read<OrderProvider>().setLastOrder(order);
+          try {
+            final order = Order.fromJson(verifyResult['order']);
+            if (!mounted) return;
+            orderProv.setLastOrder(order);
+            debugPrint('[Razorpay] Order loaded from verify: ${order.id}');
+            orderProv.loadOrders(userId);
+            return;
+          } catch (e) {
+            debugPrint('[Razorpay] Order.fromJson failed: $e');
+          }
         }
-        final auth = context.read<AuthProvider>();
-        context.read<OrderProvider>().loadOrders(auth.user?.id ?? '');
-      }).catchError((e) {
-        debugPrint('[Razorpay] Background verify failed: $e');
-      });
-    } catch (e) {
-      debugPrint('[Razorpay] Verify setup failed: $e');
+        if (verifyResult['alreadyVerified'] == true) {
+          debugPrint('[Razorpay] Already verified, fetching from orders list');
+          break;
+        }
+      } catch (e) {
+        debugPrint('[Razorpay] Verify attempt $attempt failed: $e');
+      }
+      if (attempt < 3) await Future.delayed(Duration(seconds: 2 * (attempt + 1)));
     }
+
+    debugPrint('[Razorpay] Falling back to orders-list poll');
+    for (int i = 0; i < 30; i++) {
+      if (!mounted) return;
+      try {
+        final orders = await api.getUserOrders(userId);
+        final match = orders.where((o) => o.id == orderId).toList();
+        if (match.isNotEmpty) {
+          final order = match.first;
+          if (order.paymentStatus == 'paid' || order.status == 'scheduled' || order.status == 'ready') {
+            if (!mounted) return;
+            orderProv.setLastOrder(order);
+            orderProv.loadOrders(userId);
+            debugPrint('[Razorpay] Order found via poll: ${order.id} status=${order.status}');
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint('[Razorpay] Orders poll attempt $i failed: $e');
+      }
+      await Future.delayed(const Duration(seconds: 2));
+    }
+    debugPrint('[Razorpay] All recovery attempts exhausted — lastOrder still null');
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
@@ -152,9 +194,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
       _pollCount++;
       if (_pollCount > 60) {
         _pollTimer?.cancel();
+        if (!mounted) return;
         setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment timed out. Please check your orders.'; });
         return;
       }
+      if (!mounted) return;
       try {
         final api = ApiService();
         final auth = context.read<AuthProvider>();
@@ -164,15 +208,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
           final order = match.first;
           if (order.paymentStatus == 'paid' || order.status == 'scheduled' || order.status == 'ready') {
             _pollTimer?.cancel();
+            if (!mounted) return;
             context.read<OrderProvider>().setLastOrder(order);
             context.read<OrderProvider>().loadOrders(auth.user?.id ?? '');
             setState(() { waitingForPayment = false; isComplete = true; });
           } else if (order.status == 'cancelled' || order.status == 'expired') {
             _pollTimer?.cancel();
+            if (!mounted) return;
             setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment was not completed'; });
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[Polling] Error: $e');
+      }
     });
   }
 
@@ -347,10 +395,40 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+  void _startRecoveryTimer() {
+    if (_recoveryTimer != null && _recoveryTimer!.isActive) return;
+    _recoverySeconds = 0;
+    _recoveryTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
+      setState(() => _recoverySeconds++);
+      if (_recoverySeconds >= 45) t.cancel();
+    });
+  }
+
+  Future<void> _manualRecovery() async {
+    try {
+      final api = ApiService();
+      final auth = context.read<AuthProvider>();
+      final orders = await api.getUserOrders(auth.user?.id ?? '');
+      final match = orders.where((o) => o.id == orderId).toList();
+      if (match.isNotEmpty) {
+        if (!mounted) return;
+        context.read<OrderProvider>().setLastOrder(match.first);
+        context.read<OrderProvider>().loadOrders(auth.user?.id ?? '');
+      } else {
+        if (!mounted) return;
+        setState(() => _recoverySeconds = 0);
+      }
+    } catch (e) {
+      debugPrint('[Recovery] Manual retry failed: $e');
+    }
+  }
+
   Widget _buildSuccess() {
     final order = context.watch<OrderProvider>().lastOrder;
 
     if (order == null) {
+      _startRecoveryTimer();
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -367,19 +445,45 @@ class _PaymentScreenState extends State<PaymentScreen> {
             const SizedBox(height: 24),
             const Text('Payment Successful!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF111827))),
             const SizedBox(height: 20),
-            const SizedBox(height: 36, width: 36, child: CircularProgressIndicator(color: Color(0xFFF59E0B), strokeWidth: 3)),
-            const SizedBox(height: 16),
-            const Text('Generating your QR ticket...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
-            const SizedBox(height: 6),
-            Text('Confirming payment and preparing your bill', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+            if (_recoverySeconds < 20) ...[
+              const SizedBox(height: 36, width: 36, child: CircularProgressIndicator(color: Color(0xFFF59E0B), strokeWidth: 3)),
+              const SizedBox(height: 16),
+              const Text('Generating your QR ticket...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+              const SizedBox(height: 6),
+              Text('Confirming payment and preparing your bill', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+            ],
             if (orderId != null) ...[
               const SizedBox(height: 8),
               Text('Order ID: $orderId', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+            ],
+            const SizedBox(height: 12),
+            Text('Recovery attempt: ${_recoverySeconds}s', style: TextStyle(fontSize: 10, color: Colors.grey[400])),
+            if (_recoverySeconds >= 20) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _manualRecovery,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Tap to Refresh', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF59E0B),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
+                },
+                child: const Text('Go to My Orders', style: TextStyle(fontSize: 12, color: Color(0xFFD97706))),
+              ),
             ],
           ],
         ),
       );
     }
+
+    _recoveryTimer?.cancel();
 
     return Center(
       child: SingleChildScrollView(

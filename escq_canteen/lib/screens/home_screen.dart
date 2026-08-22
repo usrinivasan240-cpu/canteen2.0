@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -52,12 +53,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Logo cache to prevent blinking on rebuilds
   final Map<String, Uint8List> _logoCache = {};
+  Timer? _orderRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _isLoading = false;
     _loadAll();
+    _orderRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      final userId = auth.user?.id ?? '';
+      if (userId.isNotEmpty) _refreshOrders(userId);
+    });
+  }
+
+  @override
+  void dispose() {
+    _orderRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadAll() async {
@@ -887,8 +901,16 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final api = ApiService();
       final orders = await api.getUserOrders(userId);
-      if (mounted) setState(() => _userOrders = orders);
-    } catch (_) {}
+      if (!mounted) return;
+      setState(() => _userOrders = orders);
+      final orderProv = context.read<OrderProvider>();
+      if (orderProv.lastOrder != null) {
+        final updated = orders.where((o) => o.id == orderProv.lastOrder!.id).toList();
+        if (updated.isNotEmpty) orderProv.setLastOrder(updated.first);
+      }
+    } catch (e) {
+      debugPrint('[Home] _refreshOrders error: $e');
+    }
   }
 
   // ─── SUCCESS TICKET ──────────────────────────────────────

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config.dart';
 import '../models/menu_item.dart';
@@ -158,7 +159,15 @@ class ApiService {
     if (canteenId != null) params['canteenId'] = canteenId;
     final data = await _get('/api/user/orders', params);
     if (data['success'] == true && data['orders'] != null) {
-      return (data['orders'] as List).map((o) => Order.fromJson(o)).toList();
+      final List<Order> parsed = [];
+      for (final o in (data['orders'] as List)) {
+        try {
+          parsed.add(Order.fromJson(o as Map<String, dynamic>));
+        } catch (e) {
+          debugPrint('[ApiService] Skipping unparseable order: $e');
+        }
+      }
+      return parsed;
     }
     return [];
   }
@@ -195,26 +204,40 @@ class ApiService {
     return [];
   }
 
-  // Razorpay verify (fast, no retry)
+  // Razorpay verify with retry (server may be cold-starting)
   Future<Map<String, dynamic>> verifyRazorpayPayment({
     required String razorpayOrderId,
     required String razorpayPaymentId,
     required String razorpaySignature,
   }) async {
-    try {
-      final resp = await http.post(
-        Uri.parse('$_baseUrl/api/razorpay/verify'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'razorpay_order_id': razorpayOrderId,
-          'razorpay_payment_id': razorpayPaymentId,
-          'razorpay_signature': razorpaySignature,
-        }),
-      ).timeout(const Duration(seconds: 15));
-      return jsonDecode(resp.body);
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        final resp = await http.post(
+          Uri.parse('$_baseUrl/api/razorpay/verify'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'razorpay_order_id': razorpayOrderId,
+            'razorpay_payment_id': razorpayPaymentId,
+            'razorpay_signature': razorpaySignature,
+          }),
+        ).timeout(const Duration(seconds: 30));
+        final data = jsonDecode(resp.body);
+        if (data['success'] == true || data['alreadyVerified'] == true) return data;
+        // Server may not have order yet (cold start) — retry
+        if (data['retryable'] == true && attempt < 2) {
+          await Future.delayed(Duration(seconds: 2 * (attempt + 1)));
+          continue;
+        }
+        return data;
+      } catch (e) {
+        if (attempt < 2) {
+          await Future.delayed(Duration(seconds: 2 * (attempt + 1)));
+          continue;
+        }
+        return {'success': false, 'error': e.toString()};
+      }
     }
+    return {'success': false, 'error': 'Verify failed after retries'};
   }
 
   Future<Map<String, dynamic>> verifyQr(String code) async {
