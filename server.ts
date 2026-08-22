@@ -2542,8 +2542,24 @@ app.post('/api/razorpay/verify', async (req, res) => {
       .digest('hex');
 
     if (expectedSignature !== razorpay_signature) {
-      console.error(`[Razorpay Verify] ❌ Signature mismatch for order ${razorpay_order_id}`);
-      return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
+      console.warn(`[Razorpay Verify] Signature mismatch for order ${razorpay_order_id} — attempting Razorpay API fallback`);
+      let apiVerified = false;
+      try {
+        if (razorpayKeyId && razorpayKeySecret) {
+          const auth = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
+          const resp = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, { headers: { Authorization: `Basic ${auth}` } });
+          if (resp.ok) {
+            const pay = await resp.json() as any;
+            if (pay && pay.order_id === razorpay_order_id && ['captured', 'authorized'].includes(pay.status)) {
+              apiVerified = true;
+              console.log(`[Razorpay Verify] ✅ API fallback verified payment ${razorpay_payment_id} (status=${pay.status}) for order ${razorpay_order_id}`);
+            }
+          }
+        }
+      } catch (apiErr) {
+        console.error('[Razorpay Verify] API fallback error:', apiErr);
+      }
+      if (!apiVerified) return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
     }
 
     console.log(`[Razorpay Verify] ✅ Signature verified for order ${razorpay_order_id}`);
@@ -3095,8 +3111,24 @@ app.post('/api/payment/razorpay-verify', async (req, res) => {
       .digest('hex');
 
     if (expectedSignature !== razorpay_signature) {
-      console.error(`[Razorpay Verify] ❌ Signature mismatch for order ${razorpay_order_id}`);
-      return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
+      console.warn(`[Razorpay Verify] Signature mismatch for order ${razorpay_order_id} — attempting Razorpay API fallback`);
+      let apiVerified = false;
+      try {
+        if (razorpayKeyId && razorpayKeySecret) {
+          const auth = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
+          const resp = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, { headers: { Authorization: `Basic ${auth}` } });
+          if (resp.ok) {
+            const pay = await resp.json() as any;
+            if (pay && pay.order_id === razorpay_order_id && ['captured', 'authorized'].includes(pay.status)) {
+              apiVerified = true;
+              console.log(`[Razorpay Verify] ✅ API fallback verified payment ${razorpay_payment_id} (status=${pay.status}) for order ${razorpay_order_id}`);
+            }
+          }
+        }
+      } catch (apiErr) {
+        console.error('[Razorpay Verify] API fallback error:', apiErr);
+      }
+      if (!apiVerified) return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
     }
 
     console.log(`[Razorpay Verify] ✅ Signature verified for order ${razorpay_order_id}`);
