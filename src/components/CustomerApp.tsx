@@ -454,7 +454,7 @@ export default function CustomerApp({
 
             const options = {
               key: res.razorpayKeyId,
-              amount: res.amount,
+              amount: Math.round(res.amount * 100),
               currency: res.currency,
               name: 'Esc(Q) Canteen',
               description: 'Food Order Payment',

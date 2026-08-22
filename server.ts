@@ -243,6 +243,7 @@ app.use('/api/canteen/menu', (req, res, next) => {
 });
 app.use('/api/canteen/order', (req, res, next) => {
   if (req.method === 'GET') return next();
+  if (!req.headers['authorization']) return next();
   authMiddleware(req, res, next);
 });
 app.use('/api/canteen/ingredients', (req, res, next) => {
@@ -2304,7 +2305,8 @@ app.post('/api/canteen/order', async (req, res) => {
         useRazorpay: true,
         razorpayOrderId: razorpayOrder.id,
         razorpayKeyId: razorpayKeyId,
-        amount: totalAmountPaise,
+        amount: totalPrice,
+        amountPaise: totalAmountPaise,
         currency: 'INR',
         order: newOrder,
         qrPayload: generateSignedQR(orderId)
