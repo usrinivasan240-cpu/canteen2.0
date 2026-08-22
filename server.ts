@@ -1909,6 +1909,8 @@ app.get('/api/user/orders', async (req, res) => {
       // Try simple userId query
       try {
         orders = await pgGetWhereOrdered('orders', { userId }, 'created_at', 'desc', 100) as Order[];
+        // Auto-reconcile: fulfill pending Razorpay orders whose payment actually succeeded
+        await autoReconcileRazorpayOrders(orders);
         orders = orders.map(o => {
           if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
           return o;
@@ -2521,6 +2523,111 @@ app.post('/api/canteen/order', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// Razorpay order fulfillment (shared) — stock/ingredient deduction + mark paid
+// ──────────────────────────────────────────────────────────────────────────────
+async function fulfillRazorpayOrder(targetOrder: Order, razorpay_payment_id: string, razorpay_signature: string): Promise<Order> {
+  let currentItems: MenuItem[] = [];
+  if (pgReady) {
+    currentItems = await pgGetAll('items') as MenuItem[];
+  } else {
+    currentItems = canteenState.items;
+  }
+
+  let currentIngredients: Ingredient[] = [];
+  if (pgReady) {
+    currentIngredients = await pgGetAll('ingredients') as Ingredient[];
+  } else {
+    currentIngredients = canteenState.ingredients || [];
+  }
+
+  for (const item of targetOrder.items) {
+    const itemInMenu = currentItems.find(i => i.id === item.itemId);
+    if (itemInMenu) {
+      itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
+      itemInMenu.bookedToday += item.quantity;
+      if (itemInMenu.stock <= 0) {
+        itemInMenu.available = false;
+      }
+      if (pgReady) {
+        await pgSet('items', itemInMenu.id, itemInMenu);
+      }
+
+      if (itemInMenu.recipe) {
+        for (const recipeItem of itemInMenu.recipe) {
+          const reqAmount = recipeItem.amountGrams * item.quantity;
+          const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
+          if (ingredient) {
+            ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
+            if (pgReady) {
+              await pgSet('ingredients', ingredient.id, ingredient);
+            }
+          }
+        }
+      }
+    }
+  }
+  canteenState.items = currentItems;
+  canteenState.ingredients = currentIngredients;
+
+  const containsChefItems = targetOrder.items.some(it => {
+    const itemMenu = currentItems.find(m => m.id === it.itemId);
+    return itemMenu ? itemMenu.requiresChef !== false : true;
+  });
+
+  const updatedOrder: Order = {
+    ...targetOrder,
+    paymentStatus: 'paid',
+    status: containsChefItems ? 'scheduled' : 'ready',
+    razorpayPaymentId: razorpay_payment_id,
+    razorpaySignature: razorpay_signature,
+    pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
+  };
+
+  if (pgReady) {
+    await pgSet('orders', updatedOrder.id, updatedOrder);
+  }
+
+  canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
+  console.log(`[Razorpay Verify] ✅ Order ${targetOrder.id} marked as paid`);
+  return updatedOrder;
+}
+
+// Server-side auto-reconciliation: when clients poll for orders, any PENDING
+// order that has a razorpayOrderId is checked against the Razorpay API. If a
+// captured payment exists (even if the client's verify call never landed),
+// the order is fulfilled automatically. Each order id is checked once per
+// server instance to avoid hammering the Razorpay API on every poll.
+const razorpayReconcileChecked = new Set<string>();
+async function autoReconcileRazorpayOrders(orders: Order[]): Promise<void> {
+  if (!razorpayKeyId || !razorpayKeySecret) return;
+  const pending = orders.filter(o =>
+    o && o.paymentStatus !== 'paid' && o.razorpayOrderId && !razorpayReconcileChecked.has(o.id)
+  );
+  if (pending.length === 0) return;
+
+  const auth = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
+  for (const order of pending) {
+    razorpayReconcileChecked.add(order.id);
+    try {
+      const resp = await fetch(`https://api.razorpay.com/v1/payments?order_id=${encodeURIComponent(order.razorpayOrderId!)}`, { headers: { Authorization: `Basic ${auth}` } });
+      if (!resp.ok) continue;
+      const data = await resp.json() as any;
+      const captured = (data?.items || []).find((p: any) => ['captured', 'authorized'].includes(p?.status));
+      if (captured) {
+        console.log(`[Razorpay Reconcile] ✅ Auto-fulfilling order ${order.id} — captured payment ${captured.id} found for ${order.razorpayOrderId}`);
+        const updated = await fulfillRazorpayOrder(order, captured.id, 'api-reconciled');
+        Object.assign(order, updated);
+        order.paymentStatus = 'paid';
+      } else {
+        console.log(`[Razorpay Reconcile] No captured payment yet for order ${order.id} (${order.razorpayOrderId})`);
+      }
+    } catch (e) {
+      console.warn(`[Razorpay Reconcile] Check failed for order ${order.id}:`, e);
+    }
+  }
+}
+
 // 4b. Razorpay Payment Verification — POST /api/razorpay/verify
 // Verifies payment signature using HMAC-SHA256
 // ──────────────────────────────────────────────────────────────────────────────
@@ -2613,70 +2720,8 @@ app.post('/api/razorpay/verify', async (req, res) => {
     }
 
     // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
-    let currentItems: MenuItem[] = [];
-    if (pgReady) {
-      currentItems = await pgGetAll('items') as MenuItem[];
-    } else {
-      currentItems = canteenState.items;
-    }
+    const updatedOrder = await fulfillRazorpayOrder(targetOrder, razorpay_payment_id, razorpay_signature);
 
-    let currentIngredients: Ingredient[] = [];
-    if (pgReady) {
-      currentIngredients = await pgGetAll('ingredients') as Ingredient[];
-    } else {
-      currentIngredients = canteenState.ingredients || [];
-    }
-
-    for (const item of targetOrder.items) {
-      const itemInMenu = currentItems.find(i => i.id === item.itemId);
-      if (itemInMenu) {
-        itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
-        itemInMenu.bookedToday += item.quantity;
-        if (itemInMenu.stock <= 0) {
-          itemInMenu.available = false;
-        }
-        if (pgReady) {
-          await pgSet('items', itemInMenu.id, itemInMenu);
-        }
-
-        if (itemInMenu.recipe) {
-          for (const recipeItem of itemInMenu.recipe) {
-            const reqAmount = recipeItem.amountGrams * item.quantity;
-            const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
-            if (ingredient) {
-              ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
-              if (pgReady) {
-                await pgSet('ingredients', ingredient.id, ingredient);
-              }
-            }
-          }
-        }
-      }
-    }
-    canteenState.items = currentItems;
-    canteenState.ingredients = currentIngredients;
-
-    const containsChefItems = targetOrder.items.some(it => {
-      const itemMenu = currentItems.find(m => m.id === it.itemId);
-      return itemMenu ? itemMenu.requiresChef !== false : true;
-    });
-
-    const updatedOrder: Order = {
-      ...targetOrder,
-      paymentStatus: 'paid',
-      status: containsChefItems ? 'scheduled' : 'ready',
-      razorpayPaymentId: razorpay_payment_id,
-      razorpaySignature: razorpay_signature,
-      pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
-    };
-
-    if (pgReady) {
-      await pgSet('orders', updatedOrder.id, updatedOrder);
-    }
-
-    canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
-
-    console.log(`[Razorpay Verify] ✅ Order ${targetOrder.id} marked as paid`);
     res.json({ success: true, message: 'Payment verified successfully', order: updatedOrder });
   } catch (err: any) {
     console.error('[Razorpay Verify] Error:', err?.message || err);
