@@ -617,27 +617,58 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                 // Action buttons
                 Row(
                   children: [
-                    if (order.status == 'ready' && !alreadyCollected)
+                    if (!alreadyCollected && order.status != 'collected' && order.status != 'cancelled' && order.status != 'expired')
                       Expanded(
-                        child: ElevatedButton(
+                        child: ElevatedButton.icon(
                           onPressed: () async {
-                            Navigator.pop(ctx);
-                            await _api.collectOrder(scannedCode);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Order marked as collected!'), backgroundColor: Colors.green),
+                            final confirm = await showDialog<bool>(
+                              context: ctx,
+                              builder: (c) => AlertDialog(
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                title: const Text('Confirm Serve', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                content: Text('Mark ${order.id} as served? This QR code will be invalidated.', style: const TextStyle(fontSize: 12)),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+                                  ElevatedButton(
+                                    onPressed: () => Navigator.pop(c, true),
+                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                                    child: const Text('Serve'),
+                                  ),
+                                ],
+                              ),
                             );
-                            await _loadAllOrders();
+                            if (confirm == true && ctx.mounted) {
+                              Navigator.pop(ctx);
+                              try {
+                                final result = await _api.collectOrder(scannedCode);
+                                if (mounted) {
+                                  final msg = result['alreadyCollected'] == true ? 'Already served!' : 'Order served! QR invalidated.';
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(msg), backgroundColor: result['alreadyCollected'] == true ? Colors.orange : Colors.green),
+                                  );
+                                  await _loadAllOrders();
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                                  );
+                                }
+                              }
+                            }
                           },
+                          icon: const Icon(Icons.check_circle, size: 16),
+                          label: const Text('Mark Served', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
-                          child: const Text('Mark Collected', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                         ),
                       ),
-                    if (order.status == 'ready' && !alreadyCollected) const SizedBox(width: 10),
+                    if (!alreadyCollected && order.status != 'collected' && order.status != 'cancelled' && order.status != 'expired')
+                      const SizedBox(width: 10),
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(ctx),
