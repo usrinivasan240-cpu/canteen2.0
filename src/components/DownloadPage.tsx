@@ -18,8 +18,8 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
 
   const handleDownload = () => {
     const link = document.createElement('a');
-link.href = '/EscQ-v2.3.6-universal.apk';
-      link.download = 'EscQ-v2.3.6-universal.apk';
+link.href = '/EscQ-v2.3.7-universal.apk';
+      link.download = 'EscQ-v2.3.7-universal.apk';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -63,7 +63,7 @@ link.href = '/EscQ-v2.3.6-universal.apk';
               <div className="h-8 w-8 rounded-lg bg-amber-600 flex items-center justify-center">
                 <span className="text-white font-display font-bold text-xs">Esc(Q)</span>
               </div>
-              <span className="text-xs font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">v2.3.6</span>
+              <span className="text-xs font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">v2.3.7</span>
             </div>
           </div>
 
@@ -100,7 +100,7 @@ link.href = '/EscQ-v2.3.6-universal.apk';
                 </div>
                 <div className="text-left">
                   <div className="text-xs font-normal opacity-80">Download APK</div>
-                  <div className="text-sm font-bold">EscQ v2.3.6 (Universal)</div>
+                  <div className="text-sm font-bold">EscQ v2.3.7 (Universal)</div>
                 </div>
                 <ExternalLink className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
               </button>
@@ -113,7 +113,7 @@ link.href = '/EscQ-v2.3.6-universal.apk';
               )}
 
               <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] text-gray-500 mt-1">
-                <span>v2.3.6 — QR ticket after payment</span>
+                <span>v2.3.7 — QR ticket after payment</span>
               </div>
 
               <div className="flex items-center gap-4 text-[10px] text-gray-500 mt-1">
@@ -203,7 +203,7 @@ link.href = '/EscQ-v2.3.6-universal.apk';
               <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-ping" />
               Secure
             </span>
-            <span>v2.3.6 • Android</span>
+            <span>v2.3.7 • Android</span>
           </div>
         </div>
       </div>

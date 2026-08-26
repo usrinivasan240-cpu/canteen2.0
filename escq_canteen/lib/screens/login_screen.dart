@@ -147,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(16),
                     child: Image.asset(
                       'assets/images/escq_logo.png',
-                      fit: BoxFit.contain,
+                      fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const Center(
                         child: Text(
                           'Esc(Q)',
@@ -540,45 +540,64 @@ class _LoginScreenState extends State<LoginScreen> {
     return GestureDetector(
       onTap: () => onChanged(!value),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           color: value ? const Color(0xFFFEFBF3) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: value ? const Color(0xFFF59E0B) : const Color(0xFFE5E7EB),
             width: value ? 2 : 1,
           ),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 20, height: 20,
+              width: 22, height: 22,
               child: Checkbox(
                 value: value,
                 onChanged: (v) => onChanged(v ?? false),
                 activeColor: const Color(0xFFF59E0B),
-                side: const BorderSide(color: Color(0xFFD1D5DB)),
+                side: const BorderSide(color: Color(0xFFD1D5DB), width: 1.5),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                'I have read and agree to the ',
-                style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'I have read and agree to the ',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700], height: 1.4),
+                  ),
+                  const SizedBox(height: 4),
+                  GestureDetector(
+                    onTap: () {
+                      if (pageKey == 'privacy') {
+                        // Navigate to privacy policy
+                      } else if (pageKey == 'terms') {
+                        // Navigate to terms
+                      } else if (pageKey == 'refund') {
+                        // Navigate to refund
+                      }
+                    },
+                    child: Text(
+                      policyName,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFF59E0B),
+                        decoration: TextDecoration.underline,
+                        decorationColor: Color(0xFFF59E0B),
+                        decorationThickness: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            Text(
-              policyName,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFFF59E0B),
-                decoration: TextDecoration.underline,
-                decorationColor: Color(0xFFF59E0B),
-              ),
-            ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 8),
             Text(
               value ? '' : '(required)',
               style: TextStyle(fontSize: 10, color: Colors.grey[500]),
@@ -610,7 +629,17 @@ class _AfterLoginState extends State<_AfterLogin> {
     final user = auth.user;
 
     if (user != null) {
-      await menu.loadData(userCollegeId: user.collegeId, userCanteenId: user.canteenId);
+      // Auto-select the user's canteen and load its menu
+      if (user.canteenId != null && user.canteenId!.isNotEmpty) {
+        await menu.loadData(userCollegeId: user.collegeId, userCanteenId: user.canteenId);
+        // Auto-select the first sub-canteen if available
+        final subs = menu.subCanteens.where((s) => s.canteenId == user.canteenId).toList();
+        if (subs.isNotEmpty) {
+          menu.setSubCanteen(subs.first.id);
+        }
+      } else {
+        await menu.loadData(userCollegeId: user.collegeId, userCanteenId: user.canteenId);
+      }
       await orderProv.loadOrders(user.id, canteenId: user.canteenId);
     }
   }
