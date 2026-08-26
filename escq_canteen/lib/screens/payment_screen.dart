@@ -601,6 +601,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       Text(_formatOrderDate(order.createdAt), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
                     ],
                   ),
+                  if (order.paymentStatus == 'paid') ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Payment Status', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                        Text('Paid', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF16A34A))),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
