@@ -9,6 +9,7 @@ import 'providers/theme_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/staff_home_screen.dart';
+import 'screens/legal_pages_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +52,29 @@ class EscqCanteenApp extends StatelessWidget {
             fontFamily: 'Roboto',
             scaffoldBackgroundColor: const Color(0xFF111827),
           ),
+          onGenerateRoute: (settings) {
+            if (settings.name?.startsWith('/legal/') == true) {
+              final pageName = settings.name!.replaceFirst('/legal/', '');
+              LegalPageType pageType;
+              switch (pageName) {
+                case 'privacy':
+                  pageType = LegalPageType.privacy;
+                  break;
+                case 'terms':
+                  pageType = LegalPageType.terms;
+                  break;
+                case 'refund':
+                  pageType = LegalPageType.refund;
+                  break;
+                default:
+                  return null;
+              }
+              return MaterialPageRoute(
+                builder: (_) => LegalPagesScreen(page: pageType),
+              );
+            }
+            return null;
+          },
           home: const AppEntryPoint(),
         ),
       ),
