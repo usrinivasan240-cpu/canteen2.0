@@ -7,7 +7,9 @@ import 'home_screen.dart';
 import 'staff_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.onNavigateLegal});
+
+  final void Function(String)? onNavigateLegal;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -133,7 +135,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF59E0B),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
@@ -320,6 +321,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           'privacy',
                           agreePrivacy,
                           (v) => setState(() => agreePrivacy = v),
+                          () => widget.onNavigateLegal?.call('privacy'),
                         ),
                         const SizedBox(height: 8),
                         _buildPolicyCheckbox(
@@ -327,6 +329,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           'terms',
                           agreeTerms,
                           (v) => setState(() => agreeTerms = v),
+                          () => widget.onNavigateLegal?.call('terms'),
                         ),
                         const SizedBox(height: 8),
                         _buildPolicyCheckbox(
@@ -334,6 +337,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           'refund',
                           agreeRefund,
                           (v) => setState(() => agreeRefund = v),
+                          () => widget.onNavigateLegal?.call('refund'),
                         ),
                       ],
                     ),
@@ -536,7 +540,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildPolicyCheckbox(String policyName, String pageKey, bool value, ValueChanged<bool> onChanged) {
+  Widget _buildPolicyCheckbox(String policyName, String pageKey, bool value, ValueChanged<bool> onChanged, VoidCallback? onNavigate) {
     return GestureDetector(
       onTap: () => onChanged(!value),
       child: Container(
@@ -573,15 +577,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 4),
                   GestureDetector(
-                    onTap: () {
-                      if (pageKey == 'privacy') {
-                        // Navigate to privacy policy
-                      } else if (pageKey == 'terms') {
-                        // Navigate to terms
-                      } else if (pageKey == 'refund') {
-                        // Navigate to refund
-                      }
-                    },
+                    onTap: onNavigate,
                     child: Text(
                       policyName,
                       style: const TextStyle(
