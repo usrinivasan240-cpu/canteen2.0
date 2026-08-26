@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChefHat, Eye, EyeOff, LogIn, UserPlus, AlertCircle, GraduationCap, Phone, Hash, Mail, Lock, User, Download, Smartphone } from 'lucide-react';
+import { ChefHat, Eye, EyeOff, LogIn, UserPlus, AlertCircle, GraduationCap, Phone, Mail, Lock, User, Download, Smartphone } from 'lucide-react';
 import { API_BASE } from '../config';
 import { College } from '../types';
 
@@ -36,7 +36,6 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
-  const [registerNumberInput, setRegisterNumberInput] = useState('');
   const [selectedCollegeId, setSelectedCollegeId] = useState('');
   const [agreePrivacy, setAgreePrivacy] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
@@ -69,7 +68,6 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
     setEmailInput('');
     setPasswordInput('');
     setPhoneInput('');
-    setRegisterNumberInput('');
     setSelectedCollegeId('');
     setError('');
     setAgreePrivacy(false);
@@ -143,7 +141,7 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
 
     try {
       if (isSignUp) {
-        if (!nameInput.trim() || !emailInput.trim() || !passwordInput.trim() || !phoneInput.trim() || !registerNumberInput.trim() || !selectedCollegeId) {
+        if (!nameInput.trim() || !emailInput.trim() || !passwordInput.trim() || !phoneInput.trim() || !selectedCollegeId) {
           setError('All fields are required for registration.');
           setLoading(false);
           return;
@@ -157,7 +155,6 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
             password: passwordInput,
             role: 'customer',
             phone: phoneInput.trim(),
-            registerNumber: registerNumberInput.trim(),
             collegeId: selectedCollegeId
           })
         });
@@ -292,21 +289,7 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
                   onChange={(e) => setNameInput(e.target.value)}
                   required
                   className="w-full bg-red-50/50 hover:bg-red-50 focus:bg-white text-xs px-4 py-3 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-medium text-gray-800"
-                  placeholder="e.g. Raju Srinivasan"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Hash className="h-3 w-3" /> Register Number
-                </label>
-                <input
-                  type="text"
-                  value={registerNumberInput}
-                  onChange={(e) => setRegisterNumberInput(e.target.value)}
-                  required
-                  className="w-full bg-red-50/50 hover:bg-red-50 focus:bg-white text-xs px-4 py-3 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-medium text-gray-800"
-                  placeholder="e.g. 21CS001"
+                  placeholder="e.g. watson"
                 />
               </div>
 
@@ -321,7 +304,7 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
                   required
                   pattern="[0-9]{10}"
                   className="w-full bg-red-50/50 hover:bg-red-50 focus:bg-white text-xs px-4 py-3 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-medium text-gray-800"
-                  placeholder="e.g. 9940918442"
+                  placeholder="e.g. 9876543210"
                 />
               </div>
 
@@ -354,7 +337,7 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
               onChange={(e) => setEmailInput(e.target.value)}
               required
               className="w-full bg-red-50/50 hover:bg-red-50 focus:bg-white text-xs px-4 py-3 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-medium text-gray-800"
-              placeholder="e.g. rajus@gmail.com"
+              placeholder="e.g. example@gmail.com"
             />
           </div>
 
@@ -460,14 +443,6 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
             )}
           </button>
         </form>
-
-        {!isSignUp && (
-          <div className="mt-5 border-t border-red-50 pt-4 text-center">
-            <span className="text-[10px] text-gray-450 font-medium">
-              Demo: watson777@gmail.com / password123
-            </span>
-          </div>
-        )}
 
         {/* Download App Button - Always visible */}
         <div className="mt-4">

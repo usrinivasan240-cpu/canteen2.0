@@ -67,7 +67,7 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
     required String phone,
-    required String registerNumber,
+    String? registerNumber,
     required String collegeId,
   }) async {
     _loading = true;
@@ -80,7 +80,7 @@ class AuthProvider extends ChangeNotifier {
         email: email,
         password: password,
         phone: phone,
-        registerNumber: registerNumber,
+        registerNumber: registerNumber ?? '',
         collegeId: collegeId,
       );
       if (data['success'] == true && data['user'] != null) {

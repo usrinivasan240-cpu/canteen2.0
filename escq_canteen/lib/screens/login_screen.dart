@@ -21,7 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final passwordCtrl = TextEditingController();
   final nameCtrl = TextEditingController();
   final phoneCtrl = TextEditingController();
-  final regNoCtrl = TextEditingController();
   String selectedCollegeId = '';
 
   bool agreePrivacy = false;
@@ -47,7 +46,6 @@ class _LoginScreenState extends State<LoginScreen> {
     emailCtrl.clear();
     passwordCtrl.clear();
     phoneCtrl.clear();
-    regNoCtrl.clear();
     setState(() {
       selectedCollegeId = '';
       agreePrivacy = false;
@@ -62,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (isSignUp) {
       if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty || passwordCtrl.text.isEmpty ||
-          phoneCtrl.text.isEmpty || regNoCtrl.text.isEmpty || selectedCollegeId.isEmpty) {
+          phoneCtrl.text.isEmpty || selectedCollegeId.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('All fields are required for registration.')),
         );
@@ -73,7 +71,6 @@ class _LoginScreenState extends State<LoginScreen> {
         email: emailCtrl.text.trim(),
         password: passwordCtrl.text,
         phone: phoneCtrl.text.trim(),
-        registerNumber: regNoCtrl.text.trim(),
         collegeId: selectedCollegeId,
       );
     } else {
@@ -269,17 +266,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // Form fields
                 if (isSignUp) ...[
-                  _buildField(Icons.person, 'Full Name', nameCtrl, 'e.g. Raju Srinivasan'),
+                  _buildField(Icons.person, 'Full Name', nameCtrl, 'e.g. watson'),
                   const SizedBox(height: 14),
-                  _buildField(Icons.confirmation_number, 'Register Number', regNoCtrl, 'e.g. 21CS001'),
-                  const SizedBox(height: 14),
-                  _buildField(Icons.phone, 'Phone Number', phoneCtrl, 'e.g. 9940918442', isPhone: true),
+                  _buildField(Icons.phone, 'Phone Number', phoneCtrl, 'e.g. 9876543210', isPhone: true),
                   const SizedBox(height: 14),
                   _buildCollegeDropdown(colleges),
                   const SizedBox(height: 14),
                 ],
 
-                _buildField(Icons.email, 'Email Address', emailCtrl, 'e.g. rajus@gmail.com', isEmail: true),
+                _buildField(Icons.email, 'Email Address', emailCtrl, 'e.g. example@gmail.com', isEmail: true),
                 const SizedBox(height: 14),
                 _buildPasswordField(),
                 const SizedBox(height: 14),
@@ -321,18 +316,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                   ),
                 ),
-
-                if (!isSignUp) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(10)),
-                    child: const Text(
-                      'Demo: watson777@gmail.com / password123',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
