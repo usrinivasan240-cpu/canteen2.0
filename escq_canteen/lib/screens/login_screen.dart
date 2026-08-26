@@ -66,6 +66,17 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         return;
       }
+      if (!agreePrivacy || !agreeTerms || !agreeRefund) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please read and agree to all policies before creating your account.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+          ),
+        );
+        return;
+      }
       success = await auth.register(
         name: nameCtrl.text.trim(),
         email: emailCtrl.text.trim(),
@@ -281,19 +292,74 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // Agreement checkboxes (signup only)
                 if (isSignUp) ...[
-                  _buildCheckbox('I have read and agree to the Privacy Policy', agreePrivacy, (v) => setState(() => agreePrivacy = v)),
-                  const SizedBox(height: 6),
-                  _buildCheckbox('I have read and agree to the Terms & Conditions', agreeTerms, (v) => setState(() => agreeTerms = v)),
-                  const SizedBox(height: 6),
-                  _buildCheckbox('I have read and agree to the Refund & Cancellation Policy', agreeRefund, (v) => setState(() => agreeRefund = v)),
-                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEFBF3),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 14, color: Colors.amber[700]),
+                            const SizedBox(width: 6),
+                            const Expanded(
+                              child: Text(
+                                'Please read and agree to all policies before creating your account.',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF92400E)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _buildPolicyCheckbox(
+                          'Privacy Policy',
+                          'privacy',
+                          agreePrivacy,
+                          (v) => setState(() => agreePrivacy = v),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildPolicyCheckbox(
+                          'Terms & Conditions',
+                          'terms',
+                          agreeTerms,
+                          (v) => setState(() => agreeTerms = v),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildPolicyCheckbox(
+                          'Refund & Cancellation Policy',
+                          'refund',
+                          agreeRefund,
+                          (v) => setState(() => agreeRefund = v),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
 
                 // Submit button
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: auth.loading ? null : _handleSubmit,
+                    onPressed: auth.loading
+                        ? null
+                        : () {
+                            if (isSignUp && (!agreePrivacy || !agreeTerms || !agreeRefund)) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please read and agree to all policies before creating your account.'),
+                                  backgroundColor: Colors.red,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+                                ),
+                              );
+                              return;
+                            }
+                            _handleSubmit();
+                          },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFF59E0B),
                       foregroundColor: Colors.white,
@@ -415,11 +481,11 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFF9FAFB),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2))],
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
@@ -427,9 +493,19 @@ class _LoginScreenState extends State<LoginScreen> {
               isExpanded: true,
               hint: const Text('-- Choose your college --', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
               items: colleges.map<DropdownMenuItem<String>>((c) {
-                return DropdownMenuItem(value: c.id, child: Text(c.name, style: const TextStyle(fontSize: 12, color: Color(0xFF111827))));
+                return DropdownMenuItem(
+                  value: c.id,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Text(c.name, style: const TextStyle(fontSize: 13, color: Color(0xFF111827))),
+                  ),
+                );
               }).toList(),
               onChanged: (v) => setState(() => selectedCollegeId = v ?? ''),
+              dropdownColor: Colors.white,
+              elevation: 4,
+              borderRadius: BorderRadius.circular(12),
+              menuMaxHeight: 300,
             ),
           ),
         ),
@@ -456,6 +532,59 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPolicyCheckbox(String policyName, String pageKey, bool value, ValueChanged<bool> onChanged) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: value ? const Color(0xFFFEFBF3) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: value ? const Color(0xFFF59E0B) : const Color(0xFFE5E7EB),
+            width: value ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20, height: 20,
+              child: Checkbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
+                activeColor: const Color(0xFFF59E0B),
+                side: const BorderSide(color: Color(0xFFD1D5DB)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'I have read and agree to the ',
+                style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+              ),
+            ),
+            Text(
+              policyName,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFF59E0B),
+                decoration: TextDecoration.underline,
+                decorationColor: Color(0xFFF59E0B),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              value ? '' : '(required)',
+              style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -227,15 +227,13 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       width: 36, height: 36,
       decoration: BoxDecoration(
-        color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Image.asset(
           'assets/images/escq_logo.png',
-          fit: BoxFit.contain,
+          fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _genericLogo((_userCollege?.name ?? 'Q').substring(0, 1).toUpperCase()),
         ),
       ),
@@ -256,18 +254,18 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildLogoImage(String url, double width, double height) {
     if (url.startsWith('data:image')) {
       if (_logoCache.containsKey(url)) {
-        return Image.memory(_logoCache[url]!, width: width, height: height, fit: BoxFit.contain, gaplessPlayback: true);
+        return Image.memory(_logoCache[url]!, width: width, height: height, fit: BoxFit.cover, gaplessPlayback: true);
       }
       try {
         final base64Str = url.split(',').last;
         final bytes = base64Decode(base64Str);
         _logoCache[url] = bytes;
-        return Image.memory(bytes, width: width, height: height, fit: BoxFit.contain, gaplessPlayback: true);
+        return Image.memory(bytes, width: width, height: height, fit: BoxFit.cover, gaplessPlayback: true);
       } catch (_) {
         return _defaultLogo();
       }
     }
-    return CachedNetworkImage(imageUrl: url, width: width, height: height, fit: BoxFit.contain,
+    return CachedNetworkImage(imageUrl: url, width: width, height: height, fit: BoxFit.cover,
       errorWidget: (_, __, ___) => _defaultLogo(),
     );
   }
@@ -275,18 +273,18 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHeroLogoImage(String url, double width, double height) {
     if (url.startsWith('data:image')) {
       if (_logoCache.containsKey(url)) {
-        return Image.memory(_logoCache[url]!, width: width, height: height, fit: BoxFit.contain, gaplessPlayback: true);
+        return Image.memory(_logoCache[url]!, width: width, height: height, fit: BoxFit.cover, gaplessPlayback: true);
       }
       try {
         final base64Str = url.split(',').last;
         final bytes = base64Decode(base64Str);
         _logoCache[url] = bytes;
-        return Image.memory(bytes, width: width, height: height, fit: BoxFit.contain, gaplessPlayback: true);
+        return Image.memory(bytes, width: width, height: height, fit: BoxFit.cover, gaplessPlayback: true);
       } catch (_) {
         return _heroLogoFallback();
       }
     }
-    return CachedNetworkImage(imageUrl: url, width: width, height: height, fit: BoxFit.contain,
+    return CachedNetworkImage(imageUrl: url, width: width, height: height, fit: BoxFit.cover,
       errorWidget: (_, __, ___) => _heroLogoFallback(),
     );
   }
@@ -361,16 +359,13 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       width: 64, height: 64,
       decoration: BoxDecoration(
-        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
-        boxShadow: [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.1), blurRadius: 8)],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Image.asset(
           'assets/images/escq_logo.png',
-          fit: BoxFit.contain,
+          fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _genericHeroLogo((_userCollege?.name ?? 'Esc(Q)').substring(0, 1).toUpperCase()),
         ),
       ),
@@ -680,11 +675,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _categoryTabs() {
     final themeProv = context.watch<ThemeProvider>();
     return Container(
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEE2E2).withOpacity(0.8),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFECACA).withOpacity(0.5)),
+        color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFE5E7EB)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -693,14 +688,23 @@ class _HomeScreenState extends State<HomeScreen> {
           return GestureDetector(
             onTap: () => setState(() => selectedCategory = cat),
             behavior: HitTestBehavior.opaque,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: isActive ? (themeProv.isDark ? const Color(0xFF374151) : Colors.white) : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: isActive ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : null,
+                color: isActive ? const Color(0xFFF59E0B) : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: isActive ? [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))] : null,
               ),
-              child: Text(cat, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isActive ? Colors.amber[700] : (themeProv.isDark ? Colors.grey[300] : Colors.grey))),
+              child: Text(
+                cat,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isActive ? Colors.white : (themeProv.isDark ? Colors.grey[300] : Colors.grey[700]),
+                  letterSpacing: 0.3,
+                ),
+              ),
             ),
           );
         }).toList(),
@@ -712,39 +716,48 @@ class _HomeScreenState extends State<HomeScreen> {
     final cart = context.read<CartProvider>();
     final qty = cart.getItemQty(item.id);
     final themeProv = context.watch<ThemeProvider>();
+    final isAvailable = item.inStock && item.stock > 0 && !item.isPaused;
 
     return Container(
-      height: 260,
       decoration: BoxDecoration(
         color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(themeProv.isDark ? 0.1 : 0.03), blurRadius: 4)],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFF1F3F4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(themeProv.isDark ? 0.15 : 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Image
           Container(
-            height: 110,
+            height: 120,
             width: double.infinity,
             decoration: BoxDecoration(
               color: Colors.amber[50],
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               child: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
-                  ? CachedNetworkImage(imageUrl: item.imageUrl!, fit: BoxFit.cover, width: double.infinity,
-                      errorWidget: (_, __, ___) => const Center(child: Text('🍲', style: TextStyle(fontSize: 28))),
+                  ? CachedNetworkImage(
+                      imageUrl: item.imageUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorWidget: (_, __, ___) => const Center(child: Text('🍲', style: TextStyle(fontSize: 32))),
                     )
-                  : const Center(child: Text('🍲', style: TextStyle(fontSize: 28))),
+                  : const Center(child: Text('🍲', style: TextStyle(fontSize: 32))),
             ),
           ),
           // Body
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -752,21 +765,44 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text(item.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: themeProv.isDark ? Colors.white : const Color(0xFF111827)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        child: Text(
+                          item.name,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: themeProv.isDark ? Colors.white : const Color(0xFF111827),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      Text('★ ${item.rating}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.amber[50],
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star, size: 10, color: Colors.amber[700]),
+                            const SizedBox(width: 2),
+                            Text('${item.rating}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.amber[800])),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       _miniTag('Prep: ${item.prepTime}m', Colors.amber[50]!, Colors.amber[800]!),
-                      const SizedBox(width: 4),
-                      _miniTag('Limit: ${item.dailyLimit}', Colors.grey[50]!, Colors.grey[600]!),
+                      const SizedBox(width: 6),
+                      _miniTag('Limit: ${item.dailyLimit}', themeProv.isDark ? const Color(0xFF374151) : Colors.grey[100]!, themeProv.isDark ? Colors.grey[400]! : Colors.grey[700]!),
                     ],
                   ),
-                  const SizedBox(height: 3),
-                  Text('₹${item.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFF59E0B))),
+                  const SizedBox(height: 8),
+                  Text('₹${item.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFFF59E0B))),
                   const Spacer(),
                   // BUTTON
                   if (qty > 0)
@@ -775,8 +811,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Expanded(
                           child: Container(
-                            height: 32,
-                            decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(8)),
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: themeProv.isDark ? const Color(0xFF374151) : Colors.grey[100],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
@@ -786,7 +825,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     else cart.updateQuantity(item.id, qty - 1);
                                   });
                                 }),
-                                Text('$qty', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                Text('$qty', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                                 _qtyBtn(Icons.add, () {
                                   if (qty < item.stock) {
                                     setState(() => cart.updateQuantity(item.id, qty + 1));
@@ -801,9 +840,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   else
                     SizedBox(
                       width: double.infinity,
-                      height: 32,
+                      height: 40,
                       child: ElevatedButton(
-                        onPressed: item.inStock ? () {
+                        onPressed: isAvailable ? () {
                           final errorMsg = cart.addItem(item);
                           if (errorMsg != null) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -812,7 +851,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 duration: const Duration(seconds: 2),
                                 backgroundColor: Colors.amber[700],
                                 behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               ),
                             );
                           } else {
@@ -822,28 +861,29 @@ class _HomeScreenState extends State<HomeScreen> {
                                 duration: const Duration(seconds: 1),
                                 backgroundColor: const Color(0xFFF59E0B),
                                 behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               ),
                             );
                           }
                         } : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF59E0B),
-                          foregroundColor: Colors.white,
+                          backgroundColor: isAvailable ? const Color(0xFFF59E0B) : Colors.grey[300],
+                          foregroundColor: isAvailable ? Colors.white : Colors.grey[500],
                           padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: isAvailable ? 2 : 0,
+                          shadowColor: const Color(0xFFF59E0B).withOpacity(0.3),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.add_shopping_cart, size: 13),
-                            const SizedBox(width: 4),
+                            const Icon(Icons.add_shopping_cart, size: 14),
+                            const SizedBox(width: 6),
                             Flexible(
                               child: Text(
                                 item.isPaused ? 'Unavailable' : (item.stock <= 0 ? 'Sold Out' : 'Add to Cart'),
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -862,9 +902,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _miniTag(String text, Color bg, Color fg) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
-      child: Text(text, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: fg)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+      child: Text(text, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: fg)),
     );
   }
 
@@ -873,9 +913,9 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.all(5),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
-        child: Icon(icon, size: 11, color: const Color(0xFFF59E0B)),
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+        child: Icon(icon, size: 12, color: const Color(0xFFF59E0B)),
       ),
     );
   }

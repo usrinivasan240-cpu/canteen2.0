@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChefHat, Eye, EyeOff, LogIn, UserPlus, AlertCircle, GraduationCap, Phone, Mail, Lock, User, Download, Smartphone } from 'lucide-react';
+import { ChefHat, Eye, EyeOff, LogIn, UserPlus, AlertCircle, GraduationCap, Phone, Mail, Lock, User, Download, Smartphone, Info, Check } from 'lucide-react';
 import { API_BASE } from '../config';
 import { College } from '../types';
 
@@ -16,6 +16,51 @@ interface AuthResponse {
   user?: any;
   error?: string;
 }
+
+interface PolicyCheckboxProps {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  onNavigate: (() => void) | undefined;
+}
+
+const PolicyCheckbox: React.FC<PolicyCheckboxProps> = ({ label, checked, onChange, onNavigate }) => (
+  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-xl border-2 transition-all bg-white/80 backdrop-blur-sm
+    {checked ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:border-amber-300'}">
+    <div className="relative w-5 h-5 flex-shrink-0">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="w-5 h-5 appearance-none rounded border-2 border-gray-300 checked:border-amber-500 checked:bg-amber-500
+          focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2
+          transition-all duration-200"
+      />
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {checked && <Check className="w-3.5 h-3.5 text-white" />}
+      </div>
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-xs font-medium text-gray-700 leading-snug">
+        I have read and agree to the{' '}
+        <button
+          type="button"
+          onClick={onNavigate}
+          className="font-semibold text-amber-600 hover:text-amber-700 underline underline-offset-1 transition-colors"
+        >
+          {label}
+        </button>
+        {' '}
+        {!checked && <span className="text-[10px] text-gray-400 font-medium">(required)</span>}
+      </p>
+    </div>
+    <div className={`w-6 h-6 rounded-lg transition-all ${
+      checked ? 'bg-amber-100' : 'bg-gray-100 group-hover:bg-amber-50'
+    }`}>
+      <Check className={`w-4 h-4 mx-auto my-auto text-amber-600 opacity-0 group-has-[:checked]:opacity-100 transition-opacity`} />
+    </div>
+  </label>
+);
 
 export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigateDownload }: LoginScreenProps) {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -364,62 +409,32 @@ export default function LoginScreen({ onLoginSuccess, onNavigateLegal, onNavigat
             </div>
           </div>
 
-          {isSignUp && (
-            <div className="space-y-2.5 pt-1">
-              <label className="flex items-start gap-2.5 cursor-pointer group">
-                <input
-                  type="checkbox"
+{isSignUp && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-amber-800 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
+                <Info className="h-3.5 w-3.5" />
+                <span>Please read and agree to all policies before creating your account.</span>
+              </div>
+              <div className="space-y-3">
+                <PolicyCheckbox
+                  label="Privacy Policy"
                   checked={agreePrivacy}
-                  onChange={(e) => setAgreePrivacy(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-red-200 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  onChange={setAgreePrivacy}
+                  onNavigate={() => onNavigateLegal?.('privacy')}
                 />
-                <span className="text-xs text-gray-600 leading-snug">
-                  I have read and agree to the{' '}
-                  <button
-                    type="button"
-                    onClick={() => onNavigateLegal?.('privacy')}
-                    className="text-amber-600 hover:text-amber-700 font-semibold underline underline-offset-2 cursor-pointer"
-                  >
-                    Privacy Policy
-                  </button>
-                </span>
-              </label>
-              <label className="flex items-start gap-2.5 cursor-pointer group">
-                <input
-                  type="checkbox"
+                <PolicyCheckbox
+                  label="Terms & Conditions"
                   checked={agreeTerms}
-                  onChange={(e) => setAgreeTerms(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-red-200 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  onChange={setAgreeTerms}
+                  onNavigate={() => onNavigateLegal?.('terms')}
                 />
-                <span className="text-xs text-gray-600 leading-snug">
-                  I have read and agree to the{' '}
-                  <button
-                    type="button"
-                    onClick={() => onNavigateLegal?.('terms')}
-                    className="text-amber-600 hover:text-amber-700 font-semibold underline underline-offset-2 cursor-pointer"
-                  >
-                    Terms &amp; Conditions
-                  </button>
-                </span>
-              </label>
-              <label className="flex items-start gap-2.5 cursor-pointer group">
-                <input
-                  type="checkbox"
+                <PolicyCheckbox
+                  label="Refund & Cancellation Policy"
                   checked={agreeRefund}
-                  onChange={(e) => setAgreeRefund(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-red-200 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  onChange={setAgreeRefund}
+                  onNavigate={() => onNavigateLegal?.('refund')}
                 />
-                <span className="text-xs text-gray-600 leading-snug">
-                  I have read and agree to the{' '}
-                  <button
-                    type="button"
-                    onClick={() => onNavigateLegal?.('refund')}
-                    className="text-amber-600 hover:text-amber-700 font-semibold underline underline-offset-2 cursor-pointer"
-                  >
-                    Refund &amp; Cancellation Policy
-                  </button>
-                </span>
-              </label>
+              </div>
             </div>
           )}
 
