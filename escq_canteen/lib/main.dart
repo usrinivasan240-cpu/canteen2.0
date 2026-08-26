@@ -139,7 +139,12 @@ class _AppEntryPointState extends State<AppEntryPoint> {
     final auth = context.watch<AuthProvider>();
 
     if (!auth.isLoggedIn) {
-      return const LoginScreen();
+      return LoginScreen(
+        onNavigateLegal: (page) {
+          // Navigate to legal pages
+          Navigator.pushNamed(context, '/legal/$page');
+        },
+      );
     }
 
     if (auth.isStaff || auth.isChef) {

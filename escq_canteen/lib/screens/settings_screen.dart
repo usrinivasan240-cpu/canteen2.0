@@ -273,7 +273,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         onPressed: () async {
           await auth.logout();
           if (mounted) Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            MaterialPageRoute(builder: (_) => LoginScreen(
+  onNavigateLegal: (page) {
+    Navigator.pushNamed(context, '/legal/$page');
+  },
+)),
             (route) => false,
           );
         },
