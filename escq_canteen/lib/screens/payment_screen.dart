@@ -592,24 +592,58 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       Text('₹${order.totalPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF16A34A))),
                     ],
                   ),
+                  Divider(color: Colors.grey.shade200, height: 18),
+                  // Timestamp
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Order Date', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                      Text(_formatOrderDate(order.createdAt), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                    ],
+                  ),
                 ],
               ),
             ),
 
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity, height: 52,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF59E0B),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    width: double.infinity, height: 52,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: const Color(0xFFF59E0B), width: 2),
+                        foregroundColor: const Color(0xFFF59E0B),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('View My Orders', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                    ),
+                  ),
                 ),
-                child: const Text('View My Orders', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    width: double.infinity, height: 52,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF59E0B),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('Order More Food', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -657,5 +691,25 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ),
       ),
     );
+  }
+
+  String _formatOrderDate(dynamic timestamp) {
+    try {
+      if (timestamp == null) return '';
+      int timestampMs;
+      if (timestamp is int) {
+        timestampMs = timestamp;
+      } else if (timestamp is String) {
+        timestampMs = int.tryParse(timestamp) ?? 0;
+      } else {
+        return '';
+      }
+      if (timestampMs == 0) return '';
+      final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}, ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return '';
+    }
   }
 }
