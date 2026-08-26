@@ -26,6 +26,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool isComplete = false;
   bool isFailed = false;
   bool waitingForPayment = false;
+  bool isVerifying = false;
   String? errorMessage;
   String? orderId;
   Timer? _pollTimer;
@@ -57,7 +58,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
     _pollTimer?.cancel();
 
     if (!mounted) return;
-    setState(() { waitingForPayment = false; isProcessing = false; isComplete = true; });
+    // Show verifying state instead of immediately showing complete
+    setState(() { waitingForPayment = false; isProcessing = false; isVerifying = true; });
 
     final api = ApiService();
     final auth = context.read<AuthProvider>();
@@ -81,6 +83,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
             orderProv.setLastOrder(order);
             debugPrint('[Razorpay] Order loaded from verify: ${order.id}');
             orderProv.loadOrders(userId);
+            if (!mounted) return;
+            setState(() { isVerifying = false; isComplete = true; });
             return;
           } catch (e) {
             debugPrint('[Razorpay] Order.fromJson failed: $e');
@@ -109,6 +113,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
             orderProv.setLastOrder(order);
             orderProv.loadOrders(userId);
             debugPrint('[Razorpay] Order found via poll: ${order.id} status=${order.status}');
+            if (!mounted) return;
+            setState(() { isVerifying = false; isComplete = true; });
             return;
           }
         }
@@ -118,6 +124,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
       await Future.delayed(const Duration(seconds: 2));
     }
     debugPrint('[Razorpay] All recovery attempts exhausted — lastOrder still null');
+    if (!mounted) return;
+    setState(() { isVerifying = false; isFailed = true; errorMessage = 'Payment verification failed. Please check your orders.'; });
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
@@ -332,7 +340,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         title: const Text('Secure Payment', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
         centerTitle: true,
       ),
-      body: isComplete ? _buildSuccess() : (isFailed ? _buildFailed() : _buildBody()),
+      body: isComplete ? _buildSuccess() : (isFailed ? _buildFailed() : (isVerifying ? _buildVerifying() : _buildBody())),
     );
   }
 
@@ -403,6 +411,40 @@ class _PaymentScreenState extends State<PaymentScreen> {
       setState(() => _recoverySeconds++);
       if (_recoverySeconds >= 45) t.cancel();
     });
+  }
+
+  Widget _buildVerifying() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80, height: 80,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF59E0B),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
+              ),
+              child: const Icon(Icons.hourglass_empty, color: Colors.white, size: 44),
+            ),
+            const SizedBox(height: 16),
+            const Text('Verifying Payment...', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF111827))),
+            const SizedBox(height: 16),
+            const SizedBox(height: 36, width: 36, child: CircularProgressIndicator(color: Color(0xFFF59E0B), strokeWidth: 3)),
+            const SizedBox(height: 16),
+            const Text('Confirming payment with server...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+            const SizedBox(height: 6),
+            Text('Please wait while we confirm your payment', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+            if (orderId != null) ...[
+              const SizedBox(height: 8),
+              Text('Order ID: $orderId', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _manualRecovery() async {
@@ -504,7 +546,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             const Text('Payment Successful!', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF111827))),
             const SizedBox(height: 16),
 
-            // QR Ticket
+            // QR Ticket - Only show if payment is confirmed
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -540,7 +582,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Bill
+            // Bill with timestamp
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -592,6 +634,25 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       Text('₹${order.totalPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF16A34A))),
                     ],
                   ),
+                  Divider(color: Colors.grey.shade200, height: 18),
+                  // Timestamp
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Order Date', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                      Text(_formatOrderDate(order.createdAt), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                    ],
+                  ),
+                  if (order.paymentStatus == 'paid') ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Payment Status', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                        Text('Paid', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF16A34A))),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -657,5 +718,25 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ),
       ),
     );
+  }
+
+  String _formatOrderDate(dynamic timestamp) {
+    try {
+      if (timestamp == null) return '';
+      int timestampMs;
+      if (timestamp is int) {
+        timestampMs = timestamp;
+      } else if (timestamp is String) {
+        timestampMs = int.tryParse(timestamp) ?? 0;
+      } else {
+        return '';
+      }
+      if (timestampMs == 0) return '';
+      final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}, ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return '';
+    }
   }
 }
