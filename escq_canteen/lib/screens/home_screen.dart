@@ -15,6 +15,7 @@ import '../models/menu_item.dart';
 import '../models/college.dart';
 import '../models/review.dart';
 import '../services/api_service.dart';
+import '../widgets/offline_indicator.dart';
 import 'checkout_screen.dart';
 import '../config.dart';
 import 'settings_screen.dart';
@@ -1652,6 +1653,14 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           _buildHeader(auth, user),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                const Expanded(child: OfflineIndicator()),
+              ],
+            ),
+          ),
           Expanded(
             child: SingleChildScrollView(
               child: Column(

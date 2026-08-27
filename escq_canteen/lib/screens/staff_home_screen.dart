@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
 import '../models/order.dart';
 import '../services/api_service.dart';
+import '../widgets/offline_indicator.dart';
 
 class StaffHomeScreen extends StatefulWidget {
   const StaffHomeScreen({super.key});
@@ -72,6 +73,14 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
       body: Column(
         children: [
           _buildHeader(auth, user),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                const Expanded(child: OfflineIndicator()),
+              ],
+            ),
+          ),
           _buildTabBar(),
           Expanded(
             child: currentTab == 0

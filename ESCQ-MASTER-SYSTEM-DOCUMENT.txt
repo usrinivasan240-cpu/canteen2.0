@@ -1,0 +1,2598 @@
+============================================================
+ESC(Q) -- MASTER SYSTEM KNOWLEDGE DOCUMENT
+============================================================
+Generated: 2026-08-27
+Version: 2.5.0 (Flutter) / 2.5.0 (Server)
+Status: PRODUCTION
+Source Verification: [CONFIRMED] unless noted otherwise
+Phase 3/4/6 Upgrade: 2026-08-27
+============================================================
+
+
+============================================================
+1. PROJECT IDENTITY
+============================================================
+
+Product Name:      Esc(Q) -- Smart Campus Canteen Platform
+Organization:      AUTO HUB SOLUTION (AHS)
+Repository:        https://github.com/usrinivasan240-cpu/canteen2.0.git
+Production URL:    https://canteen20.vercel.app
+App ID (Android):  com.violetbites.canteen
+Package Name:      escq_canteen (Flutter) / violet-bites-canteen (NPM)
+Current Version:   Flutter v2.3.11+41 (client) | Server v2.4.0
+
+Brand Context:     Current UI uses SRM branding and SRM canteen
+                   environment. Platform designed for multi-campus
+                   deployment with per-college branding support.
+
+
+============================================================
+2. EXECUTIVE SUMMARY
+============================================================
+
+Esc(Q) is a full-stack smart canteen management platform that
+digitizes the campus food ordering experience. Students order
+via a mobile app, pay online (Razorpay or UPI), receive a QR
+ticket, and collect food at the counter -- eliminating queues.
+
+The system spans three client surfaces:
+  1. Flutter Mobile App (Android/iOS) -- primary customer app
+  2. React Web App (SPA) -- admin/staff/owner dashboard + customer web
+  3. Capacitor Android -- web app wrapped as native Android
+
+The backend is a TypeScript Express.js monolith deployed as a
+Vercel serverless function, backed by Supabase PostgreSQL.
+
+
+============================================================
+3. PRODUCT VISION
+============================================================
+
+[CONFIRMED] Reduce campus canteen queue/waiting time through:
+- Digital ordering and payment
+- QR-based ticket authentication
+- Real-time order status tracking
+- Scheduled pickup slots
+- Multi-campus, multi-canteen support
+- Walk-in POS billing for counter service
+- AI-powered menu recommendations
+
+Initial launch uses one-payment checkout (no prepaid wallet).
+Platform fee is included in the backend-calculated total.
+
+
+============================================================
+4. SYSTEM GOALS
+============================================================
+
+[CONFIRMED from code]
+- Zero-queue pickup via pre-ordering and QR verification
+- Multi-tenant: colleges > canteens > sub-counters
+- Role-based access: 6 distinct roles
+- Dual payment: Razorpay (card/netbanking/wallet) + VyaparGateway (UPI QR)
+- AI integration: Gemini for sentiment analysis and recommendations
+- Real-time order lifecycle tracking
+- Walk-in POS for counter billing
+- Offline-capable mobile app
+- Serverless deployment (Vercel)
+
+
+============================================================
+5. CORE FEATURES
+============================================================
+
+[CONFIRMED from code and UI]
+- User registration and login (email + password, OTP for superadmin)
+- College/canteen selection with branding
+- Menu browsing with categories (Meals, Snacks & Beverages)
+- Search and filter
+- Cart with quantity controls
+- Pickup time slot selection (ASAP + 15-min intervals)
+- Razorpay payment (card, netbanking, wallet)
+- VyaparGateway UPI dynamic QR payment
+- QR ticket generation (HMAC-SHA256 signed)
+- QR scanning for staff verification and collection
+- Order status lifecycle tracking
+- Order history with milestones
+- Bill summary with timestamp
+- AI menu recommendations
+- Review system with AI sentiment analysis
+- Walk-in POS billing
+- Ingredient inventory management
+- Dark/light theme toggle
+- Help & Support with ticket system
+- Legal pages (Privacy, Terms, Refund)
+- College branding customization (hero, footer, colors, layout)
+
+
+============================================================
+6. SYSTEM ARCHITECTURE
+============================================================
+
+                    +-----------------+
+                    |   CDN / Vercel  |
+                    |   (Static SPA)  |
+                    +--------+--------+
+                             |
+              +--------------+--------------+
+              |                             |
+    +---------v---------+     +-------------v-----------+
+    |  React Web SPA    |     |   Flutter Mobile App    |
+    |  (Vite + TS)      |     |   (Dart, Provider)      |
+    |  src/components/   |     |   lib/screens/          |
+    +---------+---------+     +-------------+-----------+
+              |                             |
+              |  HTTP/REST API             |  HTTP/REST API
+              |                             |
+    +---------v-----------------------------v-----------+
+    |              Express.js Backend (server.ts)        |
+    |              Port 3000 / Vercel Serverless         |
+    |                                                    |
+    |  +----------+  +-----------+  +------------------+ |
+    |  | Auth     |  | Payment   |  | AI (Gemini)      | |
+    |  | Supabase |  | Razorpay  |  | Recommendations  | |
+    |  | Auth     |  | Vyapar    |  | Sentiment        | |
+    |  +----------+  +-----------+  +------------------+ |
+    +----+---------------------+-------------------+----+
+         |                     |                   |
+    +----v----+          +-----v------+     +------v------+
+    |Supabase |          | PostgreSQL |     | Resend API  |
+    | Auth    |          | (Supabase) |     | (Email)     |
+    | (JWT)   |          | 12 tables  |     +-------------+
+    +---------+          +------------+
+
+Data Flow:
+  UI -> State Mgmt -> Service/API Layer -> Backend -> Business Logic
+  -> Database -> External Services (Razorpay, Vyapar, Gemini, Resend)
+
+
+============================================================
+7. TECHNOLOGY STACK
+============================================================
+
+--- MOBILE FRONTEND ---
+| Component          | Technology           | Version  | Purpose                |
+|--------------------|----------------------|----------|------------------------|
+| Framework          | Flutter              | 3.41.2   | Cross-platform mobile   |
+| Language           | Dart                 | 3.11.0   | App logic               |
+| State Management   | Provider             | 6.1.2    | ChangeNotifier pattern  |
+| HTTP Client        | http                 | 1.2.1    | API calls               |
+| Local Storage      | shared_preferences   | 2.2.3    | Key-value persistence   |
+| QR Display         | qr_flutter           | 4.1.0    | QR code rendering       |
+| QR Scanning        | mobile_scanner       | 5.2.3    | Camera QR detection     |
+| Payment SDK        | razorpay_flutter     | 1.3.7    | Razorpay checkout       |
+| Image Caching      | cached_network_image | 3.4.1    | Network image cache     |
+| URL Launching      | url_launcher         | 6.2.5    | Phone/email/WhatsApp    |
+| Date Formatting    | intl                 | 0.19.0   | i18n/date utils         |
+| App Icons          | flutter_launcher_icons| 0.14.3  | Icon generation         |
+
+--- WEB FRONTEND ---
+| Component          | Technology           | Version  | Purpose                |
+|--------------------|----------------------|----------|------------------------|
+| Framework          | React                | 19.0.1   | UI library              |
+| Language           | TypeScript           | 5.8.2    | Type safety             |
+| Build Tool         | Vite                 | 6.2.3    | Bundler + dev server    |
+| Styling            | Tailwind CSS         | 4.1.14   | Utility CSS             |
+| Animations         | Motion (Framer)      | 12.23.24 | UI animations           |
+| Icons              | Lucide React         | 0.546.0  | Icon library            |
+| QR Generation      | qrcode               | 1.5.4    | Server-side QR gen      |
+| QR Scanning        | html5-qrcode         | 2.3.8    | Web camera QR scan      |
+| Mobile Wrapper     | Capacitor            | 8.4.0    | Android native wrap     |
+
+--- BACKEND ---
+| Component          | Technology           | Version  | Purpose                |
+|--------------------|----------------------|----------|------------------------|
+| Runtime            | Node.js              | (latest) | Server runtime          |
+| Framework          | Express.js           | 4.21.2   | HTTP framework          |
+| Language           | TypeScript           | 5.8.2    | Type safety             |
+| Bundler            | esbuild              | 0.25.0   | Server bundle (CJS)     |
+| Dev Server         | tsx                  | 4.21.0   | TS execution            |
+| Database Driver    | pg (node-postgres)   | 8.23.0   | PostgreSQL client       |
+| Auth Provider      | Supabase Auth        | 2.112.3  | Email/password auth     |
+| Payment SDK        | razorpay             | 2.9.8    | Payment creation/verify |
+| AI Client          | @google/genai        | 2.4.0    | Gemini AI integration   |
+| Email Service      | resend               | 6.18.0   | Transactional email     |
+| Image Processing   | sharp (optional)     | latest   | Image compression      |
+| Env Loading        | dotenv               | 17.2.3   | Environment vars        |
+
+--- DATABASE ---
+| Component          | Technology           | Version  | Purpose                |
+|--------------------|----------------------|----------|------------------------|
+| Database           | PostgreSQL           | (Supabase)| Primary datastore      |
+| Hosting            | Supabase             | --       | Managed PostgreSQL      |
+| Connection Pool    | pg Pool              | 10 max   | Serverless-safe         |
+| ORM                | None (raw SQL)       | --       | Custom helper layer     |
+
+--- DEPLOYMENT ---
+| Component          | Technology           | Purpose                    |
+|--------------------|----------------------|----------------------------|
+| Hosting            | Vercel               | Serverless + static        |
+| Build Pipeline     | Vite + esbuild       | Frontend + backend bundle  |
+| Android Build      | Flutter / Capacitor  | Native APK generation      |
+| CI/CD              | Git push to main     | Auto-deploy via Vercel     |
+| Domain             | canteen20.vercel.app | Production URL             |
+
+
+============================================================
+8. PROJECT / FOLDER STRUCTURE
+============================================================
+
+[CONFIRMED from filesystem]
+
+canteen2.0-main/
+|-- src/                           # React web frontend
+|   |-- main.tsx                   # React entry point
+|   |-- App.tsx                    # Root SPA router (570 lines)
+|   |-- config.ts                  # API base URL + JWT interceptor
+|   |-- types.ts                   # TypeScript interfaces (251 lines)
+|   |-- index.css                  # Global styles
+|   |-- vite-env.d.ts              # Vite type declarations
+|   |-- components/
+|       |-- CustomerApp.tsx        # Customer web UI (1047+ lines)
+|       |-- CanteenAdmin.tsx       # Admin/Owner/Chef/Staff (1196+ lines)
+|       |-- ServicePanel.tsx       # Superadmin panel
+|       |-- LoginScreen.tsx        # Web login (5-tab role-based)
+|       |-- WalkinPOS.tsx          # Walk-in POS billing
+|       |-- AppHeader.tsx          # Top navigation bar
+|       |-- DownloadPage.tsx       # APK download page
+|       |-- SupportPage.tsx        # Support ticket submission
+|       |-- LegalPages.tsx         # Privacy/Terms pages
+|       |-- LegalFooter.tsx        # Footer with legal links
+|       |-- ImageEditor.tsx        # Image upload/crop editor
+|       |-- UpdatePopup.tsx        # Forced update notification
+|       |-- QRScannerSim.tsx       # QR scanner simulation
+|
+|-- server.ts                      # Express backend (4454 lines)
+|-- db.ts                          # PostgreSQL helper layer (294 lines)
+|-- api/
+|   |-- index.ts                   # Vercel serverless entry
+|
+|-- escq_canteen/                  # Flutter mobile app
+|   |-- lib/
+|   |   |-- main.dart              # App entry point + routing
+|   |   |-- config.dart            # API base URL + Razorpay key
+|   |   |-- models/
+|   |   |   |-- user.dart          # User model (11 fields)
+|   |   |   |-- menu_item.dart     # MenuItem model (17 fields)
+|   |   |   |-- cart.dart          # Cart + CartItem + pricing
+|   |   |   |-- order.dart         # Order + OrderItem (18 fields)
+|   |   |   |-- college.dart       # College/Canteen/SubCanteen/Branding
+|   |   |   |-- review.dart        # Review model (8 fields)
+|   |   |-- providers/
+|   |   |   |-- auth_provider.dart  # Auth state (login/register/logout)
+|   |   |   |-- menu_provider.dart  # Menu/college/canteen loading
+|   |   |   |-- cart_provider.dart  # Cart state + pricing
+|   |   |   |-- order_provider.dart # Order placement + history
+|   |   |   |-- theme_provider.dart # Dark/light toggle + persistence
+|   |   |-- screens/
+|   |   |   |-- login_screen.dart          # Login/Signup (651 lines)
+|   |   |   |-- home_screen.dart           # Main customer UI (1680 lines)
+|   |   |   |-- staff_home_screen.dart     # Staff/Chef panel (724 lines)
+|   |   |   |-- checkout_screen.dart       # Cart review + payment (292 lines)
+|   |   |   |-- payment_screen.dart        # Razorpay/UPI + QR (725 lines)
+|   |   |   |-- settings_screen.dart       # Profile/theme/legal (391 lines)
+|   |   |   |-- help_support_screen.dart   # FAQ + tickets (398 lines)
+|   |   |   |-- legal_pages_screen.dart    # Privacy/Terms/Refund (246 lines)
+|   |   |-- services/
+|   |       |-- api_service.dart           # HTTP singleton (251 lines)
+|   |       |-- auth_service.dart          # SharedPreferences (43 lines)
+|   |-- pubspec.yaml
+|   |-- assets/images/
+|       |-- app_icon.png
+|       |-- escq_logo.png
+|       |-- splash_screen.png
+|       |-- jjcet_logo.png
+|
+|-- android/                       # Capacitor Android wrapper
+|-- dist/                          # Build output
+|-- public/                        # Static assets + APK files
+|
+|-- schema.sql                     # PostgreSQL schema (206 lines)
+|-- supabase_setup.sql             # Supabase-specific schema (191 lines)
+|-- vercel.json                    # Vercel deployment config
+|-- capacitor.config.ts            # Capacitor config
+|-- vite.config.ts                 # Vite build config
+|-- tsconfig.json                  # TypeScript config
+|-- package.json                   # NPM dependencies
+|-- .env                           # Environment variables
+|-- .env.example                   # Env var template
+|-- .gitignore
+|-- PROJECT-DOCUMENTATION.txt      # Existing docs (353 lines)
+|-- DATABASE_STRUCTURE.txt         # DB docs (713 lines)
+|-- ROLE_DIAGRAMS.txt              # Role diagrams (693 lines)
+|-- New Canteen New Laptop/        # Dev setup package
+    |-- setup.bat / setup.sh
+    |-- FULL-PROJECT-DOCUMENTATION.txt
+    |-- PASTE-THIS-PROMPT-ON-NEW-LAPTOP.txt
+
+
+============================================================
+9. FRONTEND ARCHITECTURE
+============================================================
+
+--- FLUTTER MOBILE APP ---
+
+Architecture Pattern: Feature-based folder structure
+  models/ -> providers/ -> screens/ -> services/
+  No formal clean architecture (MVVM/MVC).
+
+State Management: Provider (ChangeNotifier)
+  5 Providers:
+    AuthProvider    -- login, register, logout, session
+    MenuProvider    -- colleges, canteens, items, filtering
+    CartProvider    -- cart items, pricing calculations
+    OrderProvider   -- order placement, history, reviews
+    ThemeProvider   -- dark/light toggle, persistence
+
+Navigation: Imperative Navigator
+  - Navigator.push / pushReplacement / pushAndRemoveUntil
+  - onGenerateRoute for /legal/* routes only
+  - Entry point: AppEntryPoint (splash -> auth gate -> home/staff)
+
+Data Flow:
+  User Action -> Screen (StatefulWidget)
+    -> Provider method -> ApiService (HTTP)
+    -> Express backend -> PostgreSQL
+    -> Response -> Provider state update -> UI rebuild
+
+--- REACT WEB APP ---
+
+Architecture: Single-file SPA (App.tsx as root router)
+  - Role-based view switching in App.tsx
+  - Components organized by feature
+  - No formal state management library (React useState/useEffect)
+
+Navigation: Custom SPA routing
+  - window.history.pushState + popstate listener
+  - Routes: / (main), /download, /support
+  - No React Router
+
+Data Flow:
+  User Action -> Component (useState)
+    -> fetch() with JWT interceptor (config.ts)
+    -> Express backend -> PostgreSQL
+    -> Response -> setState -> UI re-render
+
+
+============================================================
+10. BACKEND ARCHITECTURE
+============================================================
+
+Framework:     Express.js 4.21.2 (TypeScript)
+Entry Point:   server.ts (4454 lines, monolithic)
+Database:      PostgreSQL via pg driver (no ORM)
+Deployment:    Vercel serverless function
+
+Pattern:       Single-file monolith
+  - All routes defined in server.ts
+  - All middleware in server.ts
+  - Business logic inline in route handlers
+  - No separate controller/model files
+
+Key Architectural Decisions:
+  1. Firestore-compatible helpers over raw SQL (db.ts)
+  2. In-memory state fallback when PostgreSQL unavailable
+  3. Schema introspection (discovers columns at runtime)
+  4. camelCase <-> snake_case auto-conversion
+  5. Request-triggered background jobs (no cron scheduler)
+
+Middleware Stack:
+  1. CORS (whitelist-based)
+  2. Body parser (10MB limit)
+  3. Rate limiter (30 req/min/IP)
+  4. Security headers
+  5. Auth (Supabase JWT verification)
+  6. Role-based access (superadmin/management)
+  7. PostgreSQL readiness check
+  8. Vercel path rewriting
+
+
+============================================================
+11. DATABASE ARCHITECTURE
+============================================================
+
+Database:      PostgreSQL (Supabase-hosted)
+Driver:        pg (node-postgres) v8.23.0
+Connection:    Pool with 10 max connections, 30s idle timeout
+SSL:           Required (rejectUnauthorized: false)
+No ORM:        Custom helper layer in db.ts
+
+--- DATABASE HELPER LAYER (db.ts) ---
+
+Provides Firestore-like helpers over raw SQL:
+
+| Helper                    | SQL Operation                          |
+|---------------------------|----------------------------------------|
+| query(text, params)       | Raw SELECT -> rows[]                   |
+| queryOne(text, params)    | Raw SELECT -> first row                |
+| execute(text, params)     | INSERT/UPDATE/DELETE -> row count       |
+| pgGetById(table, id)      | SELECT * WHERE pk = $1                 |
+| pgGetAll(table)           | SELECT * FROM table                    |
+| pgGetWhere(table, conds)  | SELECT * WHERE col1=$1 AND col2=$2     |
+| pgSet(table, id, data)    | INSERT ... ON CONFLICT DO UPDATE       |
+| pgUpdate(table, id, data) | UPDATE SET col=$1 WHERE pk=$2          |
+| pgDelete(table, id)       | DELETE WHERE pk = $1                   |
+| pgDeleteWhere(table, conds)| DELETE WHERE col1=$1                   |
+| pgIncrement(table, id, col, amt)| UPDATE SET col = col + $1      |
+| pgGetByEmail(table, email)| SELECT WHERE email = $1                |
+
+Schema Introspection:
+  - On first write to a table, queries information_schema.columns
+  - Discovers real column names at runtime
+  - Filters out fields not present in DB (drift safety)
+  - Caches column sets per table
+
+Case Conversion:
+  - All JS data: camelCase -> snake_case before DB storage
+  - All DB results: snake_case -> camelCase before returning
+
+Primary Key Map:
+  - Most tables: 'id'
+  - settings table: 'canteen_id'
+  - otp_store table: 'email'
+
+
+============================================================
+12. COMPLETE DATABASE SCHEMA
+============================================================
+
+12 Tables with 20 indexes.
+
+--- TABLE: colleges ---
+| Column        | Type         | Nullable | Default  | Constraints      |
+|---------------|--------------|----------|----------|------------------|
+| id            | VARCHAR      | NO       | --       | PRIMARY KEY      |
+| name          | VARCHAR      | NO       | --       | --               |
+| location      | VARCHAR      | NO       | --       | --               |
+| logo_url      | TEXT         | YES      | NULL     | --               |
+| banner_url    | TEXT         | YES      | NULL     | --               |
+| banner_subtitle| VARCHAR     | YES      | NULL     | --               |
+| banner_features| JSONB       | YES      | NULL     | --               |
+| branding      | JSONB        | YES      | NULL     | --               |
+| status        | VARCHAR      | YES      | 'active' | --               |
+
+--- TABLE: canteens ---
+| Column        | Type         | Nullable | Default  | Constraints      |
+|---------------|--------------|----------|----------|------------------|
+| id            | VARCHAR      | NO       | --       | PRIMARY KEY      |
+| name          | VARCHAR      | NO       | --       | --               |
+| college_id    | VARCHAR      | NO       | --       | FK -> colleges    |
+| owner_id      | VARCHAR      | YES      | NULL     | --               |
+| owner_name    | VARCHAR      | YES      | NULL     | --               |
+| status        | VARCHAR      | YES      | 'active' | --               |
+| location      | VARCHAR      | YES      | NULL     | --               |
+| logo_url      | TEXT         | YES      | NULL     | --               |
+| Index: idx_canteens_college ON college_id |
+
+--- TABLE: subcanteens ---
+| Column        | Type         | Nullable | Default  | Constraints      |
+|---------------|--------------|----------|----------|------------------|
+| id            | VARCHAR      | NO       | --       | PRIMARY KEY      |
+| name          | VARCHAR      | NO       | --       | --               |
+| canteen_id    | VARCHAR      | NO       | --       | FK -> canteens    |
+| status        | VARCHAR      | YES      | 'active' | --               |
+| Index: idx_subcanteens_canteen ON canteen_id |
+
+--- TABLE: users ---
+| Column           | Type         | Nullable | Default  | Constraints      |
+|------------------|--------------|----------|----------|------------------|
+| id               | VARCHAR      | NO       | --       | PRIMARY KEY (UUID)|
+| name             | VARCHAR      | NO       | --       | --               |
+| email            | VARCHAR      | NO       | --       | UNIQUE           |
+| role             | VARCHAR      | NO       | --       | 6 roles (see below)|
+| phone            | VARCHAR      | YES      | NULL     | --               |
+| register_number  | VARCHAR      | YES      | NULL     | --               |
+| college_id       | VARCHAR      | YES      | NULL     | FK -> colleges    |
+| canteen_id       | VARCHAR      | YES      | NULL     | FK -> canteens    |
+| sub_canteen_id   | VARCHAR      | YES      | NULL     | FK -> subcanteens |
+| status           | VARCHAR      | YES      | 'active' | --               |
+| password         | VARCHAR      | YES      | NULL     | -- (hashed)      |
+| posting          | VARCHAR      | YES      | NULL     | --               |
+| created_at       | BIGINT       | YES      | NULL     | -- (Unix ms)     |
+| Indexes: idx_users_canteen, idx_users_college, idx_users_role |
+
+--- TABLE: ingredients ---
+| Column        | Type         | Nullable | Default  | Constraints      |
+|---------------|--------------|----------|----------|------------------|
+| id            | VARCHAR      | NO       | --       | PRIMARY KEY      |
+| name          | VARCHAR      | NO       | --       | --               |
+| stock_grams   | NUMERIC      | YES      | 0        | --               |
+| unit          | VARCHAR      | YES      | 'kg'     | --               |
+| canteen_id    | VARCHAR      | YES      | NULL     | FK -> canteens    |
+| sub_canteen_id| VARCHAR      | YES      | NULL     | FK -> subcanteens |
+| Index: idx_ingredients_canteen ON canteen_id |
+
+--- TABLE: items (menu items) ---
+| Column           | Type         | Nullable | Default  | Constraints      |
+|------------------|--------------|----------|----------|------------------|
+| id               | VARCHAR      | NO       | --       | PRIMARY KEY      |
+| name             | VARCHAR      | NO       | --       | --               |
+| price            | NUMERIC      | NO       | --       | --               |
+| stock            | INTEGER      | YES      | 0        | --               |
+| rating           | NUMERIC      | YES      | 0        | --               |
+| rating_count     | INTEGER      | YES      | 0        | --               |
+| available        | BOOLEAN      | YES      | true     | --               |
+| category         | VARCHAR      | YES      | ''       | --               |
+| description      | TEXT         | YES      | ''       | --               |
+| image_url        | TEXT         | YES      | NULL     | --               |
+| tags             | JSONB        | YES      | '[]'     | --               |
+| prep_time        | INTEGER      | YES      | 15       | --               |
+| daily_limit      | INTEGER      | YES      | 50       | --               |
+| booked_today     | INTEGER      | YES      | 0        | --               |
+| is_paused        | BOOLEAN      | YES      | false    | --               |
+| recipe           | JSONB        | YES      | '[]'     | -- (ingredient map)|
+| canteen_id       | VARCHAR      | YES      | NULL     | FK -> canteens    |
+| sub_canteen_id   | VARCHAR      | YES      | NULL     | FK -> subcanteens |
+| college_id       | VARCHAR      | YES      | NULL     | FK -> colleges    |
+| requires_chef    | BOOLEAN      | YES      | true     | --               |
+| Indexes: idx_items_canteen, idx_items_subcanteen |
+
+--- TABLE: orders ---
+| Column              | Type         | Nullable | Default    | Constraints      |
+|---------------------|--------------|----------|------------|------------------|
+| id                  | VARCHAR      | NO       | --         | PRIMARY KEY      |
+| user_id             | VARCHAR      | NO       | --         | FK -> users       |
+| user_name           | VARCHAR      | NO       | --         | --               |
+| items               | JSONB        | NO       | --         | -- (OrderItem[]) |
+| total_price         | NUMERIC      | NO       | --         | --               |
+| payment_status      | VARCHAR      | YES      | 'pending'  | --               |
+| payment_method      | VARCHAR      | YES      | ''         | --               |
+| qr_code             | VARCHAR      | YES      | ''         | --               |
+| qr_payload          | TEXT         | YES      | NULL       | -- (signed JSON) |
+| status              | VARCHAR      | YES      | 'scheduled'| -- (see state machine)|
+| timestamp           | VARCHAR      | YES      | NULL       | -- (ISO string)  |
+| created_at          | BIGINT       | YES      | NULL       | -- (Unix ms)     |
+| pickup_time_text    | VARCHAR      | YES      | NULL       | --               |
+| razorpay_order_id   | VARCHAR      | YES      | NULL       | --               |
+| razorpay_payment_id | VARCHAR      | YES      | NULL       | --               |
+| razorpay_signature  | VARCHAR      | YES      | NULL       | --               |
+| vyapar_txn_id       | VARCHAR      | YES      | NULL       | --               |
+| upi_qr_url          | TEXT         | YES      | NULL       | --               |
+| upi_string          | TEXT         | YES      | NULL       | --               |
+| pickup_slot         | VARCHAR      | YES      | NULL       | --               |
+| prep_start_time     | BIGINT       | YES      | NULL       | -- (Unix ms)     |
+| expiry_time         | BIGINT       | YES      | NULL       | -- (Unix ms)     |
+| canteen_id          | VARCHAR      | YES      | NULL       | FK -> canteens    |
+| sub_canteen_id      | VARCHAR      | YES      | NULL       | FK -> subcanteens |
+| college_id          | VARCHAR      | YES      | NULL       | FK -> colleges    |
+| Indexes: idx_orders_canteen, idx_orders_user, idx_orders_status, idx_orders_created |
+
+--- TABLE: reviews ---
+| Column          | Type         | Nullable | Default  | Constraints      |
+|-----------------|--------------|----------|----------|------------------|
+| id              | VARCHAR      | NO       | --       | PRIMARY KEY      |
+| user_id         | VARCHAR      | NO       | --       | FK -> users       |
+| user_name       | VARCHAR      | NO       | --       | --               |
+| rating          | INTEGER      | NO       | --       | 1-5              |
+| comment         | TEXT         | NO       | --       | --               |
+| sentiment       | VARCHAR      | YES      | 'neutral'| --               |
+| timestamp       | VARCHAR      | YES      | NULL     | -- (ISO string)  |
+| menu_item_id    | VARCHAR      | YES      | NULL     | FK -> items       |
+| menu_item_name  | VARCHAR      | YES      | NULL     | --               |
+| canteen_id      | VARCHAR      | YES      | NULL     | FK -> canteens    |
+| sub_canteen_id  | VARCHAR      | YES      | NULL     | FK -> subcanteens |
+| Index: idx_reviews_canteen ON canteen_id |
+
+--- TABLE: settings ---
+| Column             | Type         | Nullable | Default  | Constraints      |
+|--------------------|--------------|----------|----------|------------------|
+| canteen_id         | VARCHAR      | NO       | --       | PRIMARY KEY (non-standard)|
+| no_show_minutes    | INTEGER      | YES      | 30       | --               |
+| default_slot_capacity| INTEGER    | YES      | 30       | --               |
+
+--- TABLE: otp_store ---
+| Column     | Type         | Nullable | Default  | Constraints      |
+|------------|--------------|----------|----------|------------------|
+| email      | VARCHAR      | NO       | --       | PRIMARY KEY (non-standard)|
+| otp        | VARCHAR      | NO       | --       | --               |
+| created_at | BIGINT       | YES      | --       | --               |
+| expires_at | BIGINT       | YES      | --       | --               |
+
+--- TABLE: support_tickets ---
+| Column          | Type         | Nullable | Default  | Constraints      |
+|-----------------|--------------|----------|----------|------------------|
+| id              | VARCHAR      | NO       | --       | PRIMARY KEY      |
+| user_id         | VARCHAR      | NO       | --       | FK -> users       |
+| user_name       | VARCHAR      | NO       | --       | --               |
+| user_email      | VARCHAR      | NO       | --       | --               |
+| category        | VARCHAR      | NO       | --       | 6 categories     |
+| subject         | VARCHAR      | NO       | --       | --               |
+| description     | TEXT         | NO       | --       | --               |
+| order_id        | VARCHAR      | YES      | NULL     | --               |
+| status          | VARCHAR      | YES      | 'open'   | --               |
+| priority        | VARCHAR      | YES      | 'medium' | --               |
+| admin_reply     | TEXT         | YES      | NULL     | --               |
+| canteen_id      | VARCHAR      | YES      | NULL     | FK -> canteens    |
+| college_id      | VARCHAR      | YES      | NULL     | FK -> colleges    |
+| Indexes: idx_support_tickets_user, idx_support_tickets_status |
+
+--- TABLE: walkin_bills ---
+| Column          | Type         | Nullable | Default  | Constraints      |
+|-----------------|--------------|----------|----------|------------------|
+| id              | VARCHAR      | NO       | --       | PRIMARY KEY      |
+| bill_number     | VARCHAR      | NO       | --       | -- (used as QR)  |
+| items           | JSONB        | NO       | --       | --               |
+| subtotal        | NUMERIC      | YES      | 0        | --               |
+| discount        | NUMERIC      | YES      | 0        | --               |
+| tax             | NUMERIC      | YES      | 0        | --               |
+| grand_total     | NUMERIC      | YES      | 0        | --               |
+| payment_status  | VARCHAR      | YES      | 'pending'| --               |
+| payment_method  | VARCHAR      | YES      | NULL     | --               |
+| customer_name   | VARCHAR      | YES      | NULL     | --               |
+| customer_phone  | VARCHAR      | YES      | NULL     | --               |
+| customer_reg_no | VARCHAR      | YES      | NULL     | --               |
+| customer_dept   | VARCHAR      | YES      | NULL     | --               |
+| customer_notes  | TEXT         | YES      | NULL     | --               |
+| cashier_name    | VARCHAR      | NO       | --       | --               |
+| canteen_id      | VARCHAR      | NO       | --       | FK -> canteens    |
+| sub_canteen_id  | VARCHAR      | YES      | NULL     | FK -> subcanteens |
+| college_id      | VARCHAR      | YES      | NULL     | FK -> colleges    |
+| synced          | BOOLEAN      | YES      | false    | --               |
+| type            | VARCHAR      | YES      | 'walkin' | --               |
+| Index: idx_walkin_bills_canteen ON canteen_id |
+
+
+============================================================
+13. ENTITY RELATIONSHIPS
+============================================================
+
+College (1) ----< (many) Canteen
+Canteen (1) ----< (many) SubCanteen
+Canteen (1) ----< (many) MenuItem
+Canteen (1) ----< (many) Ingredient
+Canteen (1) ----< (many) Order
+Canteen (1) ----< (many) Review
+Canteen (1) ----< (1)    Settings
+College (1) ----< (many) User
+Canteen (1) ----< (many) User
+SubCanteen (1) --< (many) User
+User (1) ----< (many) Order
+User (1) ----< (many) Review
+User (1) ----< (many) SupportTicket
+MenuItem (1) --< (many) Review (optional FK)
+Order (1) ----< (many) OrderItem (embedded JSONB)
+
+Hierarchy:
+  College
+    +-- Canteen
+    |     +-- SubCanteen
+    |     +-- MenuItem
+    |     +-- Ingredient
+    |     +-- Order
+    |     |     +-- OrderItem[] (embedded)
+    |     +-- Review
+    |     +-- Settings
+    |     +-- WalkinBill
+    +-- User
+    +-- SupportTicket
+
+
+============================================================
+14. AUTHENTICATION
+============================================================
+
+[CONFIRMED from server.ts and auth_provider.dart]
+
+Provider: Supabase Auth (email + password)
+
+--- REGISTRATION ---
+1. Client sends: name, email, password, phone, registerNumber, collegeId
+2. Server validates (email format, password min 6 chars, unique email)
+3. Creates user in Supabase Auth via supabaseAdmin.auth.admin.createUser()
+   with email_confirm: true (auto-verified)
+4. Waits 500ms for database trigger to create public.users profile
+5. Signs in to get access_token and refresh_token
+6. Returns tokens + user profile to client
+
+--- LOGIN ---
+1. Client sends: email, password
+2. Server calls supabaseClient.auth.signInWithPassword()
+3. Looks up public.users profile
+4. SUPERADMIN SPECIAL FLOW: If email matches SUPERADMIN_CHECK_EMAIL,
+   signs out and returns { pendingOtp: true } (requires OTP step)
+5. For regular users: returns access_token + refresh_token + profile
+6. Client stores tokens in SharedPreferences (Flutter) or
+   localStorage (web): bb_token, bb_refresh_token
+
+--- OTP FLOW (Superadmin Only) ---
+1. POST /api/auth/generate-otp -- generates 6-digit code
+2. Stores in otp_store table (email PK, 5-minute expiry)
+3. Emails OTP via Resend API
+4. POST /api/auth/verify-otp -- verifies code against stored OTP
+5. If valid: creates Supabase session, returns tokens
+
+--- SESSION MANAGEMENT ---
+- No server-side session store (stateless JWT)
+- Supabase access_token used for authenticated requests
+- Client auto-refreshes token when < 60s to expiry
+- On 401: client attempts refresh once, then hard reset
+- Flutter: session persisted in SharedPreferences (bb_user JSON)
+
+--- JWT VERIFICATION (authMiddleware) ---
+1. Extracts Bearer token from Authorization header
+2. Calls supabaseClient.auth.getUser(token)
+3. If valid: attaches req.authUser, req.authEmail to request
+4. If invalid: returns 401 Unauthorized
+
+
+============================================================
+15. AUTHORIZATION AND ROLES
+============================================================
+
+[CONFIRMED from server.ts and user.dart]
+
+6 Roles (from highest to lowest privilege):
+
+1. superadmin
+   - Full platform management
+   - College/Canteen/SubCanteen CRUD
+   - User CRUD (all roles)
+   - Branding management
+   - Requires OTP verification for login
+   - Cannot be created by admin (escalation guard)
+   - BLOCKED from Flutter mobile login ("This account is for web admin only")
+
+2. admin
+   - User management (except superadmin/owner roles)
+   - Canteen data view
+   - Support ticket management
+   - Cannot escalate to superadmin
+   - BLOCKED from Flutter mobile login
+
+3. owner
+   - Menu item CRUD (add/update/delete)
+   - Ingredient management
+   - Order management
+   - Canteen settings
+   - Staff/chef assignment
+   - BLOCKED from Flutter mobile login
+
+4. chef
+   - View order prep board
+   - Update order status (preparing -> ready)
+   - View ingredient requirements
+   - Access via Flutter StaffHomeScreen
+
+5. staff
+   - QR code scanning and verification
+   - Order status updates (ready -> collected)
+   - Walk-in POS billing
+   - Access via Flutter StaffHomeScreen
+
+6. customer
+   - Menu browsing
+   - Cart and ordering
+   - Payment
+   - Order history
+   - QR ticket display
+   - Reviews
+   - Support tickets
+   - Access via Flutter HomeScreen + React CustomerApp
+
+--- ROLE-BASED ACCESS CONTROL MIDDLEWARE ---
+
+requireSuperadmin:
+  - Checks getCallerProfile() for role == 'superadmin'
+  - Applied to: college/canteen/subcanteen write endpoints
+
+requireManagementAccess:
+  - Checks role == 'superadmin' || role == 'admin'
+  - Applied to: user directory write endpoints
+
+authMiddleware:
+  - Checks valid Supabase JWT token
+  - Applied to: menu item writes, ingredient writes, settings writes
+
+Public (no auth):
+  - College/canteen/subcanteen read
+  - Canteen data read
+  - Order placement (optional auth)
+  - Review submission
+  - Support ticket submission
+  - Payment verification
+
+
+============================================================
+16. API ARCHITECTURE
+============================================================
+
+Base URL: https://canteen20.vercel.app
+Format: JSON (Content-Type: application/json)
+Timeout: 90 seconds (client-side)
+Retry: 2 retries with exponential backoff (2s, 4s)
+
+--- ALL ENDPOINTS (30+ routes) ---
+
+AUTH:
+  POST /api/auth/register          Create new user
+  POST /api/auth/login             Login with email/password
+  POST /api/auth/generate-otp      Generate OTP for superadmin
+  POST /api/auth/verify-otp        Verify OTP + create session
+
+COLLEGES:
+  GET  /api/colleges               List all colleges (public)
+  POST /api/colleges               Create college (superadmin)
+  PUT  /api/colleges/:id           Update college (superadmin)
+  PUT  /api/colleges/:id/logo      Upload logo base64 (superadmin)
+  PUT  /api/colleges/:id/banner    Upload banner base64 (superadmin)
+  PUT  /api/colleges/:id/branding  Update branding JSON (superadmin)
+  DELETE /api/colleges/:id         Delete college (superadmin)
+
+CANTEENS:
+  GET  /api/canteens               List all canteens (public)
+  POST /api/canteens               Create canteen (superadmin)
+  PUT  /api/canteens/:id           Update canteen (superadmin)
+  DELETE /api/canteens/:id         Delete canteen (superadmin)
+  POST /api/canteen/update-name    Update canteen name (auth)
+
+SUB-CANTEENS:
+  GET  /api/subcanteens            List all sub-canteens (public)
+  POST /api/subcanteens            Create sub-canteen (superadmin)
+  PUT  /api/subcanteens/:id        Update sub-canteen (superadmin)
+  DELETE /api/subcanteens/:id      Delete sub-canteen (superadmin)
+
+USERS:
+  GET  /api/users                  List all users (public, passwords stripped)
+  POST /api/users                  Create user (superadmin/admin)
+  DELETE /api/users/:email         Delete user (superadmin/admin)
+  PUT  /api/users/:email/role      Update user role/details (superadmin/admin)
+
+CANTEEN DATA:
+  GET  /api/canteen                Full canteen data (items, orders, reviews, etc.)
+  GET  /api/user/orders            User order history
+
+MENU:
+  POST /api/canteen/menu           Add/update menu item (auth)
+  DELETE /api/canteen/menu/:id     Delete menu item (auth)
+
+INGREDIENTS:
+  POST /api/canteen/ingredients     Add/update ingredient (auth)
+  DELETE /api/canteen/ingredients/:id  Delete ingredient (auth)
+  POST /api/canteen/ingredients/batch  Batch update ingredients (auth)
+
+ORDERS:
+  POST /api/canteen/order          Place order (auth optional)
+  POST /api/canteen/order/status   Update order status (auth)
+  POST /api/canteen/order/update-slot  Update pickup slot (auth)
+  POST /api/canteen/order/batch-status  Batch status update (auth)
+
+PAYMENTS:
+  POST /api/razorpay/verify        Verify Razorpay payment
+  GET  /api/razorpay/callback      Razorpay browser redirect
+  GET  /api/razorpay/status        Check Razorpay payment status
+  POST /api/payment/razorpay-verify  Alternate Razorpay verify
+  POST /api/vyapar/verify          Verify VyaparGateway payment
+  POST /api/vyapar/webhook         VyaparGateway server webhook
+  GET  /api/vyapar/status          Check VyaparGateway status
+  GET  /api/vyapar/callback        UPI app redirect-back
+
+QR:
+  GET  /api/canteen/qr/verify      Verify QR code (lookup)
+  POST /api/canteen/qr/verify      Verify + collect order
+
+REVIEWS:
+  POST /api/canteen/review         Submit review (with AI sentiment)
+
+SETTINGS:
+  POST /api/canteen/settings       Update canteen settings (auth)
+
+SUPPORT:
+  POST /api/support/submit         Submit support ticket
+  GET  /api/support/all            Get all tickets
+  GET  /api/support/user           Get user tickets
+  POST /api/support/reply          Admin reply to ticket
+
+WALK-IN POS:
+  POST /api/canteen/walkin-bill     Create walk-in bill
+  GET  /api/canteen/walkin-bill/lookup  Look up bill by number
+  GET  /api/canteen/walkin-bills    List walk-in bills
+  POST /api/canteen/walkin-bill/mark-paid  Mark bill paid
+
+AI:
+  POST /api/ai/recommend           AI menu recommendations
+
+SYSTEM:
+  GET  /api/test                   Health check
+  GET  /api/app-version            App version info
+  POST /api/canteen/reset          Reset canteen data (demo)
+
+
+============================================================
+17. USER WORKFLOW (AUTHENTICATION)
+============================================================
+
+REGISTRATION:
+1. User opens app -> LoginScreen displayed
+2. Taps "Sign Up" toggle
+3. Fills: Full Name, Phone Number, College (dropdown from API),
+   Email Address, Password
+4. Reads and agrees to Privacy Policy, Terms, T&C, Refund Policy
+   (checkboxes with clickable links to LegalPagesScreen)
+5. Taps "Create Account"
+6. Flutter: AuthProvider.register() -> ApiService.register()
+7. Server: validates -> Supabase Auth createUser -> returns tokens
+8. Client: saves user to SharedPreferences
+9. _AfterLogin widget: loads menu data, routes to HomeScreen
+
+LOGIN:
+1. User enters email + password
+2. Flutter: AuthProvider.login() -> ApiService.login()
+3. Server: Supabase signInWithPassword -> returns tokens + profile
+4. Client: saves user to SharedPreferences
+5. _AfterLogin: loads colleges/canteens/menu/orders
+6. Routes to HomeScreen (customer) or StaffHomeScreen (staff/chef)
+7. Admin/superadmin/owner: blocked from mobile ("web admin only")
+
+SESSION PERSISTENCE:
+1. App start -> AppEntryPoint._init() -> AuthProvider.init()
+2. AuthService.init() reads bb_user from SharedPreferences
+3. If found: user restored, isLoggedIn = true
+4. If not found: LoginScreen displayed
+
+LOGOUT:
+1. User taps logout button
+2. AuthProvider.logout() -> AuthService.logout()
+3. Clears bb_user, bb_loggedIn, bb_role, bb_orders
+4. Navigator.pushAndRemoveUntil(LoginScreen) -- clears nav stack
+
+
+============================================================
+18. ORDER WORKFLOW
+============================================================
+
+1. ITEM SELECTION
+   - User browses menu (Meals / Snacks & Beverages categories)
+   - Uses search bar to filter items
+   - Taps "+" on item card to add to cart
+   - CartProvider validates canteen consistency (no cross-canteen mixing)
+
+2. CART / CHECKOUT
+   - User taps floating cart button -> CheckoutScreen
+   - Reviews items, adjusts quantities (+/-)
+   - Selects pickup time slot (ASAP or 15-min intervals)
+   - Sees order summary:
+     * Subtotal (sum of item.price * quantity)
+     * Convenience Fee = ceil(subtotal / 100)
+     * PG Charge = (subtotal / 0.9764) - subtotal (reverse 2.36% fee)
+     * Grand Total = subtotal + convenience fee + pg charge
+
+3. PAYMENT INITIATION
+   - Taps "Pay via Razorpay"
+   - CheckoutScreen -> PaymentScreen (push with totalAmount, pickupSlot)
+   - PaymentScreen._initiatePayment() calls ApiService.placeOrder()
+   - Server validates: items exist, stock available, daily limits,
+     ingredient availability, slot capacity
+   - Server creates Razorpay order OR VyaparGateway transaction
+
+4. PAYMENT PROCESSING
+   - Razorpay: Opens Razorpay SDK checkout
+   - VyaparGateway: Shows UPI QR modal + starts polling
+   - Client polls order status every 1 second
+
+5. PAYMENT VERIFICATION
+   - Razorpay success -> _handlePaymentSuccess()
+   - Calls POST /api/razorpay/verify with orderId, paymentId, signature
+   - Server: HMAC-SHA256 signature check + API fallback
+   - On success: fulfillRazorpayOrder() deducts stock, marks paid
+   - Order status set to 'scheduled' (if requiresChef) or 'ready'
+
+6. ORDER CREATION
+   - Server creates order record in PostgreSQL
+   - Generates QR payload: HMAC-signed JSON {o: orderId, t: timestamp, s: signature}
+   - Returns order with qrPayload to client
+
+7. QR TICKET DISPLAY
+   - PaymentScreen shows success view with QrImageView
+   - Displays: QR code, order ID, bill summary, pickup slot
+   - "View My Orders" and "Order More Food" buttons
+
+8. ORDER STATUS TRACKING
+   - HomeScreen polls order status every 10 seconds
+   - Status stepper shows: Scheduled -> Preparing -> Ready -> Collected
+   - QR ticket accessible for active orders
+
+
+============================================================
+19. PAYMENT WORKFLOW
+============================================================
+
+--- RAZORPAY FLOW ---
+1. Server creates Razorpay order via razorpay.orders.create()
+   - Amount in paise (INR)
+   - Receipt: order ID
+   - Amount includes reverse-calculated processing fee
+2. Client opens Razorpay SDK with order options
+3. User completes payment in Razorpay UI
+4. Razorpay returns: orderId, paymentId, signature
+5. Client calls POST /api/razorpay/verify
+6. Server verifies HMAC-SHA256: HMAC(orderId|paymentId, secret)
+7. If signature mismatch: fallback to Razorpay API query
+8. On success: fulfillRazorpayOrder()
+   - Deducts item stock
+   - Increments bookedToday
+   - Deducts recipe ingredients
+   - Sets order status to 'scheduled' or 'ready'
+9. Client receives success, displays QR ticket
+
+--- VYAPARGATEWAY (UPI QR) FLOW ---
+1. Server creates transaction via VyaparGateway API
+   - Auth: Basic base64(merchantId:secret) + X-Api-Key
+   - Returns: qr_url, upi_string, transaction_id
+2. Client displays UPI QR code image
+3. User scans with any UPI app
+4. Client polls order status every 1 second
+5. Server webhook (POST /api/vyapar/webhook) confirms payment
+6. On success: deducts stock, marks paid
+
+--- AUTO-RECONCILIATION ---
+- Triggered on every GET /api/user/orders call
+- Any PENDING order with razorpayOrderId is checked against Razorpay API
+- If captured payment found: auto-fulfills order
+- Prevents "money deducted but order stuck" scenario
+
+--- DUPLICATE PAYMENT PROTECTION ---
+- Razorpay: signature verification prevents replay
+- VyaparGateway: transaction ID uniqueness
+- Order status check: only 'pending' orders can be fulfilled
+
+
+============================================================
+20. QR TICKET WORKFLOW
+============================================================
+
+--- GENERATION ---
+1. On order fulfillment (payment verified)
+2. Server calls generateSignedQR(orderId):
+   - timestamp = Date.now()
+   - signature = HMAC-SHA256(orderId.timestamp, QR_SECRET)
+   - payload = JSON.stringify({ o: orderId, t: timestamp, s: signature })
+3. payload stored as order.qrPayload in database
+4. Client displays via QrImageView (qr_flutter package)
+   - version: QrVersions.auto
+   - size: 140-190px
+
+--- DATA ENCODED ---
+{
+  "o": "ORD_1234",      // Order ID
+  "t": "1234567890",    // Generation timestamp
+  "s": "abcdef..."      // HMAC-SHA256 signature
+}
+
+--- VERIFICATION (Staff Scan) ---
+1. Staff opens StaffHomeScreen -> Scanner tab
+2. MobileScanner detects QR code via camera
+3. Client calls GET /api/canteen/qr/verify?code={payload}
+4. Server parses JSON payload
+5. Recomputes HMAC and compares with provided signature
+6. Looks up order in PostgreSQL
+7. Returns order details to staff
+8. Staff sees order details dialog with "Mark Served" button
+
+--- COLLECTION ---
+1. Staff taps "Mark Served"
+2. Client calls POST /api/canteen/qr/verify with { code, action: 'collect' }
+3. Server verifies signature again
+4. Checks order status (must be 'ready')
+5. Updates order status to 'collected'
+6. Returns success with alreadyCollected flag for duplicate protection
+7. QR is effectively invalidated (order is collected)
+
+--- SECURITY ---
+- HMAC-SHA256 prevents QR forgery
+- QR_SECRET from environment variable (auto-generated if not set)
+- Each QR is tied to specific order ID + timestamp
+- Signature verification on every scan
+- Duplicate scan protection via alreadyCollected flag
+
+
+============================================================
+21. ORDER STATUS STATE MACHINE
+============================================================
+
+[CONFIRMED from code]
+
+States:
+  pending    -- Order created, payment not yet verified
+  scheduled  -- Payment verified, awaiting preparation
+  preparing  -- Kitchen actively preparing
+  ready      -- Prepared, awaiting pickup
+  collected  -- Customer collected (terminal)
+  expired    -- Not picked up in time (terminal)
+  cancelled  -- Cancelled by user/staff (terminal)
+  delivered  -- (defined in types, not actively used)
+
+State Transitions:
+
+  [Order Created]
+       |
+       v
+    pending ----(payment failed/cancelled)----> cancelled
+       |
+       | (payment verified, requiresChef=true)
+       v
+    scheduled ----(no-show expiry)----> expired
+       |
+       | (staff: "Start Preparing")
+       v
+    preparing
+       |
+       | (staff: "Mark Ready" OR requiresChef=false auto-ready)
+       v
+    ready ----(expiryTime passed)----> expired
+       |
+       | (staff: "Mark Collected" via QR scan)
+       v
+    collected
+
+Who Can Change Each State:
+  pending -> scheduled:   Server (on payment verification)
+  pending -> ready:       Server (if requiresChef=false)
+  pending -> cancelled:   Server (on payment failure)
+  scheduled -> preparing: Staff/Owner (via order status update)
+  preparing -> ready:     Staff/Owner/Chef (via order status update)
+  ready -> collected:     Staff (via QR scan "Mark Served")
+  ready -> expired:       Server (auto-expiry check on GET /api/canteen)
+  Any -> cancelled:       Staff/Owner (manual cancellation)
+
+Database Updates:
+  - status field updated
+  - prep_start_time set when entering 'preparing'
+  - expiry_time calculated from pickup slot + noShowMinutes setting
+  - Payment fields populated on payment verification
+
+
+============================================================
+22. ORDER HISTORY
+============================================================
+
+Query: GET /api/user/orders?userId={id}&canteenId={id}
+- Filters by user ID (server-side)
+- Includes auto-reconciliation for pending Razorpay orders
+- Returns sorted by createdAt descending
+
+Client Display:
+- Flutter HomeScreen -> "ORDER HISTORY & MILESTONES" tab
+- Order cards showing:
+  * Order ID (red text)
+  * Date/time (formatted)
+  * Items list with quantities
+  * Status with emoji indicator
+  * Status stepper (milestones)
+  * QR Ticket button (for active orders)
+  * Amount paid
+
+Active Orders: status in (scheduled, preparing, ready)
+Completed Orders: status in (collected, expired, cancelled)
+
+Refresh:
+- Auto-refresh every 10 seconds (Flutter)
+- Pull-to-refresh available
+- Manual refresh button
+
+
+============================================================
+23. SUPPORT SYSTEM
+============================================================
+
+--- FAQ ---
+5 items with ExpansionTile:
+  1. How to place an order?
+  2. Payment methods
+  3. Order tracking
+  4. Cancellation policy
+  5. Contact support
+
+--- QUICK ACTIONS ---
+- Call: tel:+919940918442
+- Email: mailto:escqsupportemail@gmail.com
+- WhatsApp: https://wa.me/919940918442
+
+--- SUPPORT TICKET SUBMISSION ---
+Fields:
+  - Name
+  - Email
+  - Category (dropdown: Payment Issues, Refund Request,
+    Order Problem, Account Issue, App Bug, Other)
+  - Subject
+  - Issue Description (multiline)
+
+Backend:
+  POST /api/support/submit
+  - Creates ticket with status='open', auto-priority based on category
+  - Sends email notification to admin via Resend API
+  - HTML email with purple-themed styling
+
+Admin Reply:
+  POST /api/support/reply
+  - Updates ticket with admin_reply
+  - Sends email to customer via Resend API
+
+Ticket Statuses: open -> in_progress -> resolved -> closed
+Ticket Priorities: low, medium, high (auto-set high for payment/refund)
+
+
+============================================================
+24. SETTINGS / PROFILE
+============================================================
+
+--- PROFILE ---
+Display: Name, Email, Role, College ID, Phone
+Edit: Name, Phone, Registration Number
+  - NOTE: Profile edit saves locally only ("Profile updated locally. Server sync pending.")
+  - [INFERRED] Server-side profile update not yet implemented
+
+--- PREFERENCES ---
+- Dark/Light mode toggle (ThemeProvider)
+- Persisted in SharedPreferences (escq_dark_mode)
+
+--- LEGAL PAGES ---
+- Privacy Policy (full text with sections)
+- Terms & Conditions (full text)
+- Refund & Cancellation Policy (full text)
+- About Us
+- Contact Us
+
+--- HELP & SUPPORT ---
+- Link to HelpSupportScreen
+
+--- LOGOUT ---
+- Clears all local state
+- Navigates to LoginScreen (clears nav stack)
+
+
+============================================================
+25. NOTIFICATIONS
+============================================================
+
+[CONFIRMED from code]
+
+Email Notifications (via Resend API):
+1. Superadmin OTP -- sent during superadmin login
+2. Support ticket submitted -- sent to admin
+3. Admin reply to ticket -- sent to customer
+
+Push Notifications: NOT IMPLEMENTED
+SMS: NOT IMPLEMENTED
+In-App Notifications: NOT IMPLEMENTED (beyond UI state updates)
+Real-time Updates: NOT IMPLEMENTED (polling only)
+
+
+============================================================
+26. SEARCH / FILTERING
+============================================================
+
+--- MENU SEARCH ---
+- Flutter: _searchQuery in HomeScreen, applied via MenuProvider
+- Web: SearchBar component with real-time filtering
+- Searches item name and description
+- Case-insensitive contains match
+
+--- CATEGORY FILTER ---
+- Flutter: selectedCategory tab (All, Meals, Snacks & Beverages)
+- Web: Category tabs with click filtering
+- Applied via MenuProvider._selectedCategory
+
+--- CANTEEN FILTER ---
+- Canteen selector chips at top of home screen
+- Sub-canteen chips below
+- Filters menu items by canteenId/subCanteenId
+
+--- ORDER FILTER ---
+- Active orders: status in (scheduled, preparing, ready)
+- Completed orders: status in (collected, expired, cancelled)
+- Sorted by createdAt descending (newest first)
+
+
+============================================================
+27. IMAGE / FILE HANDLING
+============================================================
+
+[CONFIRMED from code]
+
+--- IMAGE STORAGE ---
+- NO traditional file upload/storage
+- All images stored as base64-encoded data URLs
+- Stored directly in PostgreSQL TEXT/BYTEA columns
+
+--- SERVER-SIDE COMPRESSION ---
+- Library: sharp (optional dependency)
+- compressBase64Image(dataUrl, maxWidth):
+  - Skips if sharp unavailable or image < 30KB
+  - Resizes to maxWidth x maxWidth
+  - Converts to JPEG quality 70
+  - Applied to: menu items (600px), college logos (400px), banners (800px)
+
+--- CLIENT-SIDE DISPLAY ---
+- Flutter: CachedNetworkImage for HTTP URLs
+- Flutter: Base64 data-URL decoding with _logoCache map
+- Flutter: Image.memory with gaplessPlayback for decoded base64
+- Flutter: Fallback to asset images or gradient initial letters
+- React: <img> tags with base64 src or HTTP URLs
+
+--- IMAGE SOURCES ---
+- Menu item images: base64 or HTTP URL
+- College logos: base64 data URLs (from admin upload)
+- College banners: base64 data URLs
+- App assets: PNG files in assets/images/
+
+--- VALIDATION ---
+- File size: limited by body parser (10MB)
+- Format: any (server compresses to JPEG)
+- No client-side format validation found
+
+
+============================================================
+28. SECURITY
+============================================================
+
+[CONFIRMED from server.ts]
+
+Authentication:
+- Supabase Auth with email/password
+- JWT Bearer token verification on protected routes
+- OTP verification for superadmin accounts
+
+Authorization:
+- Role-based middleware (requireSuperadmin, requireManagementAccess)
+- Escalation guard: admin cannot create/modify superadmin
+- Blocked role check on mobile: admin/superadmin/owner denied
+
+Password Handling:
+- scryptSync with random 16-byte salt (local fallback auth)
+- Format: salt:hash
+- Supabase Auth handles primary password hashing
+
+API Security:
+- Rate limiting: 30 requests per 60 seconds per IP
+- CORS whitelist (not wildcard)
+- Security headers: X-Content-Type-Options, X-Frame-Options,
+  X-XSS-Protection, Referrer-Policy, Permissions-Policy
+- Body parser limit: 10MB
+
+Payment Verification:
+- HMAC-SHA256 signature verification for Razorpay
+- API fallback for signature mismatches
+- Transaction ID uniqueness for VyaparGateway
+
+QR Security:
+- HMAC-SHA256 signed payloads
+- QR_SECRET from environment variable
+- Signature verification on every scan
+- Duplicate scan protection
+
+Input Validation:
+- Email format regex
+- Password minimum 6 characters
+- Required field checks on registration
+- SQL parameterized queries (prevents injection)
+
+Sensitive Data:
+- .env file in .gitignore (but [CONFIRMED] currently committed)
+- Passwords stripped from user list API responses
+- No secrets in client-side code (except public keys)
+
+
+============================================================
+29. VALIDATION
+============================================================
+
+[CONFIRMED from code]
+
+Registration:
+- Name: required, non-empty
+- Email: required, format validation (regex)
+- Password: required, minimum 6 characters
+- Phone: optional
+- College: optional
+- Duplicate email check (Supabase Auth)
+
+Login:
+- Email format validation
+- Password required
+
+Order Placement:
+- Items array non-empty
+- Each item: exists in menu, not paused, stock > 0, bookedToday < dailyLimit
+- Recipe ingredients: sufficient stock
+- Slot capacity: orders in slot < defaultSlotCapacity
+- Pickup slot: valid format
+
+Payment:
+- Razorpay: orderId, paymentId, signature required
+- Signature HMAC verification
+- VyaparGateway: transaction ID required
+
+Support Ticket:
+- Name, email, category, subject, description required
+
+Menu Item:
+- Name, price required
+- price >= 0, stock >= 0, dailyLimit > 0
+
+Settings:
+- noShowMinutes >= 0
+- defaultSlotCapacity > 0
+
+
+============================================================
+30. ERROR HANDLING
+============================================================
+
+[CONFIRMED from server.ts and client code]
+
+--- BACKEND ---
+1. Global error handler (Express error middleware)
+   - Catches unhandled errors, returns 500
+2. Route-level try/catch
+   - Most async handlers wrapped in try/catch
+   - Returns { success: false, error: message }
+3. Individual query resilience
+   - Each sub-query in /api/canteen independently wrapped
+   - One failed query doesn't kill entire response
+4. Database readiness check
+   - If pgReady=false, returns 503 or falls back to in-memory
+5. Gemini AI fallback
+   - Catches 503/429 from Gemini API
+   - Falls back to gemini-3.1-flash-lite model
+   - Falls back to rule-based logic if all AI fails
+6. Header-sent guard
+   - Checks res.headersSent before sending error response
+
+--- CLIENT (FLUTTER) ---
+1. Login failure -> error message SnackBar
+2. Network/API failure -> try/catch with error display
+3. Payment failure -> isFailed state + error message
+4. Order creation failure -> isFailed state + retry
+5. Money deducted/payment failed -> auto-reconciliation on next order poll
+6. Invalid/expired QR -> error dialog
+7. Unavailable item -> validation error before order
+8. Quantity limit -> validation error before order
+9. Session expired -> hard reset to login
+10. Support ticket failure -> error message
+
+--- CLIENT (REACT) ---
+- fetch() errors caught in .catch() blocks
+- Displayed via React state (error messages in UI)
+- JWT refresh failure -> hard reset (clear auth + reload)
+
+
+============================================================
+31. REAL-TIME / REFRESH BEHAVIOR
+============================================================
+
+[CONFIRMED from code]
+
+NO WebSockets, SSE, or push notifications implemented.
+
+Polling Intervals:
+- Flutter HomeScreen: order status every 10 seconds
+- Flutter StaffHomeScreen: order list every 60 seconds
+- Flutter PaymentScreen: order status every 1 second (during payment)
+- React CustomerApp: manual refresh / periodic polling
+- React CanteenAdmin: manual refresh
+
+Auto-Expiry Check:
+- Triggered on every GET /api/canteen request
+- Marks 'ready' orders as 'expired' if expiryTime passed
+
+Auto-Reconciliation:
+- Triggered on every GET /api/user/orders request
+- Checks pending Razorpay orders against Razorpay API
+- Auto-fulfills if payment was captured
+
+Manual Refresh:
+- Pull-to-refresh on Flutter order history
+- Refresh button on staff dashboard
+- Re-fetch on screen navigation
+
+
+============================================================
+32. BUSINESS RULES
+============================================================
+
+[CONFIRMED from code]
+
+1. CROSS-CANTEEN CART RESTRICTION
+   - Cart can only contain items from one canteen
+   - Adding item from different canteen throws CartCanteenMismatchException
+
+2. DAILY LIMITS
+   - Each menu item has dailyLimit (default: 50)
+   - bookedToday incremented on order fulfillment
+   - Resets daily (server-side, mechanism not explicit)
+
+3. STOCK MANAGEMENT
+   - Item stock decremented on order fulfillment
+   - Orders rejected if stock insufficient
+   - Ingredient stock also tracked and checked
+
+4. SLOT CAPACITY
+   - Each pickup time slot has max capacity (default: 30)
+   - Slot capacity checked during order placement
+
+5. PLATFORM FEE
+   - Convenience Fee: ceil(subtotal / 100)
+   - PG Charge: (subtotal / 0.9764) - subtotal (reverse 2.36% processing fee)
+   - Included in backend-calculated total
+
+6. ORDER EXPIRY
+   - Ready orders expire after noShowMinutes (default: 30 min)
+   - Expiry checked on GET /api/canteen request
+
+7. PAYMENT FIRST
+   - QR code only generated after payment verified
+   - Stock only deducted on payment verification (not on order creation)
+   - Pending orders exist in DB but are not fulfilled
+
+8. QR ONE-TIME USE
+   - QR effectively invalidated after collection
+   - Duplicate scan protection via alreadyCollected flag
+
+9. ROLE RESTRICTION ON MOBILE
+   - admin, superadmin, owner roles blocked from Flutter login
+   - "This account is for web admin only"
+
+10. PROFILE EDIT LOCAL ONLY
+    - Profile changes save to SharedPreferences only
+    - Server sync pending (not implemented)
+
+11. WALK-IN BILLING
+    - Creates records in both walkin_bills and orders tables
+    - Can be paid immediately or marked pending
+    - Bill number used as QR code
+
+
+============================================================
+33. COMPLETE DATA FLOW
+============================================================
+
+--- CUSTOMER ORDERING FLOW ---
+User -> Flutter HomeScreen
+  -> Loads colleges/canteens/menu via ApiService
+  -> Browses menu (filtered by canteen/category/search)
+  -> Adds items to CartProvider
+  -> Taps cart -> CheckoutScreen
+  -> Reviews items, selects pickup slot
+  -> Taps "Pay via Razorpay"
+  -> PaymentScreen -> ApiService.placeOrder()
+     -> Express: validates items/stock/slot/ingredients
+     -> Creates Razorpay order
+  -> Razorpay SDK opens
+  -> User completes payment
+  -> _handlePaymentSuccess() -> ApiService.verifyRazorpayPayment()
+     -> Express: HMAC verify + fulfillRazorpayOrder()
+     -> PostgreSQL: deduct stock, update order status
+  -> OrderProvider.setLastOrder(order)
+  -> PaymentScreen: QR ticket displayed
+  -> HomeScreen polls order status every 10s
+
+--- STAFF QR SCAN FLOW ---
+Staff -> Flutter StaffHomeScreen -> Scanner tab
+  -> MobileScanner detects QR code
+  -> ApiService.verifyQr(code)
+     -> Express: parse QR, verify HMAC, lookup order
+  -> Order details dialog shown
+  -> Staff taps "Mark Served"
+  -> ApiService.collectOrder(code)
+     -> Express: verify again, update status to 'collected'
+  -> Order removed from active list
+
+--- ADMIN MENU MANAGEMENT FLOW ---
+Admin -> React CanteenAdmin -> Menu tab
+  -> Add/Edit/Delete menu items
+  -> POST /api/canteen/menu (with base64 image)
+     -> Express: compress image via sharp, save to PostgreSQL
+  -> Items appear in customer menu immediately
+
+
+============================================================
+34. UI / UX ARCHITECTURE
+============================================================
+
+--- FLUTTER MOBILE APP ---
+Color Palette (hardcoded inline):
+  Primary Amber:    #F59E0B (buttons, accents)
+  Deep Orange:      #EA580C (gradients)
+  Light BG:         #FBFCFF
+  Dark BG:          #111827
+  Success Green:    #16A34A
+  Error Red:        #DC2626
+  Text Primary:     #111827
+  Text Muted:       #6B7280
+
+Components:
+  - Custom toggle (login/signup)
+  - College dropdown (API-driven)
+  - Policy checkboxes with clickable links
+  - Menu item cards (image, name, rating, price, add-to-cart)
+  - Floating cart FAB with badge count
+  - Quantity stepper (+/- buttons)
+  - Status stepper (ordered -> preparing -> ready -> collected)
+  - QR code display (QrImageView)
+  - Time slot selector (chips)
+  - Order summary card
+  - Dark footer with branding
+  - Splash screen with loading animation
+
+Responsive Behavior:
+  - Mobile (<600px): 2-column menu grid
+  - Tablet (600-1024px): 3-column grid
+  - Desktop (>=1024px): 4-column grid
+
+Loading States:
+  - CircularProgressIndicator (amber color)
+  - "Connecting smart dining cloud network..." text
+  - Skeleton/placeholder not implemented
+
+Empty States:
+  - "No menu items found"
+  - "No orders yet"
+  - "No reviews yet"
+
+Error States:
+  - SnackBar messages
+  - Error text with retry buttons
+  - Failed payment view with "Try Again"
+
+--- REACT WEB APP ---
+- Tailwind CSS utility classes
+- Role-based view switching (App.tsx)
+- Dark theme (primary design)
+- Amber accent color (#F59E0B)
+- Motion animations (Framer Motion)
+- Lucide icons
+- Tab-based navigation within views
+- Modal dialogs for QR display
+- Toast notifications for actions
+
+
+============================================================
+35. DEPLOYMENT
+============================================================
+
+[CONFIRMED from vercel.json and package.json]
+
+Platform: Vercel (serverless)
+Production URL: https://canteen20.vercel.app
+
+Build Pipeline:
+  1. vite build -> dist/ (React SPA)
+  2. esbuild server.ts -> dist/server.cjs (Express bundle, CJS)
+  3. Vercel serves dist/ as static + api/index.ts as serverless
+
+Vercel Configuration:
+  - outputDirectory: dist
+  - buildCommand: npm run build
+  - API rewrites: /api/(.*) -> /api/index.ts
+  - SPA catch-all: non-API routes -> /index.html
+  - APK download headers: Content-Disposition: attachment
+
+Serverless Entry:
+  api/index.ts imports dist/server.cjs and exports default app
+
+Start Commands:
+  - Development: npm run dev (tsx server.ts, port 3000)
+  - Production local: npm run start (node dist/server.cjs)
+  - Vercel: auto-deployed from git push
+
+Flutter Build:
+  - $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
+  - flutter build apk --release
+  - Output: build/app/outputs/flutter-apk/app-release.apk
+
+Capacitor:
+  - npx cap sync (sync web build to Android)
+  - Android Studio for native build
+
+Database:
+  - Schema applied via schema.sql or supabase_setup.sql
+  - Auto-seeding on server startup (if tables empty)
+  - No formal migration system
+
+Environment Variables:
+  All managed via Vercel environment variables
+  No CI/CD pipeline (manual git push triggers deploy)
+
+
+============================================================
+36. ENVIRONMENT CONFIGURATION
+============================================================
+
+[CONFIRMED from .env.example]
+
+--- REQUIRED ---
+POSTGRES_URL              PostgreSQL connection string (Supabase pooler)
+SUPABASE_URL              Supabase project URL
+SUPABASE_ANON_KEY         Supabase publishable anon key (JWT)
+SUPABASE_SERVICE_ROLE_KEY Supabase server-side admin key
+
+--- OPTIONAL ---
+RAZORPAY_KEY_ID           Razorpay key (omit for mock checkout)
+RAZORPAY_KEY_SECRET       Razorpay secret
+VYAPAR_API_KEY            VyaparGateway API key
+VYAPAR_MERCHANT_ID        VyaparGateway merchant ID
+VYAPAR_SECRET             VyaparGateway secret
+VYAPAR_BASE_URL           VyaparGateway API base URL
+                          (default: https://api.vyapargateway.in)
+GEMINI_API_KEY            Google Gemini AI key (omit for rule-based)
+RESEND_API_KEY            Resend email API key (omit for console.log)
+QR_SECRET                 HMAC secret for QR signing
+                          (auto-generated random 32 bytes if not set)
+APP_URL                   Application URL
+                          (default: https://canteen20.vercel.app)
+SUPERADMIN_CHECK_EMAIL    Superadmin email for OTP flow
+
+--- CLIENT-SIDE (src/config.ts) ---
+VITE_API_BASE_URL         API base URL
+                          (default: https://canteen20.vercel.app)
+VITE_SUPABASE_URL         Supabase URL (hardcoded)
+VITE_SUPABASE_ANON_KEY    Supabase anon key (hardcoded)
+
+[SECURITY WARNING] .env file contains live production secrets.
+Currently committed to repository despite .gitignore entry.
+
+
+============================================================
+37. TESTING
+============================================================
+
+[CONFIRMED from filesystem]
+
+--- FLUTTER ---
+- escq_canteen/test/widget_test.dart -- auto-generated default test only
+- No custom unit, integration, or widget tests
+
+--- JAVASCRIPT/TYPESCRIPT ---
+- No .test.* or .spec.* files found
+- No __tests__/ directories
+- No Jest, Vitest, or testing framework configured
+
+--- MANUAL TESTING ---
+- QR scanner simulation (QRScannerSim.tsx)
+- Reset endpoint for demo data
+- In-memory fallback for local testing
+
+--- TESTING GAPS ---
+[CONFIRMED] No automated test suite exists for any component.
+[CONFIRMED] No API integration tests.
+[CONFIRMED] No payment flow tests.
+[CONFIRMED] No QR verification tests.
+[CONFIRMED] No security tests.
+
+
+============================================================
+38. LOGGING AND MONITORING
+============================================================
+
+[CONFIRMED from server.ts]
+
+--- SERVER-SIDE ---
+- console.log/debugPrint for all major operations
+- Pattern: [ModuleName] message
+  * [Razorpay] Payment success/error/verify
+  * [Polling] Order status check
+  * [Recovery] Manual retry
+  * [ApiService] API call results
+- Error logging: full stack traces in catch blocks
+- No structured logging (JSON logs)
+- No external monitoring service (Sentry, etc.)
+- No log aggregation
+
+--- CLIENT-SIDE ---
+- debugPrint() in Flutter for key operations
+- console.log() in React for API responses
+- No crash reporting service
+- No analytics integration
+
+--- VERCEL ---
+- Access logs (built-in)
+- Function execution logs (built-in)
+- No custom logging configuration
+
+
+============================================================
+39. KNOWN ISSUES
+============================================================
+
+--- CONFIRMED CURRENT ISSUES ---
+1. .env file with live secrets committed to git repository
+2. GitHub remote URL contains embedded Personal Access Token
+3. No automated tests
+4. Profile edit saves locally only (server sync pending)
+5. No formal migration system for database changes
+6. Monolithic backend (4454 lines in single file)
+7. No error boundaries in Flutter app
+8. No structured logging
+9. No crash reporting
+10. Duplicate Razorpay verify endpoints (/api/razorpay/verify and /api/payment/razorpay-verify)
+
+--- POSSIBLE ISSUES ---
+1. In-memory state fallback may cause data inconsistency in serverless
+2. Rate limiter is per-IP (x-forwarded-for) -- behind Vercel proxy may be single IP
+3. 90-second HTTP timeout may cause issues on slow connections
+4. Auto-reconciliation runs on every order poll (potential performance impact)
+5. No request deduplication on client (multiple rapid polls possible)
+
+--- TECHNICAL DEBT ---
+1. server.ts monolith needs decomposition into route modules
+2. No ORM -- raw SQL with custom helpers
+3. Inline styling in Flutter (no separate theme file)
+4. Hardcoded colors throughout Flutter codebase
+5. React App.tsx as root router (570 lines, needs component extraction)
+6. No proper error boundary or fallback UI
+7. Missing TypeScript strict mode
+8. No API documentation (OpenAPI/Swagger)
+9. No environment-specific configs (dev/staging/prod)
+10. No database migration versioning
+
+--- MISSING IMPLEMENTATION ---
+1. Profile edit server-side sync
+2. Push notifications
+3. Real-time updates (WebSocket/SSE)
+4. Automated testing
+5. CI/CD pipeline
+6. Database migration system
+7. API rate limiting per-user (currently per-IP)
+8. Order cancellation by customer
+9. Refund processing
+10. Wallet/credits system
+
+--- FUTURE IMPROVEMENTS ---
+1. Split server.ts into route modules
+2. Add Prisma/Drizzle ORM
+3. Implement WebSocket for real-time order updates
+4. Add push notifications (FCM/APNs)
+5. Add comprehensive test suite
+6. Implement proper database migrations
+7. Add structured logging (winston/pino)
+8. Add crash reporting (Sentry)
+9. Add analytics (Mixpanel/Amplitude)
+10. Implement wallet/credits system
+
+
+============================================================
+40. INTEGRATION POINTS
+============================================================
+
+External Services:
+1. Supabase Auth -- Email/password authentication, JWT tokens
+2. Supabase PostgreSQL -- Primary database hosting
+3. Razorpay -- Payment processing (card, netbanking, wallet)
+4. VyaparGateway -- UPI dynamic QR payments
+5. Google Gemini AI -- Menu recommendations, sentiment analysis
+6. Resend API -- Transactional email (OTP, support tickets)
+7. Vercel -- Serverless hosting, CDN, auto-deployment
+8. GitHub -- Source code hosting, version control
+9. Sharp -- Server-side image compression (optional)
+
+API Keys Required:
+- Supabase: URL, anon key, service role key
+- Razorpay: key ID, key secret
+- VyaparGateway: API key, merchant ID, secret
+- Google Gemini: API key
+- Resend: API key
+
+
+============================================================
+41. IMPORTANT IMPLEMENTATION DECISIONS
+============================================================
+
+1. SINGLE-FILE BACKEND (server.ts)
+   - All 4454 lines in one file
+   - Enables simple Vercel serverless deployment
+   - Creates maintenance challenges
+
+2. NO ORM -- RAW SQL
+   - Custom Firestore-compatible helpers
+   - Schema introspection for drift safety
+   - More control but more boilerplate
+
+3. BASE64 IMAGE STORAGE
+   - No file upload/storage service
+   - Server-side compression via sharp
+   - Simpler but increases DB size
+
+4. PROVIDER STATE MANAGEMENT (Flutter)
+   - Simple, built-in Flutter solution
+   - No complex state management overhead
+   - 5 providers for 5 feature domains
+
+5. POLLING OVER WEBSOCKETS
+   - Simpler implementation
+   - Works with serverless (no persistent connections)
+   - Higher latency, more bandwidth
+
+6. HMAC-SIGNED QR CODES
+   - Prevents QR forgery
+   - Server-side verification
+   - No third-party QR service needed
+
+7. AUTO-RECONCILIATION ON POLL
+   - Handles "money deducted but order stuck" automatically
+   - Triggered passively on user actions
+   - No background worker needed
+
+8. SUPABASE AUTH + RAW PostgreSQL
+   - Auth via Supabase managed service
+   - Database via raw SQL (not Supabase client)
+   - Hybrid approach for flexibility
+
+9. IN-MEMORY FALLBACK
+   - System degrades gracefully when PostgreSQL unavailable
+   - Data loss risk in serverless environment
+   - Useful for development/testing
+
+10. MONOLITHIC CLIENT + SEPARATE FLUTTER APP
+    - React SPA for web (admin/staff/customer)
+    - Flutter for native mobile (customer/staff)
+    - Shared backend API
+    - Some feature parity gaps between clients
+
+
+============================================================
+42. UNKNOWN / MISSING INFORMATION
+============================================================
+
+[NOT PROVIDED] -- Topics where information was not available:
+
+1. Exact Supabase PostgreSQL version
+2. Server hardware specifications (Vercel serverless)
+3. Database backup/restore procedures
+4. Specific Gemini model versions used (code references multiple)
+5. Resend sending limits and pricing tier
+6. Vercel function execution limits and quotas
+7. Razorpay account verification status
+8. VyaparGateway account tier/limits
+9. College/canteen onboarding process
+10. User acquisition metrics
+11. Daily active user count
+12. Average order volume
+13. Server response time benchmarks
+14. Database query performance metrics
+15. Security audit results
+
+
+============================================================
+43. DEVELOPER QUICK REFERENCE
+============================================================
+
+--- MAIN ENTRY POINTS ---
+Flutter:     escq_canteen/lib/main.dart
+Web React:   src/main.tsx -> src/App.tsx
+Backend:     server.ts (entry) -> api/index.ts (Vercel)
+Database:    db.ts (helper layer)
+
+--- FLUTTER MODULES ---
+Screens:     lib/screens/{login,home,staff_home,checkout,payment,settings,help_support,legal_pages}_screen.dart
+Providers:   lib/providers/{auth,menu,cart,order,theme}_provider.dart
+Models:      lib/models/{user,menu_item,cart,order,college,review}.dart
+Services:    lib/services/{api_service,auth_service}.dart
+Config:      lib/config.dart
+
+--- BACKEND MODULES ---
+All in:      server.ts (single file)
+Database:    db.ts
+Types:       src/types.ts
+
+--- DATABASE ENTITIES ---
+12 tables:   colleges, canteens, subcanteens, users, ingredients,
+             items, orders, reviews, settings, otp_store,
+             support_tickets, walkin_bills
+
+--- KEY APIs ---
+Login:       POST /api/auth/login
+Register:    POST /api/auth/register
+Orders:      GET/POST /api/canteen/order
+Payments:    POST /api/razorpay/verify
+QR Verify:   GET/POST /api/canteen/qr/verify
+Canteen:     GET /api/canteen
+
+--- AUTHENTICATION ---
+Provider:    Supabase Auth
+Token:       JWT Bearer (Authorization header)
+Storage:     SharedPreferences (Flutter) / localStorage (web)
+Refresh:     Client-side when < 60s to expiry
+
+--- PAYMENT ---
+Primary:     Razorpay (card/netbanking/wallet)
+Secondary:   VyaparGateway (UPI QR)
+Fallback:    Mock checkout (when keys not configured)
+
+--- QR ---
+Generation:  HMAC-SHA256(orderId.timestamp, QR_SECRET)
+Payload:     { o: orderId, t: timestamp, s: signature }
+Verification: Server-side HMAC check + order lookup
+
+--- ORDER STATES ---
+pending -> scheduled -> preparing -> ready -> collected
+                   \-> expired    \-> expired
+         -> cancelled               \-> cancelled
+
+--- ROLES ---
+superadmin:  Full platform management (web only)
+admin:       User management, canteen view (web only)
+owner:       Menu/ingredient/order management (web only)
+chef:        Order prep board (mobile + web)
+staff:       QR scanning, counter service (mobile + web)
+customer:    Ordering, payment, history (mobile + web)
+
+--- ENVIRONMENT VARIABLES (NAMES ONLY) ---
+POSTGRES_URL, DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY,
+SUPABASE_SERVICE_ROLE_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET,
+VYAPAR_API_KEY, VYAPAR_MERCHANT_ID, VYAPAR_SECRET, VYAPAR_BASE_URL,
+GEMINI_API_KEY, RESEND_API_KEY, QR_SECRET, APP_URL,
+SUPERADMIN_CHECK_EMAIL, VITE_API_BASE_URL, VITE_SUPABASE_URL,
+VITE_SUPABASE_ANON_KEY
+
+--- IMPORTANT FILES ---
+server.ts              Backend (all routes, 4454 lines)
+db.ts                  Database helpers (294 lines)
+src/types.ts           Shared TypeScript types (251 lines)
+src/App.tsx            React root SPA (570 lines)
+schema.sql             PostgreSQL schema (206 lines)
+escq_canteen/lib/main.dart   Flutter entry point
+escq_canteen/pubspec.yaml    Flutter dependencies
+vercel.json            Deployment config
+.env                   Environment variables
+
+--- COMMON DEBUGGING LOCATIONS ---
+Payment stuck:         Look at Razorpay verify endpoint, auto-reconciliation
+QR not working:        Check QR_SECRET, verify HMAC in qr/verify endpoint
+Order not appearing:   Check order status, payment_status fields
+Auth failing:          Check Supabase keys, JWT verification in authMiddleware
+Menu not loading:      Check /api/canteen endpoint, PostgreSQL connection
+Stock not updating:    Check fulfillRazorpayOrder(), stock deduction logic
+
+
+============================================================
+44. COMPLETE END-TO-END WORKFLOW
+============================================================
+
+CUSTOMER PLACES ORDER:
+1. Open app -> Splash screen -> Auto-login check
+2. Login/Register -> Load colleges/canteens
+3. Select college -> Select canteen
+4. Browse menu (Meals/Snacks categories)
+5. Search/filter items
+6. Add items to cart (canteen validation)
+7. Open cart -> Checkout screen
+8. Review items, adjust quantities
+9. Select pickup time slot (ASAP or future)
+10. See order summary (subtotal + fees + total)
+11. Tap "Pay via Razorpay"
+12. Server validates (stock, limits, slot, ingredients)
+13. Server creates Razorpay order
+14. Razorpay SDK opens payment UI
+15. Complete payment (card/UPI/wallet)
+16. Client sends payment verification to server
+17. Server verifies HMAC signature
+18. Server fulfills order (deduct stock, update status)
+19. Server generates signed QR payload
+20. Client receives order with QR
+21. QR ticket displayed with bill summary
+22. "Order More Food" -> back to menu
+23. "View My Orders" -> order history
+
+STAFF COLLECTS ORDER:
+1. Staff opens app -> StaffHomeScreen
+2. Scanner tab -> Camera active
+3. Customer shows QR at counter
+4. Staff scans QR
+5. Server verifies signature
+6. Order details displayed
+7. Staff taps "Mark Served"
+8. Server updates status to 'collected'
+9. QR invalidated
+10. Order removed from active queue
+
+ADMIN MANAGES MENU:
+1. Login to web app as owner/admin
+2. Navigate to CanteenAdmin
+3. Menu tab -> View all items
+4. Add new item (name, price, stock, image, category)
+5. Server compresses image, saves to PostgreSQL
+6. Item appears in customer menu immediately
+
+
+============================================================
+45. ASCII SYSTEM DIAGRAMS
+============================================================
+
+--- 1. OVERALL ARCHITECTURE ---
+
+  +------------------+     +------------------+
+  |  Flutter Mobile  |     |   React Web SPA  |
+  |  (Android/iOS)   |     |   (Vite + TS)    |
+  +--------+---------+     +--------+---------+
+           |                        |
+           | HTTP/REST             | HTTP/REST
+           | (JWT Bearer)          | (JWT Bearer)
+           |                        |
+  +--------v------------------------v---------+
+  |           Express.js (server.ts)           |
+  |           Port 3000 / Vercel              |
+  |                                           |
+  |  Middleware:                               |
+  |  CORS -> Rate Limit -> Security Headers   |
+  |  -> Auth -> Role Check -> Route Handler   |
+  +----+------+-------+------+------+--------+
+       |      |       |      |      |
+       v      v       v      v      v
+   +------+ +-----+ +---+ +-----+ +------+
+   |PgSQL | |Razor| |Vyp| |Gemi | |Resend|
+   |(Supa)| |pay  | |ar | |ni AI| |Email |
+   +------+ +-----+ +---+ +-----+ +------+
+
+--- 2. DATABASE RELATIONSHIPS ---
+
+  College (1)
+    |--< Canteen (many)
+    |      |--< SubCanteen (many)
+    |      |--< MenuItem (many)
+    |      |--< Ingredient (many)
+    |      |--< Order (many)
+    |      |      |--< OrderItem[] (embedded JSONB)
+    |      |--< Review (many)
+    |      |--< Settings (1)
+    |      |--< WalkinBill (many)
+    |--< User (many)
+    |--< SupportTicket (many)
+
+--- 3. LOGIN FLOW ---
+
+  +--------+     +----------+     +-----------+
+  | Client |     | Express  |     | Supabase  |
+  +---+----+     +----+-----+     +-----+-----+
+      |               |                |
+      | POST /login   |                |
+      |-------------->|                |
+      |               | signInWith     |
+      |               | Password       |
+      |               |--------------->|
+      |               |                |
+      |               |   tokens+user  |
+      |               |<---------------|
+      |  tokens+user  |                |
+      |<--------------|                |
+      |               |                |
+      | store tokens  |                |
+      | (SharedPrefs) |                |
+      |               |                |
+      | POST /user/   |                |
+      | orders        |                |
+      |-------------->|                |
+      |               |  user orders   |
+      |<--------------|                |
+
+--- 4. ORDER FLOW ---
+
+  +--------+    +--------+    +---------+    +--------+
+  | Client |    | Express|    | PgSQL   |    |Razorpay|
+  +---+----+    +---+----+    +----+----+    +---+----+
+      |             |              |              |
+      | POST /order |              |              |
+      |------------>|              |              |
+      |             | validate     |              |
+      |             | items/stock  |              |
+      |             |------------->|              |
+      |             | create order |              |
+      |             |------------->|              |
+      |             |              |              |
+      |             | create       |              |
+      |             | Razorpay     |              |
+      |             | order        |              |
+      |             |---------------------------->|
+      |             |              |              |
+      | razorpayOrderId            |              |
+      |<------------|              |              |
+      |             |              |              |
+      | [User pays in Razorpay UI] |              |
+      |             |              |              |
+      | POST /verify|              |              |
+      |------------>|              |              |
+      |             | HMAC verify  |              |
+      |             |---------------------------->|
+      |             |              |              |
+      |             | fulfill      |              |
+      |             | deduct stock |              |
+      |             |------------->|              |
+      |             | update order |              |
+      |             |------------->|              |
+      |             | generate QR  |              |
+      | order+QR    |              |              |
+      |<------------|              |              |
+
+--- 5. QR VERIFICATION FLOW ---
+
+  +--------+    +--------+    +---------+
+  | Staff  |    | Express|    | PgSQL   |
+  | Device |    |        |    |         |
+  +---+----+    +---+----+    +----+----+
+      |             |              |
+      | scan QR     |              |
+      |             |              |
+      | GET /qr/    |              |
+      | verify?code |              |
+      |------------>|              |
+      |             | parse JSON   |
+      |             | verify HMAC  |
+      |             |------------->|
+      |             | lookup order |
+      |             |<-------------|
+      | order details              |
+      |<------------|              |
+      |             |              |
+      | tap "Mark   |              |
+      |  Served"    |              |
+      |             |              |
+      | POST /qr/   |              |
+      | verify      |              |
+      | {action:    |              |
+      |  collect}   |              |
+      |------------>|              |
+      |             | update status|
+      |             | to collected |
+      |             |------------->|
+      | success     |              |
+      |<------------|              |
+
+--- 6. PAYMENT FLOW ---
+
+  +--------+    +---------+    +--------+    +-------+
+  | Client |    | Express |    |Razorpay|    | PgSQL |
+  +---+----+    +----+----+    +---+----+    +---+---+
+      |              |              |             |
+      | placeOrder   |              |             |
+      |------------->|              |             |
+      |              | create order |             |
+      |              |------------->|             |
+      |              | orderId      |             |
+      |              |<-------------|             |
+      | orderId      |              |             |
+      |<-------------|              |             |
+      |              |              |             |
+      | [User pays]  |              |             |
+      |              |              |             |
+      | verify       |              |             |
+      | payment      |              |             |
+      |------------->|              |             |
+      |              | HMAC check   |             |
+      |              |------------->|             |
+      |              | verified     |             |
+      |              |<-------------|             |
+      |              |              |             |
+      |              | fulfill order|             |
+      |              | deduct stock |             |
+      |              |------------->|             |
+      |              |              |             |
+      | success + QR |              |             |
+      |<-------------|              |             |
+
+--- 7. PICKUP/COLLECTION ---
+
+  +--------+    +--------+    +---------+    +-------+
+  |Customer|    | Staff  |    | Express |    | PgSQL |
+  +---+----+    +---+----+    +----+----+    +---+---+
+      |              |              |             |
+      | show QR      |              |             |
+      | at counter   |              |             |
+      |------------->|              |             |
+      |              | scan QR      |             |
+      |              |              |             |
+      |              | verify       |             |
+      |              |------------->|             |
+      |              | order details|             |
+      |              |<-------------|             |
+      |              |              |             |
+      |              | "Mark Served"|             |
+      |              |------------->|             |
+      |              |              | collect     |
+      |              |              |------------>|
+      |              | success      |             |
+      |              |<-------------|             |
+      | collected!   |              |             |
+      |<-------------|              |             |
+
+--- 8. ROLE/ACCESS FLOW ---
+
+  +-------------------+
+  | User Login        |
+  +--------+----------+
+           |
+           v
+  +--------+----------+
+  | Check Role        |
+  +----+----+----+----+
+       |    |    |    |
+  +----v--+ | +--v----v---+
+  |customer| | |staff/chef |
+  | Flutter| | | Flutter   |
+  | Home   | | | StaffHome |
+  +--------+ | +----------+
+             |
+  +----------v----------+
+  | admin/owner/super   |
+  | BLOCKED from mobile |
+  | "Web admin only"    |
+  +---------------------+
+
+============================================================
+END OF DOCUMENT
+
+============================================================
+PHASE 3/4/6 UPGRADE -- SMART CANTEEN OPERATIONS
+============================================================
+Upgrade Date: 2026-08-27
+Version: 2.5.0 (Server) / 2.4.0 (Flutter)
+Status: IMPLEMENTED
+============================================================
+
+============================================================
+PHASE 3: SMART CANTEEN OPERATIONS
+============================================================
+
+--- 1. KITCHEN DASHBOARD (Flutter - Chef Role) ---
+
+  File: escq_canteen/lib/screens/kitchen_dashboard_screen.dart
+  Route: Direct navigation from main.dart for chef users
+
+  Features:
+  - Live order queue with pending/preparing/ready views
+  - Real-time auto-refresh every 15 seconds
+  - One-tap status transitions: Start Preparing -> Mark Ready
+  - Queue summary cards (pending count, cooking count, ready count)
+  - Average wait time calculation
+  - Kitchen capacity display
+  - Prep time tracking per order
+
+  Integration:
+  - Chef users now route to KitchenDashboardScreen instead of StaffHomeScreen
+  - Staff users continue using StaffHomeScreen
+  - Both screens show OfflineIndicator for network status
+
+--- 2. OWNER DASHBOARD (React Web - Owner Role) ---
+
+  File: src/components/OwnerDashboard.tsx
+  Route: Separate from CanteenAdmin for owner role
+
+  Tabs:
+  a) Overview - Today's stats (orders, revenue, completed, prep time, waste cost)
+  b) Waste - 30-day waste summary by reason and by item
+  c) AI Insights - Demand predictions and AI-generated recommendations
+  d) Counters - Counter workload monitoring
+
+  Integration:
+  - Owner role now routes to OwnerDashboard instead of CanteenAdmin
+  - Chef/Staff roles continue using CanteenAdmin
+
+--- 3. NEW API ENDPOINTS ---
+
+  Kitchen Operations:
+    GET  /api/kitchen/dashboard     - Live kitchen dashboard data
+    POST /api/kitchen/assign        - Assign order to chef
+    POST /api/kitchen/prep-start    - Mark order prep started
+    POST /api/kitchen/prep-complete - Mark order prep completed
+    GET  /api/kitchen/queue         - Live queue data
+
+  Owner Operations:
+    GET  /api/owner/dashboard       - Owner analytics dashboard
+    POST /api/owner/counter         - Update counter workload
+
+  Auth: All kitchen/owner write endpoints require authMiddleware
+
+--- 4. NEW DATABASE TABLES (Phase 3) ---
+
+  kitchen_operations:
+    - Tracks kitchen capacity and active order count
+    - Updated automatically when orders are placed/status changed
+
+  queue_snapshots:
+    - Historical snapshots of queue state for analytics
+    - Recorded on each /api/kitchen/queue request
+
+  preparation_metrics:
+    - Tracks actual vs estimated prep time per order
+    - Auto-populated when prep starts and completes
+
+  counter_workload:
+    - Tracks counter assignment and service metrics
+    - Updated via /api/owner/counter endpoint
+
+--- 5. ORDER LIFECYCLE INTEGRATION ---
+
+  On Order Placement (POST /api/canteen/order):
+    - kitchen_operations.activeOrders incremented
+    - New kitchen_operations record created if none exists
+
+  On Status Change (POST /api/canteen/order/status):
+    - When status -> ready/collected/expired/cancelled: activeOrders decremented
+    - When status -> ready: prep_metrics updated with actual prep time
+
+============================================================
+PHASE 4: AI DEMAND & WASTE INTELLIGENCE
+============================================================
+
+--- 1. DEMAND PREDICTIONS ---
+
+  Endpoint: POST /api/analytics/generate-predictions
+  Method:
+    - Aggregates historical order data (configurable lookback)
+    - Calculates item-level daily averages
+    - Applies 15% buffer for safety stock
+    - Uses Gemini AI for intelligent forecasting (if configured)
+    - Falls back to rule-based predictions
+
+  Storage: demand_predictions table
+    - Stores prediction date, confidence, and based-on-days
+
+--- 2. WASTE TRACKING ---
+
+  Endpoint: POST /api/waste/log
+  - Log individual waste events with item, quantity, reason, cost
+
+  Endpoint: GET /api/waste/summary
+  - 30-day (configurable) waste summary
+  - Breakdown by reason and by item
+  - Total cost and quantity metrics
+
+--- 3. AI RECOMMENDATIONS ---
+
+  Endpoint: POST /api/recommendations/generate
+  - Analyzes order patterns, waste data, ratings, and stock levels
+  - Uses Gemini AI for intelligent recommendations (if configured)
+  - Falls back to rule-based recommendations
+  - Types: efficiency, waste, customer_satisfaction, cost
+  - Priority: low, medium, high
+
+--- 4. NEW DATABASE TABLES (Phase 4) ---
+
+  demand_predictions:
+    - Stores prediction results with confidence scores
+    - Indexed by canteen_id and prediction_date
+
+  demand_prediction_items:
+    - Item-level prediction details (per-prediction)
+
+  waste_records:
+    - Individual waste event records
+    - Indexed by canteen_id and item_id
+
+  ai_recommendations:
+    - AI-generated actionable recommendations
+    - Indexed by status for active recommendation queries
+
+============================================================
+PHASE 6: OFFLINE & NETWORK RESILIENCE
+============================================================
+
+--- 1. OFFLINE SYNC SERVICE (Flutter) ---
+
+  File: escq_canteen/lib/services/offline_sync_service.dart
+
+  Features:
+  - Queues write operations when offline
+  - Auto-syncs when connectivity restores
+  - Periodic sync attempts every 30 seconds
+  - Conflict detection on sync
+  - Persistent queue via SharedPreferences
+  - Max retry limit (5 attempts) with failure marking
+
+--- 2. OFFLINE INDICATOR WIDGET ---
+
+  File: escq_canteen/lib/widgets/offline_indicator.dart
+
+  Features:
+  - Real-time online/offline status display
+  - Pending sync count indicator
+  - Manual sync trigger button
+  - Integrated into HomeScreen and StaffHomeScreen
+
+--- 3. SYNC API ENDPOINTS ---
+
+  POST /api/sync/push
+    - Push offline changes to server
+    - Conflict detection on order updates
+    - Supports: order create/update, review create, waste create
+
+  GET  /api/sync/pending
+    - Get pending sync operations for a user
+
+  POST /api/sync/resolve-conflict
+    - Resolve detected conflicts
+    - Choose local or remote version
+
+  GET  /api/sync/conflicts
+    - Get unresolved conflicts
+
+  GET  /api/sync/events
+    - Get sync event history
+
+--- 4. NEW DATABASE TABLES (Phase 6) ---
+
+  sync_queue:
+    - Client-side offline operation queue
+    - Tracks attempts, status, and last error
+
+  synchronization_events:
+    - Server-side sync event log
+    - Tracks direction, entity type, conflict status
+
+  conflict_records:
+    - Detected data conflicts between local and remote
+    - Stores both versions for resolution
+
+============================================================
+UPDATED DATABASE SCHEMA (PostgreSQL)
+============================================================
+
+Total Tables: 21 (was 12)
+
+Existing Tables (unchanged):
+  colleges, canteens, subcanteens, users, ingredients,
+  items, orders, reviews, settings, otp_store,
+  support_tickets, walkin_bills
+
+New Tables (Phase 3):
+  kitchen_operations, queue_snapshots,
+  preparation_metrics, counter_workload
+
+New Tables (Phase 4):
+  demand_predictions, demand_prediction_items,
+  waste_records, ai_recommendations
+
+New Tables (Phase 6):
+  sync_queue, synchronization_events,
+  conflict_records
+
+Total Indexes: 35 (was 16)
+
+============================================================
+UPDATED API ENDPOINTS
+============================================================
+
+Total Endpoints: 55+ (was 30+)
+
+New Endpoint Groups:
+  /api/kitchen/*    - Kitchen dashboard & operations (5 endpoints)
+  /api/owner/*      - Owner analytics & counters (2 endpoints)
+  /api/analytics/*  - Predictions & data pipeline (2 endpoints)
+  /api/waste/*      - Waste tracking (2 endpoints)
+  /api/recommendations/* - AI recommendations (2 endpoints)
+  /api/sync/*       - Offline sync & conflicts (5 endpoints)
+
+============================================================
+UPDATED FLUTTER NAVIGATION
+============================================================
+
+Role-based routing (main.dart):
+  customer    -> HomeScreen
+  staff       -> StaffHomeScreen (with OfflineIndicator)
+  chef        -> KitchenDashboardScreen (new)
+  owner       -> BLOCKED (web admin only)
+  admin       -> BLOCKED (web admin only)
+  superadmin  -> BLOCKED (web admin only)
+
+============================================================
+UPDATED REACT ROUTING
+============================================================
+
+Role-based routing (App.tsx):
+  customer    -> CustomerApp
+  owner       -> OwnerDashboard (new)
+  chef/staff  -> CanteenAdmin
+  superadmin  -> SuperAdminPanel
+  admin       -> SuperAdminPanel
+
+============================================================
+DEPENDENCY UPDATES
+============================================================
+
+Flutter (pubspec.yaml):
+  Added: connectivity_plus: ^6.0.3
+
+NPM (package.json):
+  No new dependencies required
+
+============================================================
+END OF PHASE 3/4/6 UPGRADE DOCUMENTATION
+============================================================
