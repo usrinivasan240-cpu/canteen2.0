@@ -6,11 +6,9 @@ import 'providers/menu_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/order_provider.dart';
 import 'providers/theme_provider.dart';
-import 'services/offline_sync_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/staff_home_screen.dart';
-import 'screens/kitchen_dashboard_screen.dart';
 import 'screens/legal_pages_screen.dart';
 
 void main() async {
@@ -103,7 +101,6 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   Future<void> _init() async {
     final auth = context.read<AuthProvider>();
     await auth.init();
-    await OfflineSyncService().initialize();
     setState(() => _initialized = true);
   }
 
@@ -174,11 +171,7 @@ class _AppEntryPointState extends State<AppEntryPoint> {
       );
     }
 
-    if (auth.isChef) {
-      return const KitchenDashboardScreen();
-    }
-
-    if (auth.isStaff) {
+    if (auth.isStaff || auth.isChef) {
       return const StaffHomeScreen();
     }
 

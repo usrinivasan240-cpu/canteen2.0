@@ -13,7 +13,6 @@ import { ChefHat, AlertCircle } from 'lucide-react';
 import AppHeader from './components/AppHeader';
 import CustomerApp from './components/CustomerApp';
 import CanteenAdmin from './components/CanteenAdmin';
-import OwnerDashboard from './components/OwnerDashboard';
 import ServicePanel from './components/ServicePanel';
 import LoginScreen from './components/LoginScreen';
 import UpdatePopup from './components/UpdatePopup';
@@ -515,12 +514,7 @@ export default function App() {
               onDismissRazorpaySuccess={() => setRazorpaySuccess(null)}
               onShowSupport={() => setShowSupportPage(true)}
             />
-        ) : role === 'owner' ? (
-          <OwnerDashboard
-            canteenId={selectedCanteenId || currentUser?.canteenId || 'canteen_001'}
-            onLogout={handleLogout}
-          />
-        ) : (role === 'chef' || role === 'staff') ? (
+        ) : (role === 'owner' || role === 'chef' || role === 'staff') ? (
           <CanteenAdmin
             menuItems={canteen?.items || []}
             orders={userOrders}
