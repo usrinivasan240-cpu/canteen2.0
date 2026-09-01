@@ -9,6 +9,7 @@ import 'providers/theme_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/staff_home_screen.dart';
+import 'screens/kitchen_dashboard_screen.dart';
 import 'screens/legal_pages_screen.dart';
 
 void main() async {
@@ -171,7 +172,11 @@ class _AppEntryPointState extends State<AppEntryPoint> {
       );
     }
 
-    if (auth.isStaff || auth.isChef) {
+    if (auth.isChef) {
+      return const KitchenDashboardScreen();
+    }
+
+    if (auth.isStaff) {
       return const StaffHomeScreen();
     }
 
