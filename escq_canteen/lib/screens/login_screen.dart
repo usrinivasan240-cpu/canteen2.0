@@ -643,7 +643,7 @@ class _AfterLoginState extends State<_AfterLogin> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    if (auth.isStaff || auth.isChef) {
+    if (auth.isStaff) {
       return const StaffHomeScreen();
     }
     return const HomeScreen();
