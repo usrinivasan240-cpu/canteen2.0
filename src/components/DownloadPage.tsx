@@ -17,7 +17,12 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
   }, []);
 
   const handleDownload = () => {
-    window.open('https://github.com/usrinivasan240-cpu/canteen2.0/releases/download/v2.5.0/EscQ-v2.5.0-universal.apk', '_blank');
+    const link = document.createElement('a');
+    link.href = '/EscQ-v2.5.0-universal.apk';
+    link.download = 'EscQ-v2.5.0-universal.apk';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     setDownloadStarted(true);
   };
 
