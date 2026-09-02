@@ -5,7 +5,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
-import 'package:permission_handler/permission_handler.dart';
 import '../config.dart';
 
 class NotificationService {
@@ -20,62 +19,61 @@ class NotificationService {
 
   String? get fcmToken => _fcmToken;
 
+  static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
+    'escq_orders',
+    'Order Updates',
+    description: 'Notifications for order status changes',
+    importance: Importance.high,
+    playSound: true,
+  );
+
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
 
-    await _requestPermission();
-    await _initFirebase();
-    await _initLocalNotifications();
-  }
+    final androidPlugin = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
 
-  Future<void> _requestPermission() async {
-    try {
-      if (Platform.isAndroid) {
-        final status = await Permission.notification.status;
-        if (status.isDenied || status.isPermanentlyDenied) {
-          final result = await Permission.notification.request();
-          debugPrint('Android notification permission: $result');
-        } else {
-          debugPrint('Android notification permission already: $status');
-        }
-      }
-    } catch (e) {
-      debugPrint('Permission request failed: $e');
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannel(_channel);
+      debugPrint('Notification channel created');
     }
-  }
 
-  Future<void> _initFirebase() async {
-    try {
-      await Firebase.initializeApp();
-      _fcm = FirebaseMessaging.instance;
-      _fcmToken = await _fcm!.getToken();
-      debugPrint('FCM Token: $_fcmToken');
-      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
-    } catch (e) {
-      debugPrint('Firebase init failed: $e');
-    }
-  }
-
-  Future<void> _initLocalNotifications() async {
     try {
       const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
       const initSettings = InitializationSettings(android: androidSettings);
-      await _localNotifications.initialize(initSettings, onDidReceiveNotificationResponse: _onNotificationTap);
-
-      const androidChannel = AndroidNotificationChannel(
-        'escq_orders',
-        'Order Updates',
-        description: 'Notifications for order status changes',
-        importance: Importance.high,
-        playSound: true,
+      await _localNotifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: _onNotificationTap,
       );
-      await _localNotifications
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(androidChannel);
+      debugPrint('Local notifications initialized');
     } catch (e) {
       debugPrint('Local notifications init failed: $e');
+    }
+
+    if (Platform.isAndroid && androidPlugin != null) {
+      final granted = await androidPlugin.requestNotificationsPermission();
+      debugPrint('Notification permission granted: $granted');
+    }
+
+    try {
+      await Firebase.initializeApp();
+      _fcm = FirebaseMessaging.instance;
+
+      final settings = await _fcm!.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      debugPrint('FCM permission: ${settings.authorizationStatus}');
+
+      _fcmToken = await _fcm!.getToken();
+      debugPrint('FCM Token: $_fcmToken');
+
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
+      debugPrint('Firebase messaging initialized');
+    } catch (e) {
+      debugPrint('Firebase init failed: $e');
     }
   }
 
