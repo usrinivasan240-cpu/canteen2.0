@@ -128,7 +128,7 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
                 <span>Free</span>
               </div>
               <div className="text-[10px] text-gray-600 mt-2">
-                Last updated: 01 Sep 2026
+                Last updated: 02 Sep 2026
               </div>
             </div>
           </div>
