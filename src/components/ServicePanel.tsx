@@ -354,13 +354,14 @@ export default function ServicePanel({
       });
       const d = await resp.json();
       if (d.success) {
+        const roleLabel = usrRole === 'superadmin' ? 'Super Admin' : usrRole.charAt(0).toUpperCase() + usrRole.slice(1);
         setUsrName('');
         setUsrEmail('');
         setUsrRole('chef');
         setUsrCantId('');
         setUsrSubId('');
         setUsrPosting('');
-        setScanStatus({ success: true, text: `Provisioned user account for ${usrEmail} successfully!` });
+        setScanStatus({ success: true, text: `Successfully created ${roleLabel} account for ${usrEmail}` });
         await syncAdminData();
       } else {
         setScanStatus({ success: false, text: d.error || "Failed to create user account" });
@@ -1194,13 +1195,13 @@ export default function ServicePanel({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
             {/* USER ACCOUNT PROVISION FORM */}
-            <div className="lg:col-span-4 bg-white border border-red-100/70 rounded-3xl p-5 md:p-6 shadow-sm space-y-5">
+            <div data-user-form className="lg:col-span-4 bg-white border border-red-100/70 rounded-3xl p-5 md:p-6 shadow-sm space-y-5">
               <div>
                 <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">
-                  Provision User Account
+                  {usrRole === 'superadmin' ? 'Provision Super Admin' : 'Provision User Account'}
                 </h3>
                 <p className="text-[11px] text-gray-400 font-sans mt-0.5">
-                  Create new student, kitchen, or counter staff access profiles.
+                  {usrRole === 'superadmin' ? 'Create a new super admin with full platform access.' : 'Create new student, kitchen, or counter staff access profiles.'}
                 </p>
               </div>
 
@@ -1311,10 +1312,10 @@ export default function ServicePanel({
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 text-white rounded-xl text-xs py-3 font-bold transition-all shadow-md cursor-pointer flex items-center justify-center space-x-1.5 font-display"
+                  className={`w-full ${usrRole === 'superadmin' ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800' : 'bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700'} text-white rounded-xl text-xs py-3 font-bold transition-all shadow-md cursor-pointer flex items-center justify-center space-x-1.5 font-display`}
                 >
-                  <UserPlus className="h-4.5 w-4.5" />
-                  <span>Add User Account</span>
+                  {usrRole === 'superadmin' ? <Sparkles className="h-4.5 w-4.5" /> : <UserPlus className="h-4.5 w-4.5" />}
+                  <span>{usrRole === 'superadmin' ? 'Add Super Admin' : 'Add User Account'}</span>
                 </button>
               </form>
             </div>
@@ -1330,6 +1331,42 @@ export default function ServicePanel({
                     Active directory of students, kitchen counters, and outlet owners.
                   </p>
                 </div>
+                {isSuperAdmin && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setUsrRole('superadmin');
+                        setUsrName('');
+                        setUsrEmail('');
+                        setUsrCantId('');
+                        setUsrSubId('');
+                        setUsrPosting('');
+                        const formSection = document.querySelector('[data-user-form]');
+                        if (formSection) formSection.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl px-4 py-2 text-[11px] font-bold transition-all shadow-md cursor-pointer font-display"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      <span>Add Super Admin</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setUsrRole('chef');
+                        setUsrName('');
+                        setUsrEmail('');
+                        setUsrCantId('');
+                        setUsrSubId('');
+                        setUsrPosting('');
+                        const formSection = document.querySelector('[data-user-form]');
+                        if (formSection) formSection.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl px-4 py-2 text-[11px] font-bold transition-all shadow-md cursor-pointer font-display"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      <span>Add User</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Superadmin User Filters */}
@@ -1404,7 +1441,19 @@ export default function ServicePanel({
                                 {usr.name ? usr.name.charAt(0).toUpperCase() : '?'}
                               </div>
                               <div>
-                                <span className="font-bold text-gray-900 block capitalize">{usr.name}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-gray-900 block capitalize">{usr.name}</span>
+                                  {usr.role === 'superadmin' && (
+                                    <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-bold uppercase border border-purple-200">
+                                      SUPER ADMIN
+                                    </span>
+                                  )}
+                                  {usr.role === 'admin' && (
+                                    <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold uppercase border border-blue-200">
+                                      ADMIN
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex flex-wrap gap-1 mt-1">
                                   {isSuperAdmin && (
                                     <span className="text-[9px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold uppercase border border-slate-200">
