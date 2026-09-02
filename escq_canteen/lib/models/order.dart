@@ -90,6 +90,7 @@ class Order {
 
   String get statusEmoji {
     switch (status) {
+      case 'pending': return '⏳';
       case 'scheduled': return '📋';
       case 'preparing': return '👨‍🍳';
       case 'ready': return '✅';
@@ -103,6 +104,7 @@ class Order {
 
   String get statusLabel {
     switch (status) {
+      case 'pending': return 'Pending Payment';
       case 'scheduled': return 'Scheduled';
       case 'preparing': return 'Preparing';
       case 'ready': return 'Ready';
