@@ -1,4 +1,4 @@
-package com.escq.canteen.escq_canteen
+package com.escq.canteen
 
 import android.content.Intent
 import android.net.Uri
