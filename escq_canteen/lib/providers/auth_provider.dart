@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _auth = AuthService();
@@ -40,6 +41,7 @@ class AuthProvider extends ChangeNotifier {
           return false;
         }
         await _auth.saveUser(u);
+        NotificationService().sendTokenToServer(u.id);
         _loading = false;
         notifyListeners();
         return true;
@@ -86,6 +88,7 @@ class AuthProvider extends ChangeNotifier {
       if (data['success'] == true && data['user'] != null) {
         final u = User.fromJson(data['user']);
         await _auth.saveUser(u);
+        NotificationService().sendTokenToServer(u.id);
         _loading = false;
         notifyListeners();
         return true;

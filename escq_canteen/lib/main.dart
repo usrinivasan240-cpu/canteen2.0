@@ -11,10 +11,12 @@ import 'screens/home_screen.dart';
 import 'screens/staff_home_screen.dart';
 import 'screens/kitchen_dashboard_screen.dart';
 import 'screens/legal_pages_screen.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  await NotificationService().init();
   runApp(const EscqCanteenApp());
 }
 

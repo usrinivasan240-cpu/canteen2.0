@@ -2302,6 +2302,8 @@ app.post('/api/canteen/order', async (req, res) => {
       }
       canteenState.orders.unshift(newOrder);
 
+      sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
+
       return res.json({
         success: true,
         useRazorpay: true,
@@ -2354,6 +2356,8 @@ app.post('/api/canteen/order', async (req, res) => {
         await pgSet('orders', orderId, newOrder);
       }
       canteenState.orders.unshift(newOrder);
+
+      sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
 
       if (vyaparConfigured) {
         // Real VyaparGateway API call
@@ -2513,6 +2517,9 @@ app.post('/api/canteen/order', async (req, res) => {
   }
 
   canteenState.orders.unshift(newOrder);
+
+  sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
+
   res.json({ success: true, useRazorpay: false, order: newOrder, qrPayload: generateSignedQR(orderId), message: 'Order placed & payment verified!' });
   } catch (topErr: any) {
     console.error('Order endpoint unhandled error:', typeof topErr === 'string' ? topErr : topErr?.message || JSON.stringify(topErr));
@@ -3798,6 +3805,9 @@ app.post('/api/canteen/order/status', async (req, res) => {
   }
 
   canteenState.orders = canteenState.orders.map(order => order.id === id ? updatedOrder : order);
+
+  notifyOrderStatus(updatedOrder, targetOrder.status, mappedStatus);
+
   res.json({ success: true, message: `Order status set to: ${mappedStatus}` });
 });
 
@@ -4393,6 +4403,118 @@ Your output must be structured exactly in JSON matching this schema:
     }
   });
 });
+
+// ─── FCM TOKEN STORAGE ──────────────────────────────────────
+const fcmTokens = new Map<string, string>(); // userId -> fcmToken
+
+app.post('/api/fcm-token', async (req, res) => {
+  const { userId, fcmToken } = req.body;
+  if (!userId || !fcmToken) {
+    return res.status(400).json({ success: false, error: 'userId and fcmToken required' });
+  }
+  fcmTokens.set(userId, fcmToken);
+  console.log(`FCM token registered for user ${userId}`);
+  res.json({ success: true });
+});
+
+app.delete('/api/fcm-token/:userId', async (req, res) => {
+  fcmTokens.delete(req.params.userId);
+  res.json({ success: true });
+});
+
+// ─── PUSH NOTIFICATION HELPER ──────────────────────────────
+async function sendPushNotification(userId: string, title: string, body: string, data: Record<string, string> = {}) {
+  const token = fcmTokens.get(userId);
+  if (!token) return;
+
+  try {
+    const resp = await fetch('https://fcm.googleapis.com/v1/projects/' + (process.env.FIREBASE_PROJECT_ID || 'escq-canteen') + '/messages:send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${await getFcmAccessToken()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          token,
+          notification: { title, body },
+          data,
+          android: {
+            priority: 'high',
+            notification: { channel_id: 'escq_orders', priority: 'high' },
+          },
+        },
+      }),
+    });
+    if (!resp.ok) {
+      console.error('FCM send failed:', resp.status, await resp.text());
+    }
+  } catch (e) {
+    console.error('FCM error:', e);
+  }
+}
+
+async function getFcmAccessToken(): Promise<string> {
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!serviceAccount) return '';
+  try {
+    const sa = JSON.parse(serviceAccount);
+    const now = Math.floor(Date.now() / 1000);
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({
+      iss: sa.client_email,
+      scope: 'https://www.googleapis.com/auth/firebase.messaging',
+      aud: 'https://oauth2.googleapis.com/token',
+      iat: now,
+      exp: now + 3600,
+    })).toString('base64url');
+    const signInput = `${header}.${payload}`;
+    const sign = crypto.createSign('RSA-SHA256').update(signInput).sign(sa.private_key, 'base64url');
+    const jwt = `${signInput}.${sign}`;
+    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+    });
+    const tokenData = await tokenResp.json();
+    return tokenData.access_token || '';
+  } catch (e) {
+    console.error('FCM auth error:', e);
+    return '';
+  }
+}
+
+// ─── ORDER STATUS NOTIFICATION HOOK ──────────────────────────
+function notifyOrderStatus(order: any, oldStatus: string, newStatus: string) {
+  const userId = order.userId;
+  if (!userId) return;
+
+  const orderId = order.id;
+  const items = (order.items || []).map((i: any) => `${i.quantity}x ${i.name}`).join(', ');
+
+  switch (newStatus) {
+    case 'scheduled':
+    case 'pending':
+      sendPushNotification(userId, '✅ Order Confirmed', `Your order ${orderId} has been received and is being processed.`, { orderId, status: newStatus });
+      break;
+    case 'preparing':
+      sendPushNotification(userId, '👨‍🍳 Preparing Your Food', `Chef is now preparing your order ${orderId}.`, { orderId, status: newStatus });
+      break;
+    case 'ready':
+      sendPushNotification(userId, '🟢 Ready to Collect!', `Your order ${orderId} is ready! Please collect from the counter.`, { orderId, status: newStatus });
+      break;
+    case 'collected':
+    case 'delivered':
+      sendPushNotification(userId, '🎉 Order Collected', `Order ${orderId} has been collected. Thank you!`, { orderId, status: newStatus });
+      break;
+    case 'expired':
+      sendPushNotification(userId, '⏰ Order Expired', `Order ${orderId} has expired. Please place a new order.`, { orderId, status: newStatus });
+      break;
+    case 'cancelled':
+      sendPushNotification(userId, '❌ Order Cancelled', `Order ${orderId} has been cancelled.`, { orderId, status: newStatus });
+      break;
+  }
+}
 
 
 
