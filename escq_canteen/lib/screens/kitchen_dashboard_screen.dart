@@ -87,7 +87,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     final themeProv = context.watch<ThemeProvider>();
     final isDark = themeProv.isDark;
 
-    final scheduledOrders = _allOrders.where((o) => o.status == 'scheduled').toList();
+    final scheduledOrders = _allOrders.where((o) => o.status == 'scheduled' || o.status == 'pending').toList();
     final preparingOrders = _allOrders.where((o) => o.status == 'preparing').toList();
     final readyOrders = _allOrders.where((o) => o.status == 'ready').toList();
     final completedOrders = _allOrders.where((o) =>
