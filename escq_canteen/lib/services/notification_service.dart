@@ -21,36 +21,40 @@ class NotificationService {
     if (_initialized) return;
     _initialized = true;
 
-    await Firebase.initializeApp();
+    try {
+      await Firebase.initializeApp();
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidSettings);
-    await _localNotifications.initialize(initSettings, onDidReceiveNotificationResponse: _onNotificationTap);
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidSettings);
+      await _localNotifications.initialize(initSettings, onDidReceiveNotificationResponse: _onNotificationTap);
 
-    const androidChannel = AndroidNotificationChannel(
-      'escq_orders',
-      'Order Updates',
-      description: 'Notifications for order status changes',
-      importance: Importance.high,
-      playSound: true,
-    );
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(androidChannel);
+      const androidChannel = AndroidNotificationChannel(
+        'escq_orders',
+        'Order Updates',
+        description: 'Notifications for order status changes',
+        importance: Importance.high,
+        playSound: true,
+      );
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(androidChannel);
 
-    final settings = await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
+      final settings = await _fcm.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      _fcmToken = await _fcm.getToken();
-      print('FCM Token: $_fcmToken');
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        _fcmToken = await _fcm.getToken();
+        print('FCM Token: $_fcmToken');
 
-      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
+        FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+        FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
+      }
+    } catch (e) {
+      print('NotificationService init failed: $e');
     }
   }
 

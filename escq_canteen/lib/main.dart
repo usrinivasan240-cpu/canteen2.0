@@ -16,7 +16,7 @@ import 'services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  await NotificationService().init();
+  try { await NotificationService().init(); } catch (_) {}
   runApp(const EscqCanteenApp());
 }
 
