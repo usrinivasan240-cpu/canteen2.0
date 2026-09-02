@@ -4455,7 +4455,7 @@ async function sendPushNotification(userId: string, title: string, body: string,
 }
 
 async function getFcmAccessToken(): Promise<string> {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT1;
   if (!serviceAccount) return '';
   try {
     const sa = JSON.parse(serviceAccount);
