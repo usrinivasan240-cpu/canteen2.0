@@ -1944,6 +1944,36 @@ app.get('/api/user/orders', async (req, res) => {
   res.json({ success: true, orders: memoryOrders });
 });
 
+// 1b. Get ALL orders for a canteen (Owner/Admin/Chef/Staff view)
+app.get('/api/canteen/all-orders', async (req, res) => {
+  const canteenId = req.query.canteenId as string;
+
+  if (pgReady) {
+    try {
+      let orders: Order[];
+      if (canteenId) {
+        orders = await pgGetWhere('orders', { canteenId }) as Order[];
+      } else {
+        orders = await pgGetAll('orders') as Order[];
+      }
+      orders = orders.map(o => {
+        if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
+        return o;
+      });
+      orders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      return res.json({ success: true, orders: orders.slice(0, 200) });
+    } catch (err) {
+      console.error('Failed to fetch all orders:', err);
+    }
+  }
+
+  let orders = canteenId
+    ? canteenState.orders.filter(o => o.canteenId === canteenId)
+    : canteenState.orders;
+  orders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  res.json({ success: true, orders: orders.slice(0, 200) });
+});
+
 // 2. Add / Edit Menu Items (Owner)
 app.post('/api/canteen/menu', async (req, res) => {
   const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe, requiresChef, canteenId } = req.body;
@@ -4405,7 +4435,7 @@ Your output must be structured exactly in JSON matching this schema:
 });
 
 // ─── FCM TOKEN STORAGE ──────────────────────────────────────
-const fcmTokens = new Map<string, string>(); // userId -> fcmToken
+const fcmTokens = new Map<string, string>(); // userId -> fcmToken (in-memory cache)
 
 app.post('/api/fcm-token', async (req, res) => {
   const { userId, fcmToken } = req.body;
@@ -4413,14 +4443,62 @@ app.post('/api/fcm-token', async (req, res) => {
     return res.status(400).json({ success: false, error: 'userId and fcmToken required' });
   }
   fcmTokens.set(userId, fcmToken);
+  if (pgReady) {
+    try {
+      await pgSet('fcm_tokens', userId, { userId, fcmToken, updatedAt: new Date().toISOString() });
+    } catch (err) {
+      console.error('Failed to save FCM token to Postgres:', err);
+    }
+  }
   console.log(`FCM token registered for user ${userId}`);
   res.json({ success: true });
 });
 
+app.get('/api/fcm-tokens', async (req, res) => {
+  if (pgReady) {
+    try {
+      const tokens = await pgGetAll('fcm_tokens');
+      res.json({ success: true, count: tokens.length, tokens });
+      return;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  res.json({ success: true, count: fcmTokens.size, tokens: Array.from(fcmTokens.entries()).map(([userId, token]) => ({ userId, token })) });
+});
+
+app.post('/api/test-push', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ success: false, error: 'userId required' });
+  }
+  await sendPushNotification(userId, '🔔 Test Push', 'Push notifications are working!', { type: 'test' });
+  res.json({ success: true, message: `Test push sent to ${userId}`, hasToken: fcmTokens.has(userId) });
+});
+
 app.delete('/api/fcm-token/:userId', async (req, res) => {
   fcmTokens.delete(req.params.userId);
+  if (pgReady) {
+    try { await pgDelete('fcm_tokens', req.params.userId); } catch (_) {}
+  }
   res.json({ success: true });
 });
+
+// Load FCM tokens from Postgres on startup
+async function loadFcmTokens() {
+  if (!pgReady) return;
+  try {
+    const tokens = await pgGetAll('fcm_tokens');
+    for (const t of tokens) {
+      if (t.userId && t.fcmToken) {
+        fcmTokens.set(t.userId, t.fcmToken);
+      }
+    }
+    console.log(`Loaded ${tokens.length} FCM tokens from Postgres`);
+  } catch (err) {
+    console.log('No fcm_tokens table found (will be created on first token registration)');
+  }
+}
 
 // ─── PUSH NOTIFICATION HELPER ──────────────────────────────
 async function sendPushNotification(userId: string, title: string, body: string, data: Record<string, string> = {}) {
@@ -4428,7 +4506,7 @@ async function sendPushNotification(userId: string, title: string, body: string,
   if (!token) return;
 
   try {
-    const resp = await fetch('https://fcm.googleapis.com/v1/projects/' + (process.env.FIREBASE_PROJECT_ID || 'escq-canteen') + '/messages:send', {
+    const resp = await fetch('https://fcm.googleapis.com/v1/projects/' + (process.env.FIREBASE_PROJECT_ID || 'canteen2-0') + '/messages:send', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${await getFcmAccessToken()}`,
