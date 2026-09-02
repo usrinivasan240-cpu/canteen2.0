@@ -157,6 +157,34 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
                 icon: Icon(Icons.refresh, color: isDark ? Colors.white : Colors.grey[700]),
                 onPressed: _loadOrders,
               ),
+              GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      title: const Text('Logout', style: TextStyle(fontWeight: FontWeight.bold)),
+                      content: const Text('Are you sure you want to logout?'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            context.read<AuthProvider>().logout();
+                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                          child: const Text('Logout'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(8)),
+                  child: Icon(Icons.logout, size: 16, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                ),
+              ),
             ],
           ),
         ),
