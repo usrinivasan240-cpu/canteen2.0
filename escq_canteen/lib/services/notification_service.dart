@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:permission_handler/permission_handler.dart';
 import '../config.dart';
 
 class NotificationService {
@@ -32,13 +34,18 @@ class NotificationService {
     }
 
     try {
-      final settings = await _fcm.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
-      print('Notification permission: ${settings.authorizationStatus}');
+      if (Platform.isAndroid) {
+        final status = await Permission.notification.request();
+        print('Android notification permission: $status');
+      } else {
+        final settings = await _fcm.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+          provisional: false,
+        );
+        print('iOS notification permission: ${settings.authorizationStatus}');
+      }
     } catch (e) {
       print('Permission request failed: $e');
     }
