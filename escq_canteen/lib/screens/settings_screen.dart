@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/notification_service.dart';
 import 'help_support_screen.dart';
 import 'login_screen.dart';
 
@@ -91,6 +92,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Expanded(child: Text('Help & Support', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFF59E0B)))),
                     Icon(Icons.chevron_right, size: 18, color: Color(0xFFF59E0B)),
                   ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  await NotificationService().showOrderNotification(
+                    'Test Notification',
+                    'If you see this, notifications are working!',
+                    {'type': 'test'},
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Test notification sent!'), backgroundColor: Colors.green),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.notifications_active, size: 16),
+                label: const Text('Send Test Notification', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFF59E0B),
+                  side: const BorderSide(color: Color(0xFFF59E0B)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),

@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
 import '../models/order.dart';
 import '../services/api_service.dart';
+import 'login_screen.dart';
 
 class KitchenDashboardScreen extends StatefulWidget {
   const KitchenDashboardScreen({super.key});
@@ -210,6 +211,14 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
                           onPressed: () {
                             Navigator.pop(ctx);
                             context.read<AuthProvider>().logout();
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (_) => LoginScreen(
+                                onNavigateLegal: (page) {
+                                  Navigator.pushNamed(context, '/legal/$page');
+                                },
+                              )),
+                              (route) => false,
+                            );
                           },
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
                           child: const Text('Logout'),
