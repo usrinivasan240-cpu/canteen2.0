@@ -579,16 +579,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 4),
                   GestureDetector(
                     onTap: onNavigate,
-                    child: Text(
-                      policyName,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFF59E0B),
-                        decoration: TextDecoration.underline,
-                        decorationColor: Color(0xFFF59E0B),
-                        decorationThickness: 1.5,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          policyName,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFF59E0B),
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFFF59E0B),
+                            decorationThickness: 1.5,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.open_in_new, size: 11, color: Color(0xFFF59E0B)),
+                      ],
                     ),
                   ),
                 ],

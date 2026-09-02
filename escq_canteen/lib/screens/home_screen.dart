@@ -1147,7 +1147,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _formatOrderTime(Order order) {
     if (order.timestamp != null && order.timestamp!.isNotEmpty) {
       try {
-        final dt = DateTime.parse(order.timestamp!);
+        final dt = DateTime.parse(order.timestamp!).toLocal();
         final day = dt.day;
         final month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.month - 1];
         final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
@@ -1157,7 +1157,7 @@ class _HomeScreenState extends State<HomeScreen> {
       } catch (_) {}
     }
     if (order.createdAt != null && order.createdAt! > 0) {
-      final dt = DateTime.fromMillisecondsSinceEpoch(order.createdAt!);
+      final dt = DateTime.fromMillisecondsSinceEpoch(order.createdAt!).toLocal();
       final day = dt.day;
       final month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.month - 1];
       final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
