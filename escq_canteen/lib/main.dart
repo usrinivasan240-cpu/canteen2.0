@@ -16,7 +16,6 @@ import 'services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  try { await NotificationService().init(); } catch (_) {}
   runApp(const EscqCanteenApp());
 }
 
@@ -104,7 +103,10 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   Future<void> _init() async {
     final auth = context.read<AuthProvider>();
     await auth.init();
-    setState(() => _initialized = true);
+    if (mounted) setState(() => _initialized = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService().init();
+    });
   }
 
   @override
