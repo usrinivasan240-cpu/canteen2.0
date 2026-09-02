@@ -64,7 +64,7 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
               <div className="h-8 w-8 rounded-lg bg-amber-600 flex items-center justify-center">
                 <span className="text-white font-display font-bold text-xs">Esc(Q)</span>
               </div>
-              <span className="text-xs font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">v2.5.0</span>
+              <span className="text-xs font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">v2.5.0 - Chef Dashboard Update</span>
             </div>
           </div>
 
