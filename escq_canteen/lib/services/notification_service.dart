@@ -23,7 +23,27 @@ class NotificationService {
 
     try {
       await Firebase.initializeApp();
+      _fcmToken = await _fcm.getToken();
+      print('FCM Token: $_fcmToken');
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
+    } catch (e) {
+      print('Firebase init failed: $e');
+    }
 
+    try {
+      final settings = await _fcm.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+      print('Notification permission: ${settings.authorizationStatus}');
+    } catch (e) {
+      print('Permission request failed: $e');
+    }
+
+    try {
       const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
       const initSettings = InitializationSettings(android: androidSettings);
       await _localNotifications.initialize(initSettings, onDidReceiveNotificationResponse: _onNotificationTap);
@@ -38,23 +58,8 @@ class NotificationService {
       await _localNotifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(androidChannel);
-
-      final settings = await _fcm.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
-
-      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        _fcmToken = await _fcm.getToken();
-        print('FCM Token: $_fcmToken');
-
-        FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-        FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
-      }
     } catch (e) {
-      print('NotificationService init failed: $e');
+      print('Local notifications init failed: $e');
     }
   }
 
