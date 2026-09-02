@@ -90,6 +90,9 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     final scheduledOrders = _allOrders.where((o) => o.status == 'scheduled').toList();
     final preparingOrders = _allOrders.where((o) => o.status == 'preparing').toList();
     final readyOrders = _allOrders.where((o) => o.status == 'ready').toList();
+    final completedOrders = _allOrders.where((o) =>
+        o.status == 'collected' || o.status == 'delivered' || o.status == 'cancelled' || o.status == 'expired'
+    ).toList();
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF111827) : const Color(0xFFFBFCFF),
@@ -103,7 +106,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
                     ? const Center(child: CircularProgressIndicator(color: Color(0xFFF59E0B)))
                     : _error != null
                         ? _buildError()
-                        : _buildContent(scheduledOrders, preparingOrders, readyOrders, isDark)
+                        : _buildContent(scheduledOrders, preparingOrders, readyOrders, completedOrders, isDark)
                 : _buildScannerTab(),
           ),
         ],
@@ -176,7 +179,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     );
   }
 
-  Widget _buildContent(List<Order> scheduled, List<Order> preparing, List<Order> ready, bool isDark) {
+  Widget _buildContent(List<Order> scheduled, List<Order> preparing, List<Order> ready, List<Order> completed, bool isDark) {
     return RefreshIndicator(
       onRefresh: _loadOrders,
       child: ListView(
@@ -192,7 +195,12 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
           const SizedBox(height: 12),
           _buildSectionHeader('Ready to Serve', ready.length, const Color(0xFF16A34A), isDark),
           ...ready.map((o) => _buildOrderCard(o, 'ready', isDark)),
-          if (scheduled.isEmpty && preparing.isEmpty && ready.isEmpty)
+          if (completed.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildSectionHeader('Completed', completed.length, Colors.grey, isDark),
+            ...completed.take(10).map((o) => _buildOrderCard(o, 'completed', isDark)),
+          ],
+          if (scheduled.isEmpty && preparing.isEmpty && ready.isEmpty && completed.isEmpty)
             _buildEmptyState(isDark),
         ],
       ),
@@ -264,6 +272,10 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     List<Widget> actions = [];
 
     switch (phase) {
+      case 'completed':
+        statusColor = Colors.grey;
+        statusLabel = order.status;
+        break;
       case 'ready':
         statusColor = const Color(0xFF16A34A);
         statusLabel = 'Ready for pickup';
