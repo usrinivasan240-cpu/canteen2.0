@@ -81,30 +81,31 @@ class _HomeScreenState extends State<HomeScreen> {
       final auth = context.read<AuthProvider>();
       final user = auth.user;
 
-      _selectedCanteenId = user?.canteenId ?? 'canteen_001';
-
       final colleges = await api.getColleges().catchError((_) => <College>[]);
       final canteens = await api.getCanteens().catchError((_) => <Canteen>[]);
       final subCanteens = await api.getSubCanteens().catchError((_) => <SubCanteen>[]);
-      final canteenData = await api.getCanteenData(_selectedCanteenId).catchError((_) => <String, dynamic>{});
-      final userOrders = await api.getUserOrders(user?.id ?? '').catchError((_) => <Order>[]);
 
       _colleges = colleges;
       _canteens = canteens;
       _subCanteens = subCanteens;
+
+      String canteenId = user?.canteenId ?? (canteens.isNotEmpty ? canteens.first.id : 'canteen_001');
+
+      if (user?.collegeId != null) {
+        final collegeCanteens = canteens.where((c) => c.collegeId == user!.collegeId).toList();
+        if (collegeCanteens.isNotEmpty && !collegeCanteens.any((c) => c.id == canteenId)) {
+          canteenId = collegeCanteens.first.id;
+        }
+      }
+
+      _selectedCanteenId = canteenId;
+
+      final canteenData = await api.getCanteenData(_selectedCanteenId).catchError((_) => <String, dynamic>{});
+      final userOrders = await api.getUserOrders(user?.id ?? '').catchError((_) => <Order>[]);
+
       _menuItems = api.parseMenuItems(canteenData);
       _reviews = api.parseReviews(canteenData);
       _userOrders = userOrders;
-
-      if (user?.collegeId != null) {
-        try {
-          _canteens.firstWhere((c) => c.id == _selectedCanteenId);
-        } catch (_) {
-          if (_canteens.isNotEmpty) _selectedCanteenId = _canteens.first.id;
-        }
-      } else if (_canteens.isNotEmpty) {
-        _selectedCanteenId = _canteens.first.id;
-      }
 
       if (_subCanteens.isNotEmpty) {
         try {
