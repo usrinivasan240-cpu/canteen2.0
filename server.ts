@@ -4472,6 +4472,55 @@ app.get('/api/fcm-tokens', async (req, res) => {
   res.json({ success: true, count: fcmTokens.size, tokens: Array.from(fcmTokens.entries()).map(([userId, token]) => ({ userId, token })) });
 });
 
+app.get('/api/diagnose-push', async (req, res) => {
+  const report: any = {
+    hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT1,
+    serviceAccountLength: process.env.FIREBASE_SERVICE_ACCOUNT1?.length || 0,
+    projectId: process.env.FIREBASE_PROJECT_ID || 'canteen2-0 (default)',
+    pgReady,
+  };
+
+  if (process.env.FIREBASE_SERVICE_ACCOUNT1) {
+    try {
+      const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT1);
+      report.serviceAccountProjectId = sa.project_id;
+      report.hasClientEmail = !!sa.client_email;
+      report.hasPrivateKey = !!sa.private_key;
+      report.privateKeyLength = sa.private_key?.length || 0;
+      report.privateKeyHasNewlines = sa.private_key?.includes('\n') ?? false;
+
+      const accessToken = await getFcmAccessToken();
+      report.hasAccessToken = !!accessToken;
+      report.accessTokenLength = accessToken?.length || 0;
+
+      if (accessToken) {
+        report.fcmAuthStatus = 'SUCCESS';
+      } else {
+        report.fcmAuthStatus = 'FAILED - could not get access token';
+      }
+    } catch (e: any) {
+      report.parseError = e.message;
+      report.fcmAuthStatus = 'FAILED - parse error';
+    }
+  } else {
+    report.fcmAuthStatus = 'FAILED - not set';
+  }
+
+  const tokens = fcmTokens.size;
+  report.inMemoryTokens = tokens;
+
+  if (pgReady) {
+    try {
+      const pgTokens = await pgGetAll('fcm_tokens');
+      report.pgTokenCount = pgTokens.length;
+    } catch (e: any) {
+      report.pgTokenError = e.message;
+    }
+  }
+
+  res.json(report);
+});
+
 app.post('/api/test-push', async (req, res) => {
   const { userId } = req.body;
   if (!userId) {
@@ -4480,14 +4529,12 @@ app.post('/api/test-push', async (req, res) => {
   console.log(`[TestPush] Sending test push to ${userId}`);
   console.log(`[TestPush] In-memory token: ${fcmTokens.has(userId)}`);
   console.log(`[TestPush] FIREBASE_SERVICE_ACCOUNT1 set: ${!!process.env.FIREBASE_SERVICE_ACCOUNT1}`);
-  console.log(`[TestPush] FIREBASE_PROJECT_ID: ${process.env.FIREBASE_PROJECT_ID || 'canteen2-0 (default)'}`);
 
   let pgToken = null;
   if (pgReady) {
     try {
       const doc = await pgGetById('fcm_tokens', userId);
       pgToken = (doc as any)?.fcmToken || null;
-      console.log(`[TestPush] Postgres token found: ${!!pgToken}`);
     } catch (err) {
       console.error(`[TestPush] Postgres lookup error:`, err);
     }
