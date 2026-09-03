@@ -2332,7 +2332,7 @@ app.post('/api/canteen/order', async (req, res) => {
       }
       canteenState.orders.unshift(newOrder);
 
-      sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
+      await sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
 
       return res.json({
         success: true,
@@ -2387,7 +2387,7 @@ app.post('/api/canteen/order', async (req, res) => {
       }
       canteenState.orders.unshift(newOrder);
 
-      sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
+      await sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
 
       if (vyaparConfigured) {
         // Real VyaparGateway API call
@@ -2548,7 +2548,7 @@ app.post('/api/canteen/order', async (req, res) => {
 
   canteenState.orders.unshift(newOrder);
 
-  sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
+  await sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
 
   res.json({ success: true, useRazorpay: false, order: newOrder, qrPayload: generateSignedQR(orderId), message: 'Order placed & payment verified!' });
   } catch (topErr: any) {
@@ -2758,6 +2758,8 @@ app.post('/api/razorpay/verify', async (req, res) => {
 
     // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
     const updatedOrder = await fulfillRazorpayOrder(targetOrder, razorpay_payment_id, razorpay_signature);
+
+    await sendPushNotification(updatedOrder.userId, '✅ Payment Confirmed', `Your order ${updatedOrder.id} payment has been confirmed!`, { orderId: updatedOrder.id, status: 'scheduled' });
 
     res.json({ success: true, message: 'Payment verified successfully', order: updatedOrder });
   } catch (err: any) {
@@ -3836,7 +3838,7 @@ app.post('/api/canteen/order/status', async (req, res) => {
 
   canteenState.orders = canteenState.orders.map(order => order.id === id ? updatedOrder : order);
 
-  notifyOrderStatus(updatedOrder, targetOrder.status, mappedStatus);
+  await notifyOrderStatus(updatedOrder, targetOrder.status, mappedStatus);
 
   res.json({ success: true, message: `Order status set to: ${mappedStatus}` });
 });
@@ -4620,33 +4622,32 @@ async function getFcmAccessToken(): Promise<string> {
 }
 
 // ─── ORDER STATUS NOTIFICATION HOOK ──────────────────────────
-function notifyOrderStatus(order: any, oldStatus: string, newStatus: string) {
+async function notifyOrderStatus(order: any, oldStatus: string, newStatus: string) {
   const userId = order.userId;
   if (!userId) return;
 
   const orderId = order.id;
-  const items = (order.items || []).map((i: any) => `${i.quantity}x ${i.name}`).join(', ');
 
   switch (newStatus) {
     case 'scheduled':
     case 'pending':
-      sendPushNotification(userId, '✅ Order Confirmed', `Your order ${orderId} has been received and is being processed.`, { orderId, status: newStatus });
+      await sendPushNotification(userId, '✅ Order Confirmed', `Your order ${orderId} has been received and is being processed.`, { orderId, status: newStatus });
       break;
     case 'preparing':
-      sendPushNotification(userId, '👨‍🍳 Preparing Your Food', `Chef is now preparing your order ${orderId}.`, { orderId, status: newStatus });
+      await sendPushNotification(userId, '👨‍🍳 Preparing Your Food', `Chef is now preparing your order ${orderId}.`, { orderId, status: newStatus });
       break;
     case 'ready':
-      sendPushNotification(userId, '🟢 Ready to Collect!', `Your order ${orderId} is ready! Please collect from the counter.`, { orderId, status: newStatus });
+      await sendPushNotification(userId, '🟢 Ready to Collect!', `Your order ${orderId} is ready! Please collect from the counter.`, { orderId, status: newStatus });
       break;
     case 'collected':
     case 'delivered':
-      sendPushNotification(userId, '🎉 Order Collected', `Order ${orderId} has been collected. Thank you!`, { orderId, status: newStatus });
+      await sendPushNotification(userId, '🎉 Order Collected', `Order ${orderId} has been collected. Thank you!`, { orderId, status: newStatus });
       break;
     case 'expired':
-      sendPushNotification(userId, '⏰ Order Expired', `Order ${orderId} has expired. Please place a new order.`, { orderId, status: newStatus });
+      await sendPushNotification(userId, '⏰ Order Expired', `Order ${orderId} has expired. Please place a new order.`, { orderId, status: newStatus });
       break;
     case 'cancelled':
-      sendPushNotification(userId, '❌ Order Cancelled', `Order ${orderId} has been cancelled.`, { orderId, status: newStatus });
+      await sendPushNotification(userId, '❌ Order Cancelled', `Order ${orderId} has been cancelled.`, { orderId, status: newStatus });
       break;
   }
 }
