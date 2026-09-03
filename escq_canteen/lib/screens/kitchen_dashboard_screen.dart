@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
 import '../models/order.dart';
+import '../models/menu_item.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 
@@ -21,6 +22,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
   bool _isLoading = true;
   String? _error;
   List<Order> _allOrders = [];
+  List<MenuItem> _menuItems = [];
   String _viewMode = 'orders';
 
   @override
@@ -49,9 +51,11 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
       final canteenId = user.canteenId ?? 'canteen_001';
       final data = await _api.getCanteenData(canteenId);
       final orders = _api.parseOrders(data);
+      final menuItems = _api.parseMenuItems(data);
       if (mounted) {
         setState(() {
           _allOrders = orders;
+          _menuItems = menuItems;
           _isLoading = false;
           _error = null;
         });
@@ -62,12 +66,34 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
   }
 
   Future<void> _updateStatus(String orderId, String status) async {
+    // Optimistic update — change instantly
+    setState(() {
+      _allOrders = _allOrders.map((o) {
+        if (o.id == orderId) {
+          return Order(
+            id: o.id, userId: o.userId, userName: o.userName,
+            items: o.items, totalPrice: o.totalPrice,
+            paymentStatus: o.paymentStatus, paymentMethod: o.paymentMethod,
+            qrCode: o.qrCode, qrPayload: o.qrPayload,
+            status: status, timestamp: o.timestamp, createdAt: o.createdAt,
+            pickupTimeText: status == 'preparing' ? 'Chef is preparing your meal'
+              : status == 'ready' ? 'Ready! Collect from counter.'
+              : status == 'collected' ? 'Collected' : o.pickupTimeText,
+            pickupSlot: o.pickupSlot, prepStartTime: o.prepStartTime,
+            expiryTime: o.expiryTime, canteenId: o.canteenId,
+            subCanteenId: o.subCanteenId, collegeId: o.collegeId,
+          );
+        }
+        return o;
+      }).toList();
+    });
     try {
       final result = await _api.updateOrderStatus(orderId, status);
-      if (result['success'] == true) {
-        _loadOrders();
+      if (result['success'] != true) {
+        _loadOrders(); // revert on failure
       }
     } catch (e) {
+      _loadOrders(); // revert on error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 1)),
@@ -86,8 +112,21 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     return '${hrs}h ${mins % 60}m ago';
   }
 
+  bool _orderHasChefItems(Order order) {
+    return order.items.any((item) {
+      final menuItem = _menuItems.where((m) => m.id == item.itemId).toList();
+      if (menuItem.isEmpty) return true; // unknown items treated as chef-required
+      return menuItem.first.requiresChef;
+    });
+  }
+
   List<Order> get _activeOrders => _allOrders.where((o) =>
-    o.status == 'scheduled' || o.status == 'pending' || o.status == 'preparing' || o.status == 'ready'
+    (o.status == 'scheduled' || o.status == 'pending' || o.status == 'preparing') &&
+    _orderHasChefItems(o)
+  ).toList();
+
+  List<Order> get _readyOrders => _allOrders.where((o) =>
+    o.status == 'ready' && _orderHasChefItems(o)
   ).toList();
 
   List<Order> get _asapOrders => _activeOrders.where((o) =>
@@ -106,6 +145,9 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     final Map<String, int> aggregated = {};
     for (final order in orders) {
       for (final item in order.items) {
+        final menuItem = _menuItems.where((m) => m.id == item.itemId).toList();
+        final needsChef = menuItem.isEmpty || menuItem.first.requiresChef;
+        if (!needsChef) continue; // skip non-chef items
         final name = item.name;
         aggregated[name] = (aggregated[name] ?? 0) + item.quantity;
       }
@@ -308,9 +350,9 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
   }
 
   Widget _buildOrdersView(bool isDark) {
-    final pending = _allOrders.where((o) => o.status == 'scheduled' || o.status == 'pending').toList();
-    final preparing = _allOrders.where((o) => o.status == 'preparing').toList();
-    final ready = _allOrders.where((o) => o.status == 'ready').toList();
+    final pending = _allOrders.where((o) => (o.status == 'scheduled' || o.status == 'pending') && _orderHasChefItems(o)).toList();
+    final preparing = _allOrders.where((o) => o.status == 'preparing' && _orderHasChefItems(o)).toList();
+    final ready = _readyOrders;
     final completed = _completedOrders;
     final hasAny = pending.isNotEmpty || preparing.isNotEmpty || ready.isNotEmpty || completed.isNotEmpty;
 

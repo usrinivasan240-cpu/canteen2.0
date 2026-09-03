@@ -22,7 +22,8 @@ import 'login_screen.dart';
 import 'help_support_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String initialTab;
+  const HomeScreen({super.key, this.initialTab = 'menu'});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -30,7 +31,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String selectedCategory = 'Meals';
-  String customerTab = 'menu';
+  late String customerTab = widget.initialTab;
   Order? successOrder;
   bool _isLoading = false;
   String? _error;

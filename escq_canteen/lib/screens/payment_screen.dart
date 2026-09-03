@@ -473,7 +473,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () {
-                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
+                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 'history')), (_) => false);
                 },
                 child: const Text('Go to My Orders', style: TextStyle(fontSize: 12, color: Color(0xFFD97706))),
               ),
@@ -623,7 +623,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     width: double.infinity, height: 52,
                     child: OutlinedButton(
                       onPressed: () {
-                        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
+                        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 'history')), (_) => false);
                       },
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: const Color(0xFFF59E0B), width: 2),
