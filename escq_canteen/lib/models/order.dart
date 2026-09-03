@@ -142,3 +142,72 @@ class Order {
     );
   }
 }
+
+class SupportTicket {
+  final String id;
+  final String userId;
+  final String userName;
+  final String userEmail;
+  final String category;
+  final String subject;
+  final String description;
+  final String? orderId;
+  final String status;
+  final String priority;
+  final int createdAt;
+  final int updatedAt;
+  final String? canteenId;
+  final String? collegeId;
+  final String? adminReply;
+  final int? adminRepliedAt;
+
+  SupportTicket({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    required this.userEmail,
+    required this.category,
+    required this.subject,
+    required this.description,
+    this.orderId,
+    required this.status,
+    required this.priority,
+    required this.createdAt,
+    required this.updatedAt,
+    this.canteenId,
+    this.collegeId,
+    this.adminReply,
+    this.adminRepliedAt,
+  });
+
+  factory SupportTicket.fromJson(Map<String, dynamic> json) {
+    return SupportTicket(
+      id: json['id'] ?? '',
+      userId: json['userId'] ?? '',
+      userName: json['userName'] ?? '',
+      userEmail: json['userEmail'] ?? '',
+      category: json['category'] ?? '',
+      subject: json['subject'] ?? '',
+      description: json['description'] ?? '',
+      orderId: json['orderId'],
+      status: json['status'] ?? 'open',
+      priority: json['priority'] ?? 'medium',
+      createdAt: OrderItem._asInt(json['createdAt']),
+      updatedAt: OrderItem._asInt(json['updatedAt']),
+      canteenId: json['canteenId']?.toString(),
+      collegeId: json['collegeId']?.toString(),
+      adminReply: json['adminReply'],
+      adminRepliedAt: OrderItem._asInt(json['adminRepliedAt']),
+    );
+  }
+
+  String get statusLabel {
+    switch (status) {
+      case 'open': return 'Open';
+      case 'in_progress': return 'In Progress';
+      case 'resolved': return 'Resolved';
+      case 'closed': return 'Closed';
+      default: return status;
+    }
+  }
+}

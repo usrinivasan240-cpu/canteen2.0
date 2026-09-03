@@ -172,6 +172,33 @@ class ApiService {
     return [];
   }
 
+  // Support tickets
+  Future<List<SupportTicket>> getSupportTickets(String userId) async {
+    final data = await _get('/api/support/user', {'userId': userId});
+    if (data['success'] == true && data['tickets'] != null) {
+      return (data['tickets'] as List).map((t) => SupportTicket.fromJson(t)).toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> submitSupportTicket({
+    required String userId,
+    required String userName,
+    required String userEmail,
+    required String category,
+    required String subject,
+    required String message,
+  }) async {
+    return _post('/api/support/submit', {
+      'userId': userId,
+      'userName': userName,
+      'userEmail': userEmail,
+      'category': category,
+      'subject': subject,
+      'message': message,
+    });
+  }
+
   // Update order status
   Future<Map<String, dynamic>> updateOrderStatus(String orderId, String status) async {
     return _post('/api/canteen/order/status', {'id': orderId, 'status': status});

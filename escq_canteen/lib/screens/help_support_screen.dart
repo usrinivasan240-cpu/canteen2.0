@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
+import 'my_support_tickets_screen.dart';
 
 class HelpSupportScreen extends StatefulWidget {
   const HelpSupportScreen({super.key});
@@ -162,9 +163,24 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
       children: [
         _buildQuickActions(),
         const SizedBox(height: 24),
+        _buildMyTicketsSection(),
+        const SizedBox(height: 24),
         _buildFaqSection(),
         const SizedBox(height: 24),
         _buildTicketForm(),
+      ],
+    );
+  }
+
+  Widget _buildMyTicketsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('MY TICKETS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B), letterSpacing: 1.2)),
+        const SizedBox(height: 12),
+        _quickAction(Icons.confirmation_number_outlined, 'View My Tickets', 'Check status & admin replies', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const MySupportTicketsScreen()));
+        }),
       ],
     );
   }

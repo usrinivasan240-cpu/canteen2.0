@@ -567,9 +567,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
       case 'ready':
         statusColor = const Color(0xFF16A34A);
         statusLabel = 'Ready';
-        actions = [
-          _actionButton('Served', Icons.check_circle, const Color(0xFF16A34A), () => _updateStatus(order.id, 'collected')),
-        ];
+        actions = []; // Staff handles "Served" via QR scan
         break;
       case 'preparing':
         statusColor = const Color(0xFFEA580C);
