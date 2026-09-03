@@ -4564,7 +4564,6 @@ app.post('/api/test-push', async (req, res) => {
           data: { type: 'test' },
           android: {
             priority: 'high',
-            notification: { channel_id: 'escq_orders', priority: 'high' },
           },
         },
       }),
@@ -4649,7 +4648,6 @@ async function sendPushNotification(userId: string, title: string, body: string,
           data,
           android: {
             priority: 'high',
-            notification: { channel_id: 'escq_orders', priority: 'high' },
           },
         },
       }),
