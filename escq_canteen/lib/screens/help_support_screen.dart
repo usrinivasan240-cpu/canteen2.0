@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config.dart';
+import '../providers/auth_provider.dart';
 import 'my_support_tickets_screen.dart';
 
 class HelpSupportScreen extends StatefulWidget {
@@ -71,11 +73,13 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
     }
     setState(() => _submitting = true);
     try {
+      final auth = context.read<AuthProvider>();
+      final userId = auth.user?.id ?? '';
       final resp = await http.post(
         Uri.parse('${AppConfig.apiBase}/api/support/submit'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'userId': '',
+          'userId': userId,
           'userName': _nameCtrl.text.trim(),
           'userEmail': _emailCtrl.text.trim(),
           'category': _selectedCategory.toLowerCase().replaceAll(' ', '_'),
