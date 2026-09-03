@@ -101,12 +101,13 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   }
 
   Future<void> _init() async {
+    await NotificationService().init();
     final auth = context.read<AuthProvider>();
     await auth.init();
+    if (auth.user != null) {
+      NotificationService().sendTokenToServer(auth.user!.id);
+    }
     if (mounted) setState(() => _initialized = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      NotificationService().init();
-    });
   }
 
   @override

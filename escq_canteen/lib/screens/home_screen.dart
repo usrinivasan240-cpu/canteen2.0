@@ -1066,6 +1066,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: ElevatedButton(
                 onPressed: () => setState(() {
                   successOrder = null;
+                  customerTab = 'menu';
                   context.read<OrderProvider>().setLastOrder(null);
                 }),
                 style: ElevatedButton.styleFrom(

@@ -67,7 +67,12 @@ class NotificationService {
       debugPrint('FCM permission: ${settings.authorizationStatus}');
 
       _fcmToken = await _fcm!.getToken();
-      debugPrint('FCM Token: $_fcmToken');
+      debugPrint('FCM Token: ${_fcmToken?.substring(0, 30)}...');
+
+      _fcm!.onTokenRefresh.listen((newToken) {
+        _fcmToken = newToken;
+        debugPrint('FCM Token refreshed: ${newToken.substring(0, 30)}...');
+      });
 
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
       FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
@@ -120,13 +125,21 @@ class NotificationService {
   }
 
   Future<void> sendTokenToServer(String userId) async {
-    if (_fcmToken == null) return;
+    if (_fcmToken == null) {
+      // Retry after 3 seconds in case init is still running
+      await Future.delayed(const Duration(seconds: 3));
+    }
+    if (_fcmToken == null) {
+      debugPrint('FCM token still null after retry, skipping sendTokenToServer');
+      return;
+    }
     try {
-      await http.post(
+      final resp = await http.post(
         Uri.parse('${AppConfig.apiBase}/api/fcm-token'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'userId': userId, 'fcmToken': _fcmToken}),
       );
+      debugPrint('FCM token sent to server: ${resp.statusCode}');
     } catch (e) {
       debugPrint('Failed to send FCM token: $e');
     }

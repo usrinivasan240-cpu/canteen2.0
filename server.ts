@@ -4443,15 +4443,18 @@ app.post('/api/fcm-token', async (req, res) => {
     return res.status(400).json({ success: false, error: 'userId and fcmToken required' });
   }
   fcmTokens.set(userId, fcmToken);
+  console.log(`[FCM] Token registered in memory for user ${userId} (token: ${fcmToken.substring(0, 20)}...)`);
   if (pgReady) {
     try {
       await pgSet('fcm_tokens', userId, { userId, fcmToken, updatedAt: new Date().toISOString() });
+      console.log(`[FCM] Token saved to Postgres for user ${userId}`);
     } catch (err) {
-      console.error('Failed to save FCM token to Postgres:', err);
+      console.error('[FCM] Failed to save token to Postgres:', err);
     }
+  } else {
+    console.log(`[FCM] Postgres not ready, token only saved in memory`);
   }
-  console.log(`FCM token registered for user ${userId}`);
-  res.json({ success: true });
+  res.json({ success: true, stored: pgReady ? 'postgres+memory' : 'memory-only' });
 });
 
 app.get('/api/fcm-tokens', async (req, res) => {
@@ -4472,8 +4475,31 @@ app.post('/api/test-push', async (req, res) => {
   if (!userId) {
     return res.status(400).json({ success: false, error: 'userId required' });
   }
+  console.log(`[TestPush] Sending test push to ${userId}`);
+  console.log(`[TestPush] In-memory token: ${fcmTokens.has(userId)}`);
+  console.log(`[TestPush] FIREBASE_SERVICE_ACCOUNT1 set: ${!!process.env.FIREBASE_SERVICE_ACCOUNT1}`);
+  console.log(`[TestPush] FIREBASE_PROJECT_ID: ${process.env.FIREBASE_PROJECT_ID || 'canteen2-0 (default)'}`);
+
+  let pgToken = null;
+  if (pgReady) {
+    try {
+      const doc = await pgGetById('fcm_tokens', userId);
+      pgToken = (doc as any)?.fcmToken || null;
+      console.log(`[TestPush] Postgres token found: ${!!pgToken}`);
+    } catch (err) {
+      console.error(`[TestPush] Postgres lookup error:`, err);
+    }
+  }
+
   await sendPushNotification(userId, '🔔 Test Push', 'Push notifications are working!', { type: 'test' });
-  res.json({ success: true, message: `Test push sent to ${userId}`, hasToken: fcmTokens.has(userId) });
+  res.json({
+    success: true,
+    message: `Test push sent to ${userId}`,
+    hasInMemoryToken: fcmTokens.has(userId),
+    hasPgToken: !!pgToken,
+    pgReady,
+    hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT1,
+  });
 });
 
 app.delete('/api/fcm-token/:userId', async (req, res) => {
@@ -4510,25 +4536,26 @@ async function sendPushNotification(userId: string, title: string, body: string,
       if (doc && (doc as any).fcmToken) {
         token = (doc as any).fcmToken;
         fcmTokens.set(userId, token!);
+        console.log(`[Push] Loaded token from Postgres for ${userId}`);
       }
     } catch (err) {
-      console.error('Failed to load FCM token from Postgres:', err);
+      console.error('[Push] Failed to load token from Postgres:', err);
     }
   }
 
   if (!token) {
-    console.log(`No FCM token for user ${userId}, skipping push`);
+    console.log(`[Push] No FCM token for user ${userId}, skipping push`);
     return;
   }
 
   const accessToken = await getFcmAccessToken();
   if (!accessToken) {
-    console.log('Failed to get FCM access token, skipping push');
+    console.log(`[Push] Failed to get FCM access token, skipping push for ${userId}`);
     return;
   }
 
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'canteen2-0';
   try {
-    const projectId = process.env.FIREBASE_PROJECT_ID || 'canteen2-0';
     const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
       method: 'POST',
       headers: {
@@ -4549,16 +4576,16 @@ async function sendPushNotification(userId: string, title: string, body: string,
     });
     if (!resp.ok) {
       const errText = await resp.text();
-      console.error('FCM send failed:', resp.status, errText);
+      console.error(`[Push] FCM send failed for ${userId}: ${resp.status} - ${errText}`);
       if (resp.status === 404 || resp.status === 403) {
         fcmTokens.delete(userId);
-        console.log(`Removed invalid FCM token for user ${userId}`);
+        console.log(`[Push] Removed invalid FCM token for user ${userId}`);
       }
     } else {
-      console.log(`Push sent to ${userId}: ${title}`);
+      console.log(`[Push] ✅ Push sent to ${userId}: ${title}`);
     }
   } catch (e) {
-    console.error('FCM error:', e);
+    console.error(`[Push] FCM error for ${userId}:`, e);
   }
 }
 
