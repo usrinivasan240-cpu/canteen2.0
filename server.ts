@@ -3322,8 +3322,8 @@ app.post('/api/support/submit', async (req, res) => {
   try {
     const { userId, userName, userEmail, category, subject, description, orderId, canteenId, collegeId } = req.body;
 
-    if (!userId || !userName || !userEmail || !category || !subject || !description) {
-      return res.status(400).json({ success: false, error: 'Missing required fields: userId, userName, userEmail, category, subject, description' });
+    if (!userName || !userEmail || !category || !subject || !description) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: userName, userEmail, category, subject, description' });
     }
 
     const ticketId = `TKT_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -4502,14 +4502,37 @@ async function loadFcmTokens() {
 
 // ─── PUSH NOTIFICATION HELPER ──────────────────────────────
 async function sendPushNotification(userId: string, title: string, body: string, data: Record<string, string> = {}) {
-  const token = fcmTokens.get(userId);
-  if (!token) return;
+  let token = fcmTokens.get(userId);
+
+  if (!token && pgReady) {
+    try {
+      const doc = await pgGetById('fcm_tokens', userId);
+      if (doc && (doc as any).fcmToken) {
+        token = (doc as any).fcmToken;
+        fcmTokens.set(userId, token!);
+      }
+    } catch (err) {
+      console.error('Failed to load FCM token from Postgres:', err);
+    }
+  }
+
+  if (!token) {
+    console.log(`No FCM token for user ${userId}, skipping push`);
+    return;
+  }
+
+  const accessToken = await getFcmAccessToken();
+  if (!accessToken) {
+    console.log('Failed to get FCM access token, skipping push');
+    return;
+  }
 
   try {
-    const resp = await fetch('https://fcm.googleapis.com/v1/projects/' + (process.env.FIREBASE_PROJECT_ID || 'canteen2-0') + '/messages:send', {
+    const projectId = process.env.FIREBASE_PROJECT_ID || 'canteen2-0';
+    const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${await getFcmAccessToken()}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -4525,7 +4548,14 @@ async function sendPushNotification(userId: string, title: string, body: string,
       }),
     });
     if (!resp.ok) {
-      console.error('FCM send failed:', resp.status, await resp.text());
+      const errText = await resp.text();
+      console.error('FCM send failed:', resp.status, errText);
+      if (resp.status === 404 || resp.status === 403) {
+        fcmTokens.delete(userId);
+        console.log(`Removed invalid FCM token for user ${userId}`);
+      }
+    } else {
+      console.log(`Push sent to ${userId}: ${title}`);
     }
   } catch (e) {
     console.error('FCM error:', e);
