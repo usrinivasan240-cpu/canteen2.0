@@ -4526,29 +4526,60 @@ app.post('/api/test-push', async (req, res) => {
   if (!userId) {
     return res.status(400).json({ success: false, error: 'userId required' });
   }
-  console.log(`[TestPush] Sending test push to ${userId}`);
-  console.log(`[TestPush] In-memory token: ${fcmTokens.has(userId)}`);
-  console.log(`[TestPush] FIREBASE_SERVICE_ACCOUNT1 set: ${!!process.env.FIREBASE_SERVICE_ACCOUNT1}`);
 
-  let pgToken = null;
-  if (pgReady) {
+  let token = fcmTokens.get(userId);
+  let tokenSource = 'memory';
+
+  if (!token && pgReady) {
     try {
       const doc = await pgGetById('fcm_tokens', userId);
-      pgToken = (doc as any)?.fcmToken || null;
-    } catch (err) {
-      console.error(`[TestPush] Postgres lookup error:`, err);
-    }
+      if (doc && (doc as any).fcmToken) {
+        token = (doc as any).fcmToken;
+        tokenSource = 'postgres';
+      }
+    } catch (err) {}
   }
 
-  await sendPushNotification(userId, '🔔 Test Push', 'Push notifications are working!', { type: 'test' });
-  res.json({
-    success: true,
-    message: `Test push sent to ${userId}`,
-    hasInMemoryToken: fcmTokens.has(userId),
-    hasPgToken: !!pgToken,
-    pgReady,
-    hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT1,
-  });
+  if (!token) {
+    return res.json({ success: false, error: 'No FCM token found for this user', tokenSource });
+  }
+
+  const accessToken = await getFcmAccessToken();
+  if (!accessToken) {
+    return res.json({ success: false, error: 'Failed to get FCM access token' });
+  }
+
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'canteen2-0';
+  try {
+    const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          token,
+          notification: { title: '🔔 Test Push', body: 'Push notifications are working!' },
+          data: { type: 'test' },
+          android: {
+            priority: 'high',
+            notification: { channel_id: 'escq_orders', priority: 'high' },
+          },
+        },
+      }),
+    });
+    const respBody = await resp.json();
+    res.json({
+      success: resp.ok,
+      httpStatus: resp.status,
+      fcmResponse: respBody,
+      tokenSource,
+      projectId,
+    });
+  } catch (e: any) {
+    res.json({ success: false, error: e.message });
+  }
 });
 
 app.delete('/api/fcm-token/:userId', async (req, res) => {
