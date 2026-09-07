@@ -312,4 +312,70 @@ class ApiService {
       'advanceBookingDays': advanceBookingDays,
     });
   }
-}
+
+  // ── WALLET ──
+  Future<Map<String, dynamic>> getWallet() async {
+    return _get('/api/wallet');
+  }
+
+  Future<Map<String, dynamic>> getWalletBalance() async {
+    return _get('/api/wallet/balance');
+  }
+
+  Future<Map<String, dynamic>> getWalletTransactions({int page = 1, int limit = 20}) async {
+    return _get('/api/wallet/transactions', {'page': page.toString(), 'limit': limit.toString()});
+  }
+
+  Future<Map<String, dynamic>> getWalletTopups({int page = 1, int limit = 20}) async {
+    return _get('/api/wallet/topups', {'page': page.toString(), 'limit': limit.toString()});
+  }
+
+  Future<Map<String, dynamic>> initiateWalletTopup({
+    required int amount,
+    required String provider,
+  }) async {
+    return _post('/api/wallet/topup', {
+      'amount': amount,
+      'provider': provider,
+    });
+  }
+
+  Future<Map<String, dynamic>> confirmWalletTopup({
+    required String topupId,
+    required String provider,
+    String? providerOrderId,
+    String? providerPaymentId,
+  }) async {
+    return _post('/api/wallet/topup/confirm', {
+      'topupId': topupId,
+      'provider': provider,
+      if (providerOrderId != null) 'providerOrderId': providerOrderId,
+      if (providerPaymentId != null) 'providerPaymentId': providerPaymentId,
+    });
+  }
+
+  Future<Map<String, dynamic>> payWithWallet({
+    required String orderId,
+    required int amount,
+    required String idempotencyKey,
+  }) async {
+    return _post('/api/wallet/pay', {
+      'orderId': orderId,
+      'amount': amount,
+      'idempotencyKey': idempotencyKey,
+    });
+  }
+
+  Future<Map<String, dynamic>> requestRefund({
+    required String transactionId,
+    required int amount,
+    required String idempotencyKey,
+  }) async {
+    return _post('/api/wallet/refund', {
+      'transactionId': transactionId,
+      'amount': amount,
+      'idempotencyKey': idempotencyKey,
+    });
+  }
+
+  }

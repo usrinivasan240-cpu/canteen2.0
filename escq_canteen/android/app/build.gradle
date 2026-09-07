@@ -48,7 +48,7 @@ android {
 
     defaultConfig {
         applicationId = "com.escq.canteen"
-        minSdkVersion = 21
+        minSdkVersion = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
