@@ -58,8 +58,8 @@ export default function CanteenAdmin({
     ? rawOrders.filter(o => !o.subCanteenId || o.subCanteenId === subCanteenId)
     : rawOrders;
 
-  const [activeTab, setActiveTab] = useState<'chef' | 'counter' | 'owner'>(
-    userRole === 'chef' ? 'chef' : userRole === 'staff' ? 'counter' : 'owner'
+  const [activeTab, setActiveTab] = useState<'chef' | 'counter' | 'owner' | 'chef_orders' | 'chef_cooklist' | 'chef_prebook'>(
+    userRole === 'chef' ? 'chef_orders' : userRole === 'staff' ? 'counter' : 'owner'
   );
   const [ownerSubTab, setOwnerSubTab] = useState<'orders_mgr' | 'pos' | 'menu' | 'inventory' | 'revenue' | 'settings' | 'reviews' | 'ai'>('orders_mgr');
   
@@ -624,6 +624,47 @@ export default function CanteenAdmin({
       });
     }
   });
+
+  // ===== CHEF COOK LIST AGGREGATION (for Cook List tab) =====
+  const cookListAggregated: { [itemId: string]: { name: string; quantity: number; status: string } } = {};
+  orders.forEach(o => {
+    if (o.status === 'scheduled' || o.status === 'preparing') {
+      o.items.forEach(it => {
+        const itemMenu = menuItems.find(m => m.id === it.itemId);
+        const requiresChef = itemMenu ? itemMenu.requiresChef !== false : true;
+        if (!requiresChef) return;
+        if (!cookListAggregated[it.itemId]) {
+          cookListAggregated[it.itemId] = { name: it.name, quantity: 0, status: o.status };
+        }
+        cookListAggregated[it.itemId].quantity += it.quantity;
+      });
+    }
+  });
+
+  // ===== CHEF PRE-BOOK AGGREGATION (for Pre-book tab) =====
+  const prebookAggregated: { [slot: string]: Order[] } = {};
+  orders.forEach(o => {
+    if (o.status === 'scheduled' || o.status === 'preparing') {
+      const slot = o.pickupSlot || '12:00 PM';
+      const isPrebook = slot !== 'ASAP (Instant)' && slot !== '';
+      if (isPrebook) {
+        if (!prebookAggregated[slot]) prebookAggregated[slot] = [];
+        prebookAggregated[slot].push(o);
+      }
+    }
+  });
+
+  // Helper for prebook aggregated items
+  const aggregatePrebookItems = (orders: Order[]) => {
+    const agg: { [itemId: string]: { name: string; quantity: number } } = {};
+    orders.forEach(o => {
+      o.items.forEach(it => {
+        if (!agg[it.itemId]) agg[it.itemId] = { name: it.name, quantity: 0 };
+        agg[it.itemId].quantity += it.quantity;
+      });
+    });
+    return agg;
+  };
 
   // Counter staff live counters
   const totalCollectedCount = orders.filter(o => o.status === 'collected' || o.status === 'delivered').length;
@@ -1252,33 +1293,64 @@ export default function CanteenAdmin({
 
       {/* 2. ADMIN CHOICES TABS */}
       <div className="flex border-b border-red-100 overflow-x-auto scrollbar-none pb-0.5 gap-4">
-        {[
-          { id: 'chef', label: `Chef Dashboard (${preppingOrdersCount})`, icon: ChefHat },
-          { id: 'counter', label: `Counter Staff (${readyOrdersCount})`, icon: QrCode },
-          { id: 'owner', label: 'Canteen Owner Hub', icon: ShieldCheck }
-        ].filter(tab => {
-          if (userRole === 'chef') return tab.id === 'chef';
-          return true;
-        }).map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id as any);
-                setMatchedOrderId('');
-              }}
-              className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold transition-all border-b-2 tracking-wide whitespace-nowrap cursor-pointer ${
-                activeTab === tab.id
-                  ? 'border-amber-600 text-amber-600 font-extrabold'
-                  : 'border-transparent text-gray-400 hover:text-gray-900'
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+        {userRole === 'chef' ? (
+          <>
+            {[
+              { id: 'chef_orders', label: `Orders (${preppingOrdersCount + readyOrdersCount})`, icon: ChefHat },
+              { id: 'chef_cooklist', label: 'Cook List', icon: List },
+              { id: 'chef_prebook', label: 'Pre-book', icon: CalendarClock }
+            ].map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    setMatchedOrderId('');
+                  }}
+                  className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold transition-all border-b-2 tracking-wide whitespace-nowrap cursor-pointer ${
+                    activeTab === tab.id
+                      ? 'border-amber-600 text-amber-600 font-extrabold'
+                      : 'border-transparent text-gray-400 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            {[
+              { id: 'chef', label: `Chef Dashboard (${preppingOrdersCount})`, icon: ChefHat },
+              { id: 'counter', label: `Counter Staff (${readyOrdersCount})`, icon: QrCode },
+              { id: 'owner', label: 'Canteen Owner Hub', icon: ShieldCheck }
+            ].filter(tab => {
+              if (userRole === 'chef') return tab.id === 'chef';
+              return true;
+            }).map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    setMatchedOrderId('');
+                  }}
+                  className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold transition-all border-b-2 tracking-wide whitespace-nowrap cursor-pointer ${
+                    activeTab === tab.id
+                      ? 'border-amber-600 text-amber-600 font-extrabold'
+                      : 'border-transparent text-gray-400 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </>
+        )}
       </div>
 
       {/* ======================= PORTAL: CHEF DASHBOARD ======================= */}
@@ -1452,8 +1524,159 @@ export default function CanteenAdmin({
         </div>
       )}
 
-      {/* ======================= PORTAL: COUNTER STAFF VIEW ======================= */}
-      {/* ======================= PORTAL: COUNTER STAFF VIEW ======================= */}
+      {/* ======================= PORTAL: CHEF ORDERS (Mobile-style Orders Tab) ======================= */}
+      {activeTab === 'chef_orders' && (
+        <div className="space-y-6 text-left">
+          <div className="bg-white p-6 rounded-3xl border border-red-100/70 shadow-sm">
+            <h3 className="font-display font-bold text-lg text-gray-900 mb-4">Active Kitchen Orders</h3>
+            <p className="text-xs text-gray-400 mb-4">All orders requiring kitchen preparation. Tap status to advance.</p>
+            {sortedChefOrders.length === 0 ? (
+              <p className="text-xs text-gray-400 py-8 text-center">No active kitchen orders at this time.</p>
+            ) : (
+              <div className="space-y-4 font-sans text-xs">
+                {sortedChefOrders.map(order => {
+                  const isCookingOverdue = order.status === 'scheduled' && Date.now() >= (order.prepStartTime || 0);
+                  return (
+                    <div key={order.id} className="p-4 border border-red-100/50 bg-red-50/10 rounded-2xl space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2 flex-wrap gap-1">
+                            <span className="font-mono font-bold text-amber-600">{order.id}</span>
+                            <span className="text-[10px] text-gray-500 font-mono">Slot: <strong className="text-gray-900">{order.pickupSlot}</strong></span>
+                            {isCookingOverdue && (
+                              <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[9px] px-2 py-0.5 rounded font-black uppercase tracking-wider animate-pulse flex items-center space-x-1">
+                                <AlertCircle className="h-3 w-3" />
+                                <span>START COOKING NOW</span>
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-semibold text-gray-800">For: {order.userName}</p>
+                          <p className="text-gray-450 text-[11px]">
+                            {order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-2 flex-wrap">
+                          {order.status === 'scheduled' ? (
+                            <button
+                              onClick={() => onUpdateOrderStatus(order.id, 'preparing')}
+                              className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                            >
+                              Start Cooking
+                            </button>
+                          ) : order.status === 'preparing' ? (
+                            <button
+                              onClick={() => onUpdateOrderStatus(order.id, 'ready')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                            >
+                              Mark Ready
+                            </button>
+                          ) : order.status === 'ready' ? (
+                            <span className="bg-emerald-100 text-emerald-800 px-3 py-2 text-[10px] font-bold uppercase rounded-lg">
+                              Ready for Pickup
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================= PORTAL: CHEF COOK LIST (Mobile-style Cook List Tab) ======================= */}
+      {activeTab === 'chef_cooklist' && (
+        <div className="space-y-6 text-left">
+          <div className="bg-white p-6 rounded-3xl border border-red-100/70 shadow-sm">
+            <h3 className="font-display font-bold text-lg text-gray-900 mb-4">Aggregated Cook List</h3>
+            <p className="text-xs text-gray-400 mb-4">Total quantities per dish across all active kitchen orders.</p>
+            {Object.keys(cookListAggregated).length === 0 ? (
+              <p className="text-xs text-gray-400 py-8 text-center">Nothing to cook at this time.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(cookListAggregated).map(([itemId, details]) => (
+                  <div key={itemId} className="p-4 border border-red-100/50 bg-red-50/10 rounded-2xl space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold text-gray-800 capitalize">{details.name}</p>
+                        <p className="text-[10px] text-gray-500">Status: <span className={`font-bold ${details.status === 'preparing' ? 'text-amber-600' : 'text-red-600'}`}>{details.status}</span></p>
+                      </div>
+                      <span className="font-mono text-2xl font-bold text-amber-600">x{details.quantity}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {details.status === 'scheduled' ? (
+                        <button
+                          onClick={() => startBatchCooking(itemId)}
+                          className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                        >
+                          Start Cooking
+                        </button>
+                      ) : details.status === 'preparing' ? (
+                        <button
+                          onClick={() => finishBatchCooking(itemId)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                        >
+                          Set Ready
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================= PORTAL: CHEF PRE-BOOK (Mobile-style Pre-book Tab) ======================= */}
+      {activeTab === 'chef_prebook' && (
+        <div className="space-y-6 text-left">
+          <div className="bg-white p-6 rounded-3xl border border-red-100/70 shadow-sm">
+            <h3 className="font-display font-bold text-lg text-gray-900 mb-4">Pre-booked Orders</h3>
+            <p className="text-xs text-gray-400 mb-4">Orders scheduled for future time slots, grouped by slot.</p>
+            {Object.keys(prebookAggregated).length === 0 ? (
+              <p className="text-xs text-gray-400 py-8 text-center">No pre-booked orders.</p>
+            ) : (
+              <div className="space-y-4">
+                {Object.entries(prebookAggregated).map(([slot, orders]) => (
+                  <div key={slot} className="p-4 border border-red-100/50 bg-red-50/10 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center border-b border-red-50 pb-2">
+                      <span className="font-bold text-red-800 font-mono text-sm">{slot} Slot</span>
+                      <span className="bg-red-100 text-red-900 px-2.5 py-0.5 rounded text-[10px] font-bold">
+                        {orders.length} Order(s) • {Object.values(aggregatePrebookItems(orders)).reduce((sum: number, v: any) => sum + v.quantity, 0)} Total Dishes
+                      </span>
+                    </div>
+                    <div className="space-y-3 text-xs">
+                      {orders.map(order => (
+                        <div key={order.id} className="p-3 border border-red-100/50 bg-white rounded-xl space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="font-mono font-bold text-amber-600">{order.id}</span>
+                            <span className="text-gray-500">For: {order.userName}</span>
+                          </div>
+                          <p className="text-gray-600">{order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}</p>
+                          {order.status === 'scheduled' && (
+                            <button
+                              onClick={() => onUpdateOrderStatus(order.id, 'preparing')}
+                              className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer self-start"
+                            >
+                              Start Preparing
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================= PORTAL: CHEF DASHBOARD (Legacy - keep for owner/staff) ======================= */}
+      {activeTab === 'chef' && (
       {activeTab === 'counter' && (
         <div className="space-y-6 text-left">
 
