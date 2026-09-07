@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <!-- Esc(Q) Notification Small Icon - Monochrome Q symbol for Android status bar -->
+  <path
+      android:fillColor="#FFFFFF"
+      android:pathData="M12,2 C17.5228,2 20.5,4.477 20.5,8.5 C20.5,12.5228 17.5228,15 12,15 C6.47715,15 2,12.5228 2,8.5 C2,4.47715 4.47715,2 12,2 Z M12,4 C7.58172,4 4,7.58172 4,8.5 C4,11.5 6.58172,13.5 9.5,13.5 C11.5,13.5 12.5,12.5 13.5,11.5 L13.5,8.5 C13.5,6.84315 11.6569,5 9.5,5 C7.34315,5 5.5,6.84315 5.5,8.5 C5.5,11.5 7.5,13.5 9.5,13.5 C11.5,13.5 13.5,11.5 13.5,9.5 Z" />
+</vector>
