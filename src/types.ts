@@ -81,6 +81,10 @@ export interface Ingredient {
 export interface CanteenSettings {
   noShowMinutes: number;
   defaultSlotCapacity: number;
+  slotDuration: number;
+  prepBufferMinutes: number;
+  orderCutoffMinutes: number;
+  advanceBookingDays: number;
   canteenId?: string;
 }
 

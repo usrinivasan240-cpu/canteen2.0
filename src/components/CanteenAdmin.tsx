@@ -213,6 +213,10 @@ export default function CanteenAdmin({
   // Config settings form states
   const [noShowMinutesVal, setNoShowMinutesVal] = useState<string>('30');
   const [defaultSlotCapacityVal, setDefaultSlotCapacityVal] = useState<string>('30');
+  const [slotDurationVal, setSlotDurationVal] = useState<string>('15');
+  const [prepBufferVal, setPrepBufferVal] = useState<string>('5');
+  const [orderCutoffVal, setOrderCutoffVal] = useState<string>('10');
+  const [advanceBookingDaysVal, setAdvanceBookingDaysVal] = useState<string>('7');
   const [updatingSettings, setUpdatingSettings] = useState<boolean>(false);
 
   // Ingredient CRUD Form State
@@ -286,6 +290,10 @@ export default function CanteenAdmin({
     if (settings) {
       setNoShowMinutesVal(settings.noShowMinutes.toString());
       setDefaultSlotCapacityVal(settings.defaultSlotCapacity.toString());
+      setSlotDurationVal((settings.slotDuration || 15).toString());
+      setPrepBufferVal((settings.prepBufferMinutes || 5).toString());
+      setOrderCutoffVal((settings.orderCutoffMinutes || 10).toString());
+      setAdvanceBookingDaysVal((settings.advanceBookingDays || 7).toString());
     }
   }, [settings]);
 
@@ -569,7 +577,11 @@ export default function CanteenAdmin({
         body: JSON.stringify({
           canteenId: canteenId,
           noShowMinutes: Number(noShowMinutesVal),
-          defaultSlotCapacity: Number(defaultSlotCapacityVal)
+          defaultSlotCapacity: Number(defaultSlotCapacityVal),
+          slotDuration: Number(slotDurationVal),
+          prepBufferMinutes: Number(prepBufferVal),
+          orderCutoffMinutes: Number(orderCutoffVal),
+          advanceBookingDays: Number(advanceBookingDaysVal)
         })
       });
       const data = await resp.json();
@@ -2394,6 +2406,58 @@ export default function CanteenAdmin({
                     required
                     className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
                   />
+                </div>
+
+                <div className="border-t border-red-50 pt-4 space-y-4">
+                  <h4 className="font-display font-bold text-xs text-gray-900">Time Slot Configuration</h4>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Slot Duration (Minutes)</label>
+                    <select
+                      value={slotDurationVal}
+                      onChange={(e) => setSlotDurationVal(e.target.value)}
+                      className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium cursor-pointer"
+                    >
+                      <option value="15">15 Minutes</option>
+                      <option value="30">30 Minutes</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Preparation Buffer (Minutes before slot)</label>
+                    <input
+                      type="number"
+                      value={prepBufferVal}
+                      onChange={(e) => setPrepBufferVal(e.target.value)}
+                      min="0"
+                      max="120"
+                      className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Order Cutoff (Minutes before slot)</label>
+                    <input
+                      type="number"
+                      value={orderCutoffVal}
+                      onChange={(e) => setOrderCutoffVal(e.target.value)}
+                      min="0"
+                      max="120"
+                      className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Advance Booking Window (Days)</label>
+                    <input
+                      type="number"
+                      value={advanceBookingDaysVal}
+                      onChange={(e) => setAdvanceBookingDaysVal(e.target.value)}
+                      min="0"
+                      max="30"
+                      className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    />
+                  </div>
                 </div>
 
                 <button

@@ -503,7 +503,11 @@ const INITIAL_INGREDIENTS: Ingredient[] = [
 
 let canteenSettings: CanteenSettings = {
   noShowMinutes: 30,
-  defaultSlotCapacity: 30
+  defaultSlotCapacity: 30,
+  slotDuration: 15,
+  prepBufferMinutes: 5,
+  orderCutoffMinutes: 10,
+  advanceBookingDays: 7
 };
 
 const INITIAL_MENU_ITEMS: MenuItem[] = [
@@ -814,7 +818,7 @@ function getCanteenState(canteenId: string): Canteen {
       orders: [],
       reviews: [],
       ingredients: [],
-      settings: { noShowMinutes: 30, defaultSlotCapacity: 30, canteenId }
+      settings: { noShowMinutes: 30, defaultSlotCapacity: 30, slotDuration: 15, prepBufferMinutes: 5, orderCutoffMinutes: 10, advanceBookingDays: 7, canteenId }
     };
     canteensState.push(c);
   }
@@ -1428,7 +1432,7 @@ app.post('/api/canteens', async (req, res) => {
       orders: [],
       reviews: [],
       ingredients: INITIAL_INGREDIENTS.map(ing => ({ ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id })),
-      settings: { noShowMinutes: 30, defaultSlotCapacity: 30, canteenId: canteenData.id }
+      settings: { noShowMinutes: 30, defaultSlotCapacity: 30, slotDuration: 15, prepBufferMinutes: 5, orderCutoffMinutes: 10, advanceBookingDays: 7, canteenId: canteenData.id }
     });
   }
   dataCache.delete('canteens');
@@ -4263,17 +4267,25 @@ async function checkExpiredOrders() {
 
 // 7b. Update Settings (Owner)
 app.post('/api/canteen/settings', async (req, res) => {
-  const { noShowMinutes, defaultSlotCapacity, canteenId } = req.body;
+  const { noShowMinutes, defaultSlotCapacity, slotDuration, prepBufferMinutes, orderCutoffMinutes, advanceBookingDays, canteenId } = req.body;
   const targetCanteenId = (typeof canteenId === 'string' && canteenId.trim()) ? canteenId.trim() : 'canteen_001';
 
   if (noShowMinutes !== undefined) canteenSettings.noShowMinutes = Number(noShowMinutes);
   if (defaultSlotCapacity !== undefined) canteenSettings.defaultSlotCapacity = Number(defaultSlotCapacity);
+  if (slotDuration !== undefined) canteenSettings.slotDuration = Number(slotDuration);
+  if (prepBufferMinutes !== undefined) canteenSettings.prepBufferMinutes = Number(prepBufferMinutes);
+  if (orderCutoffMinutes !== undefined) canteenSettings.orderCutoffMinutes = Number(orderCutoffMinutes);
+  if (advanceBookingDays !== undefined) canteenSettings.advanceBookingDays = Number(advanceBookingDays);
 
   if (pgReady) {
     try {
       await pgSet('settings', `settings_${targetCanteenId}`, {
         noShowMinutes: Number(canteenSettings.noShowMinutes),
         defaultSlotCapacity: Number(canteenSettings.defaultSlotCapacity),
+        slotDuration: Number(canteenSettings.slotDuration),
+        prepBufferMinutes: Number(canteenSettings.prepBufferMinutes),
+        orderCutoffMinutes: Number(canteenSettings.orderCutoffMinutes),
+        advanceBookingDays: Number(canteenSettings.advanceBookingDays),
         canteenId: targetCanteenId
       });
     } catch (e) {

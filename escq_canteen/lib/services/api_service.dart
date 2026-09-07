@@ -292,4 +292,24 @@ class ApiService {
       'canteenId': canteenId,
     });
   }
+
+  Future<Map<String, dynamic>> saveCanteenSettings({
+    required String canteenId,
+    required int noShowMinutes,
+    required int defaultSlotCapacity,
+    required int slotDuration,
+    required int prepBufferMinutes,
+    required int orderCutoffMinutes,
+    required int advanceBookingDays,
+  }) async {
+    return _post('/api/canteen/settings', {
+      'canteenId': canteenId,
+      'noShowMinutes': noShowMinutes,
+      'defaultSlotCapacity': defaultSlotCapacity,
+      'slotDuration': slotDuration,
+      'prepBufferMinutes': prepBufferMinutes,
+      'orderCutoffMinutes': orderCutoffMinutes,
+      'advanceBookingDays': advanceBookingDays,
+    });
+  }
 }

@@ -638,9 +638,33 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     );
   }
 
-  Widget _actionButton(String label, IconData icon, Color color, VoidCallback onTap) {
+  Widget _actionButton(String label, IconData icon, Color color, VoidCallback onTap, {String? confirmTitle, String? confirmMessage}) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        if (confirmTitle != null && confirmMessage != null) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text(confirmTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
+              content: Text(confirmMessage),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    onTap();
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white),
+                  child: Text(label),
+                ),
+              ],
+            ),
+          );
+        } else {
+          onTap();
+        }
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),

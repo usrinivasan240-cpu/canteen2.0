@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/api_service.dart';
 import 'help_support_screen.dart';
 import 'login_screen.dart';
 
@@ -95,6 +96,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 32),
+            if (user?.role == 'owner') ...[
+              _sectionTitle('CANTEEN SETTINGS', themeProv),
+              const SizedBox(height: 8),
+              _ownerSettingsSection(themeProv, user?.canteenId ?? 'canteen_001'),
+              const SizedBox(height: 24),
+            ],
             _logoutBtn(auth),
           ],
         ),
@@ -265,7 +272,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _logoutBtn(AuthProvider auth) {
+Widget _logoutBtn(AuthProvider auth) {
     return SizedBox(
       width: double.infinity,
       height: 44,
@@ -274,16 +281,118 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await auth.logout();
           if (mounted) Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => LoginScreen(
-  onNavigateLegal: (page) {
-    Navigator.pushNamed(context, '/legal/$page');
-  },
-)),
+      onNavigateLegal: (page) {
+        Navigator.pushNamed(context, '/legal/$page');
+      },
+    )),
             (route) => false,
           );
         },
         style: ElevatedButton.styleFrom(backgroundColor: Colors.amber[50], foregroundColor: Colors.amber[700], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.amber[200]!))),
         child: const Text('Logout', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
       ),
+    );
+  }
+
+  Widget _ownerSettingsSection(ThemeProvider themeProv, String canteenId) {
+    final TextEditingController slotDurationCtrl = TextEditingController(text: '15');
+    final TextEditingController prepBufferCtrl = TextEditingController(text: '5');
+    final TextEditingController orderCutoffCtrl = TextEditingController(text: '10');
+    final TextEditingController advanceBookingCtrl = TextEditingController(text: '7');
+    final TextEditingController noShowCtrl = TextEditingController(text: '30');
+    final TextEditingController slotCapacityCtrl = TextEditingController(text: '30');
+
+    Future<void> _saveOwnerSettings() async {
+      try {
+        final api = ApiService();
+        await api.saveCanteenSettings(
+          canteenId: canteenId,
+          noShowMinutes: int.tryParse(noShowCtrl.text) ?? 30,
+          defaultSlotCapacity: int.tryParse(slotCapacityCtrl.text) ?? 30,
+          slotDuration: int.tryParse(slotDurationCtrl.text) ?? 15,
+          prepBufferMinutes: int.tryParse(prepBufferCtrl.text) ?? 5,
+          orderCutoffMinutes: int.tryParse(orderCutoffCtrl.text) ?? 10,
+          advanceBookingDays: int.tryParse(advanceBookingCtrl.text) ?? 7,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Settings saved successfully!'), backgroundColor: Colors.green),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Time Duration Range', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: themeProv.isDark ? Colors.white : Colors.black87)),
+          const SizedBox(height: 4),
+          Text('Configure order pickup time slots and preparation windows', style: TextStyle(fontSize: 11, color: themeProv.isDark ? Colors.grey[400] : Colors.grey)),
+          const SizedBox(height: 16),
+          _ownerSettingField('Slot Duration (min)', slotDurationCtrl, '15 or 30', themeProv),
+          const SizedBox(height: 12),
+          _ownerSettingField('Prep Buffer (min before slot)', prepBufferCtrl, 'e.g. 5', themeProv),
+          const SizedBox(height: 12),
+          _ownerSettingField('Order Cutoff (min before slot)', orderCutoffCtrl, 'e.g. 10', themeProv),
+          const SizedBox(height: 12),
+          _ownerSettingField('Advance Booking (days)', advanceBookingCtrl, 'e.g. 7', themeProv),
+          const SizedBox(height: 12),
+          _ownerSettingField('No-Show Window (min)', noShowCtrl, 'e.g. 30', themeProv),
+          const SizedBox(height: 12),
+          _ownerSettingField('Max Bookings/Slot', slotCapacityCtrl, 'e.g. 30', themeProv),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton(
+              onPressed: _saveOwnerSettings,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF59E0B),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Save Canteen Settings', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ownerSettingField(String label, TextEditingController ctrl, String hint, ThemeProvider themeProv) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: themeProv.isDark ? Colors.grey[400] : Colors.grey[500])),
+        const SizedBox(height: 6),
+        TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.grey[500] : Colors.grey[400]),
+            filled: true,
+            fillColor: themeProv.isDark ? const Color(0xFF111827) : Colors.grey[50],
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2))),
+          ),
+          style: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.white : Colors.black87),
+        ),
+      ],
     );
   }
 
