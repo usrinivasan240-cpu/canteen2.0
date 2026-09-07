@@ -2304,7 +2304,6 @@ app.post('/api/canteen/order', async (req, res) => {
         receipt: orderId,
       });
 
-      const signedQrPayload = generateSignedQR(orderId);
       const newOrder: Order = {
         id: orderId,
         userId: userId || 'user_guest',
@@ -2313,12 +2312,12 @@ app.post('/api/canteen/order', async (req, res) => {
         totalPrice,
         paymentStatus: 'pending',
         paymentMethod: 'Razorpay',
-        qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
-        qrPayload: signedQrPayload,
+        qrCode: '',
+        qrPayload: '',
         status: 'pending',
         timestamp: new Date().toISOString(),
         createdAt: Date.now(),
-        pickupTimeText: 'Pending payment confirmation',
+        pickupTimeText: 'Complete payment to confirm order',
         razorpayOrderId: razorpayOrder.id,
         pickupSlot: selectedSlot,
         prepStartTime,
@@ -2332,8 +2331,6 @@ app.post('/api/canteen/order', async (req, res) => {
       }
       canteenState.orders.unshift(newOrder);
 
-      await sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
-
       return res.json({
         success: true,
         useRazorpay: true,
@@ -2342,8 +2339,7 @@ app.post('/api/canteen/order', async (req, res) => {
         amount: totalPrice,
         amountPaise: totalAmountPaise,
         currency: 'INR',
-        order: newOrder,
-        qrPayload: generateSignedQR(orderId)
+        order: newOrder
       });
     } catch (err: any) {
       const errDetail = typeof err === 'string'
@@ -2360,7 +2356,6 @@ app.post('/api/canteen/order', async (req, res) => {
       const totalPrice = Number((subtotal / 0.9764).toFixed(2));
       const totalAmountPaise = Math.round(totalPrice * 100);
 
-      const signedQrPayload = generateSignedQR(orderId);
       const newOrder: Order = {
         id: orderId,
         userId: userId || 'user_guest',
@@ -2369,12 +2364,12 @@ app.post('/api/canteen/order', async (req, res) => {
         totalPrice,
         paymentStatus: 'pending',
         paymentMethod: 'UPI Dynamic QR',
-        qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
-        qrPayload: signedQrPayload,
+        qrCode: '',
+        qrPayload: '',
         status: 'pending',
         timestamp: new Date().toISOString(),
         createdAt: Date.now(),
-        pickupTimeText: 'Pending UPI payment',
+        pickupTimeText: 'Complete UPI payment to confirm',
         pickupSlot: selectedSlot,
         prepStartTime,
         expiryTime,
@@ -2386,8 +2381,6 @@ app.post('/api/canteen/order', async (req, res) => {
         await pgSet('orders', orderId, newOrder);
       }
       canteenState.orders.unshift(newOrder);
-
-      await sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
 
       if (vyaparConfigured) {
         // Real VyaparGateway API call
@@ -2612,12 +2605,16 @@ async function fulfillRazorpayOrder(targetOrder: Order, razorpay_payment_id: str
     return itemMenu ? itemMenu.requiresChef !== false : true;
   });
 
+  const signedQrPayload = generateSignedQR(targetOrder.id);
+
   const updatedOrder: Order = {
     ...targetOrder,
     paymentStatus: 'paid',
     status: containsChefItems ? 'scheduled' : 'ready',
     razorpayPaymentId: razorpay_payment_id,
     razorpaySignature: razorpay_signature,
+    qrCode: `QR_${targetOrder.id}_${Math.floor(Math.random() * 1000)}`,
+    qrPayload: signedQrPayload,
     pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
   };
 
@@ -2626,7 +2623,7 @@ async function fulfillRazorpayOrder(targetOrder: Order, razorpay_payment_id: str
   }
 
   canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
-  console.log(`[Razorpay Verify] ✅ Order ${targetOrder.id} marked as paid`);
+  console.log(`[Razorpay Verify] ✅ Order ${targetOrder.id} marked as paid — QR generated`);
   return updatedOrder;
 }
 
@@ -2759,6 +2756,7 @@ app.post('/api/razorpay/verify', async (req, res) => {
     // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
     const updatedOrder = await fulfillRazorpayOrder(targetOrder, razorpay_payment_id, razorpay_signature);
 
+    await sendPushNotification(updatedOrder.userId, '🛒 Order Placed & Paid', `Your order ${updatedOrder.id} is confirmed! Total: ₹${updatedOrder.totalPrice}`, { orderId: updatedOrder.id, status: updatedOrder.status });
     await sendPushNotification(updatedOrder.userId, '✅ Payment Confirmed', `Your order ${updatedOrder.id} payment has been confirmed!`, { orderId: updatedOrder.id, status: 'scheduled' });
 
     res.json({ success: true, message: 'Payment verified successfully', order: updatedOrder });
@@ -2876,10 +2874,13 @@ app.post('/api/vyapar/verify', async (req, res) => {
       return itemMenu ? itemMenu.requiresChef !== false : true;
     });
 
+    const signedQrPayload = generateSignedQR(targetOrder.id);
     const updatedOrder: Order = {
       ...targetOrder,
       paymentStatus: 'paid',
       status: containsChefItems ? 'scheduled' : 'ready',
+      qrCode: `QR_${targetOrder.id}_${Math.floor(Math.random() * 1000)}`,
+      qrPayload: signedQrPayload,
       pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
     };
 
@@ -2888,7 +2889,8 @@ app.post('/api/vyapar/verify', async (req, res) => {
     }
     canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
 
-    console.log(`[VyaparGateway Verify] Order ${orderId} marked as paid`);
+    console.log(`[VyaparGateway Verify] Order ${orderId} marked as paid — QR generated`);
+    await sendPushNotification(updatedOrder.userId, '🛒 Order Placed & Paid', `Your order ${updatedOrder.id} is confirmed! Total: ₹${updatedOrder.totalPrice}`, { orderId: updatedOrder.id, status: updatedOrder.status });
     res.json({ success: true, message: 'Payment verified successfully', order: updatedOrder });
   } catch (err: any) {
     console.error('[VyaparGateway Verify] Error:', err?.message || err);
@@ -3927,6 +3929,187 @@ app.post('/api/canteen/order/batch-status', async (req, res) => {
   }
 
   res.json({ success: true, count: updatedOrders.length, message: `Updated status to ${status} for ${updatedOrders.length} orders.` });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 5b. OFFERS / DISCOUNTS / COMBO PACKS
+// ──────────────────────────────────────────────────────────────────────────────
+
+// GET /api/offers — list offers for a canteen
+app.get('/api/offers', async (req, res) => {
+  try {
+    const canteenId = (req.query.canteenId as string) || 'canteen_001';
+    let offers: any[] = [];
+    if (pgReady) {
+      offers = await pgGetWhere('offers', { canteenId });
+    } else {
+      offers = (canteenState as any).offers || [];
+    }
+    res.json({ success: true, offers });
+  } catch (err: any) {
+    console.error('[Offers] List error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to load offers' });
+  }
+});
+
+// GET /api/offers/active — customer-facing: only active, non-expired offers
+app.get('/api/offers/active', async (req, res) => {
+  try {
+    const canteenId = (req.query.canteenId as string) || 'canteen_001';
+    const now = Date.now();
+    let offers: any[] = [];
+    if (pgReady) {
+      offers = await pgGetWhere('offers', { canteenId });
+    } else {
+      offers = (canteenState as any).offers || [];
+    }
+    const active = offers.filter((o: any) =>
+      o.isActive &&
+      (o.validFrom === 0 || now >= o.validFrom) &&
+      (o.validUntil === 0 || now <= o.validUntil) &&
+      (o.maxUses === 0 || o.usedCount < o.maxUses)
+    );
+    res.json({ success: true, offers: active });
+  } catch (err: any) {
+    console.error('[Offers] Active list error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to load offers' });
+  }
+});
+
+// POST /api/offers — create offer (owner/superadmin)
+app.post('/api/offers', async (req, res) => {
+  try {
+    const { title, description, offerType, discountPercent, discountAmount, comboPrice, comboItemIds, applicableItemIds, minOrderAmount, maxUses, validFrom, validUntil, canteenId } = req.body;
+    if (!title || !offerType) {
+      return res.status(400).json({ success: false, error: 'title and offerType are required' });
+    }
+    const offerId = `OFFER_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const offer = {
+      id: offerId,
+      title,
+      description: description || '',
+      offerType,
+      discountPercent: discountPercent || 0,
+      discountAmount: discountAmount || 0,
+      comboPrice: comboPrice || 0,
+      comboItemIds: comboItemIds || [],
+      applicableItemIds: applicableItemIds || [],
+      minOrderAmount: minOrderAmount || 0,
+      maxUses: maxUses || 0,
+      usedCount: 0,
+      validFrom: validFrom || 0,
+      validUntil: validUntil || 0,
+      isActive: true,
+      canteenId: canteenId || 'canteen_001',
+      createdAt: Date.now()
+    };
+    if (pgReady) {
+      await pgSet('offers', offerId, offer);
+    }
+    if (!(canteenState as any).offers) (canteenState as any).offers = [];
+    (canteenState as any).offers.unshift(offer);
+    console.log(`[Offers] Created: ${offerId} (${offerType})`);
+    res.json({ success: true, offer });
+  } catch (err: any) {
+    console.error('[Offers] Create error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to create offer' });
+  }
+});
+
+// PUT /api/offers/:id — update offer
+app.put('/api/offers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    let existing: any = null;
+    if (pgReady) {
+      existing = await pgGetById('offers', id);
+    } else {
+      existing = ((canteenState as any).offers || []).find((o: any) => o.id === id);
+    }
+    if (!existing) return res.status(404).json({ success: false, error: 'Offer not found' });
+    const updated = { ...existing, ...updates, id };
+    if (pgReady) {
+      await pgSet('offers', id, updated);
+    }
+    if ((canteenState as any).offers) {
+      (canteenState as any).offers = (canteenState as any).offers.map((o: any) => o.id === id ? updated : o);
+    }
+    console.log(`[Offers] Updated: ${id}`);
+    res.json({ success: true, offer: updated });
+  } catch (err: any) {
+    console.error('[Offers] Update error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to update offer' });
+  }
+});
+
+// DELETE /api/offers/:id — delete offer
+app.delete('/api/offers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (pgReady) {
+      await pgDelete('offers', id);
+    }
+    if ((canteenState as any).offers) {
+      (canteenState as any).offers = (canteenState as any).offers.filter((o: any) => o.id !== id);
+    }
+    console.log(`[Offers] Deleted: ${id}`);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Offers] Delete error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to delete offer' });
+  }
+});
+
+// POST /api/offers/apply — apply offer to cart (returns discount info)
+app.post('/api/offers/apply', async (req, res) => {
+  try {
+    const { offerId, cartItems, canteenId } = req.body;
+    if (!offerId || !cartItems) {
+      return res.status(400).json({ success: false, error: 'offerId and cartItems required' });
+    }
+    let offer: any = null;
+    if (pgReady) {
+      offer = await pgGetById('offers', offerId);
+    } else {
+      offer = ((canteenState as any).offers || []).find((o: any) => o.id === offerId);
+    }
+    if (!offer || !offer.isActive) {
+      return res.status(404).json({ success: false, error: 'Offer not found or inactive' });
+    }
+    const now = Date.now();
+    if ((offer.validFrom > 0 && now < offer.validFrom) || (offer.validUntil > 0 && now > offer.validUntil)) {
+      return res.status(400).json({ success: false, error: 'Offer is not valid at this time' });
+    }
+    if (offer.maxUses > 0 && offer.usedCount >= offer.maxUses) {
+      return res.status(400).json({ success: false, error: 'Offer usage limit reached' });
+    }
+    let cartTotal = 0;
+    for (const item of cartItems) {
+      cartTotal += (item.price || 0) * (item.quantity || 1);
+    }
+    if (cartTotal < offer.minOrderAmount) {
+      return res.status(400).json({ success: false, error: `Minimum order ₹${offer.minOrderAmount} required for this offer` });
+    }
+    let discount = 0;
+    if (offer.offerType === 'discount') {
+      if (offer.discountPercent > 0) {
+        discount = Math.round(cartTotal * offer.discountPercent / 100);
+      } else if (offer.discountAmount > 0) {
+        discount = Math.min(offer.discountAmount, cartTotal);
+      }
+    } else if (offer.offerType === 'combo') {
+      const comboItems = cartItems.filter((item: any) => (offer.comboItemIds || []).includes(item.itemId));
+      if (comboItems.length > 0) {
+        const comboOriginal = comboItems.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
+        discount = Math.max(0, comboOriginal - offer.comboPrice);
+      }
+    }
+    res.json({ success: true, discount, finalTotal: Math.max(0, cartTotal - discount), offer });
+  } catch (err: any) {
+    console.error('[Offers] Apply error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to apply offer' });
+  }
 });
 
 // 6. Add Review & Trigger sentiment analyzer (Customer)

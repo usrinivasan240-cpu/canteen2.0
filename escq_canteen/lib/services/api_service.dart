@@ -275,4 +275,21 @@ class ApiService {
   Future<Map<String, dynamic>> collectOrder(String code) async {
     return _post('/api/canteen/qr/verify', {'code': code, 'action': 'collect'});
   }
+
+  // ── OFFERS ──
+  Future<List<Map<String, dynamic>>> getActiveOffers(String canteenId) async {
+    final data = await _get('/api/offers/active', {'canteenId': canteenId});
+    if (data['success'] == true) {
+      return List<Map<String, dynamic>>.from(data['offers'] ?? []);
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> applyOffer(String offerId, List<Map<String, dynamic>> cartItems, String canteenId) async {
+    return _post('/api/offers/apply', {
+      'offerId': offerId,
+      'cartItems': cartItems,
+      'canteenId': canteenId,
+    });
+  }
 }

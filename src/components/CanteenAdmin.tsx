@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   ChefHat, Layers, ClipboardList, TrendingUp, AlertTriangle, Star, CheckCircle,
   Plus, Edit2, Trash2, ShieldCheck, QrCode, Search, RefreshCw, X, MessageSquare, Sparkles, LogOut, Package,
-  Camera, Check, AlertCircle, Clock, User, Play, PlayCircle, Settings, ShieldAlert, ShoppingCart
+  Camera, Check, AlertCircle, Clock, User, Play, PlayCircle, Settings, ShieldAlert, ShoppingCart,
+  List, CalendarClock
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { MenuItem, Order, Review, Ingredient, CanteenSettings } from '../types';
@@ -61,7 +62,7 @@ export default function CanteenAdmin({
   const [activeTab, setActiveTab] = useState<'chef' | 'counter' | 'owner' | 'chef_orders' | 'chef_cooklist' | 'chef_prebook'>(
     userRole === 'chef' ? 'chef_orders' : userRole === 'staff' ? 'counter' : 'owner'
   );
-  const [ownerSubTab, setOwnerSubTab] = useState<'orders_mgr' | 'pos' | 'menu' | 'inventory' | 'revenue' | 'settings' | 'reviews' | 'ai'>('orders_mgr');
+  const [ownerSubTab, setOwnerSubTab] = useState<'orders_mgr' | 'pos' | 'menu' | 'inventory' | 'revenue' | 'settings' | 'reviews' | 'ai' | 'offers'>('orders_mgr');
   
   // State for editing order slots in Canteen Owner Hub
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
@@ -79,6 +80,67 @@ export default function CanteenAdmin({
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [alreadyServedOrderId, setAlreadyServedOrderId] = useState<string | null>(null);
   const [isScanningActive, setIsScanningActive] = useState(false);
+  
+  // Offers state
+  const [offers, setOffers] = useState<any[]>([]);
+  const [showOfferForm, setShowOfferForm] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<any>(null);
+  const [offerForm, setOfferForm] = useState({
+    title: '', description: '', offerType: 'discount',
+    discountPercent: 0, discountAmount: 0,
+    comboPrice: 0, comboItemIds: [] as string[],
+    applicableItemIds: [] as string[],
+    minOrderAmount: 0, maxUses: 0,
+    validFrom: '', validUntil: ''
+  });
+
+  const fetchOffers = async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/offers?canteenId=${canteenId || 'canteen_001'}`);
+      const data = await resp.json();
+      if (data.success) setOffers(data.offers || []);
+    } catch (e) { console.error('Failed to load offers:', e); }
+  };
+
+  const saveOffer = async () => {
+    try {
+      const payload = {
+        ...offerForm,
+        validFrom: offerForm.validFrom ? new Date(offerForm.validFrom).getTime() : 0,
+        validUntil: offerForm.validUntil ? new Date(offerForm.validUntil).getTime() : 0,
+        canteenId: canteenId || 'canteen_001'
+      };
+      const url = editingOffer ? `${API_BASE}/api/offers/${editingOffer.id}` : `${API_BASE}/api/offers`;
+      const method = editingOffer ? 'PUT' : 'POST';
+      const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await resp.json();
+      if (data.success) {
+        setShowOfferForm(false);
+        setEditingOffer(null);
+        setOfferForm({ title: '', description: '', offerType: 'discount', discountPercent: 0, discountAmount: 0, comboPrice: 0, comboItemIds: [], applicableItemIds: [], minOrderAmount: 0, maxUses: 0, validFrom: '', validUntil: '' });
+        fetchOffers();
+      }
+    } catch (e) { console.error('Failed to save offer:', e); }
+  };
+
+  const deleteOffer = async (id: string) => {
+    if (!confirm('Delete this offer?')) return;
+    try {
+      await fetch(`${API_BASE}/api/offers/${id}`, { method: 'DELETE' });
+      fetchOffers();
+    } catch (e) { console.error('Failed to delete offer:', e); }
+  };
+
+  const toggleOfferActive = async (offer: any) => {
+    try {
+      await fetch(`${API_BASE}/api/offers/${offer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !offer.isActive })
+      });
+      fetchOffers();
+    } catch (e) { console.error('Failed to toggle offer:', e); }
+  };
   
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
@@ -226,6 +288,13 @@ export default function CanteenAdmin({
       setDefaultSlotCapacityVal(settings.defaultSlotCapacity.toString());
     }
   }, [settings]);
+
+  // Fetch offers when owner sub-tab is 'offers'
+  React.useEffect(() => {
+    if (activeTab === 'owner' && ownerSubTab === 'offers') {
+      fetchOffers();
+    }
+  }, [activeTab, ownerSubTab]);
 
 
 
@@ -1915,7 +1984,8 @@ export default function CanteenAdmin({
               { id: 'inventory', label: 'Raw Inventory', icon: Package },
               { id: 'revenue', label: 'Revenue Dashboard', icon: TrendingUp },
               { id: 'settings', label: 'Capacity Settings', icon: Settings },
-              { id: 'reviews', label: 'Student Reviews', icon: MessageSquare }
+              { id: 'reviews', label: 'Student Reviews', icon: MessageSquare },
+              { id: 'offers', label: 'Offers & Combos', icon: Sparkles }
             ].map(sub => {
               const Icon = sub.icon;
               return (
@@ -2373,6 +2443,80 @@ export default function CanteenAdmin({
             </div>
           )}
 
+          {/* OWNER SUBTAB: OFFERS & COMBOS */}
+          {ownerSubTab === 'offers' && (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-display font-bold text-sm text-gray-900">Offers, Discounts & Combo Packs</h3>
+                    <p className="text-xs text-gray-400 font-sans">Create and manage promotional offers for your canteen.</p>
+                  </div>
+                  <button
+                    onClick={() => { setEditingOffer(null); setOfferForm({ title: '', description: '', offerType: 'discount', discountPercent: 10, discountAmount: 0, comboPrice: 0, comboItemIds: [], applicableItemIds: [], minOrderAmount: 0, maxUses: 0, validFrom: '', validUntil: '' }); setShowOfferForm(true); }}
+                    className="bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 text-white font-semibold py-2 px-4 rounded-xl text-xs tracking-wide transition-all shadow-md flex items-center space-x-2 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Create Offer</span>
+                  </button>
+                </div>
+
+                {offers.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <Sparkles className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                    <p className="text-xs font-semibold">No offers created yet</p>
+                    <p className="text-[10px] mt-1">Click "Create Offer" to set up your first promotion</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {offers.map(offer => (
+                      <div key={offer.id} className={`p-4 rounded-2xl border space-y-3 ${offer.isActive ? 'border-amber-200 bg-amber-50/30' : 'border-gray-200 bg-gray-50/50 opacity-60'}`}>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                              offer.offerType === 'discount' ? 'bg-blue-100 text-blue-700' :
+                              offer.offerType === 'combo' ? 'bg-purple-100 text-purple-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>{offer.offerType}</span>
+                            <h4 className="font-bold text-gray-900 text-sm mt-2">{offer.title}</h4>
+                            {offer.description && <p className="text-[10px] text-gray-500 mt-0.5">{offer.description}</p>}
+                          </div>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${offer.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
+                            {offer.isActive ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                        </div>
+                        <div className="text-xs font-sans space-y-1">
+                          {offer.offerType === 'discount' && (
+                            <p className="text-amber-700 font-bold">
+                              {offer.discountPercent > 0 ? `${offer.discountPercent}% OFF` : `₹${offer.discountAmount} OFF`}
+                              {offer.minOrderAmount > 0 && <span className="font-normal text-gray-500"> on orders above ₹{offer.minOrderAmount}</span>}
+                            </p>
+                          )}
+                          {offer.offerType === 'combo' && (
+                            <p className="text-purple-700 font-bold">Combo Price: ₹{offer.comboPrice}</p>
+                          )}
+                          {offer.maxUses > 0 && (
+                            <p className="text-gray-400 text-[10px]">{offer.usedCount}/{offer.maxUses} used</p>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button onClick={() => toggleOfferActive(offer)} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition cursor-pointer ${offer.isActive ? 'bg-gray-200 hover:bg-gray-300 text-gray-600' : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700'}`}>
+                            {offer.isActive ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button onClick={() => { setEditingOffer(offer); setOfferForm({ title: offer.title, description: offer.description || '', offerType: offer.offerType, discountPercent: offer.discountPercent || 0, discountAmount: offer.discountAmount || 0, comboPrice: offer.comboPrice || 0, comboItemIds: offer.comboItemIds || [], applicableItemIds: offer.applicableItemIds || [], minOrderAmount: offer.minOrderAmount || 0, maxUses: offer.maxUses || 0, validFrom: offer.validFrom ? new Date(offer.validFrom).toISOString().slice(0, 16) : '', validUntil: offer.validUntil ? new Date(offer.validUntil).toISOString().slice(0, 16) : '' }); setShowOfferForm(true); }} className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 transition cursor-pointer">
+                            Edit
+                          </button>
+                          <button onClick={() => deleteOffer(offer.id)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 transition cursor-pointer">
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
         </div>
       )}
@@ -2573,6 +2717,88 @@ export default function CanteenAdmin({
                 Save Food Details
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* OFFER FORM MODAL */}
+      {showOfferForm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-red-100 max-h-[90vh] overflow-y-auto">
+            <div className="bg-red-50 px-6 py-4 border-b border-red-100 flex items-center justify-between">
+              <h3 className="font-display font-bold text-sm text-gray-900">{editingOffer ? 'Edit Offer' : 'Create New Offer'}</h3>
+              <button onClick={() => { setShowOfferForm(false); setEditingOffer(null); }} className="p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-gray-650 transition cursor-pointer">
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 text-xs font-sans">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Offer Title</label>
+                <input type="text" required value={offerForm.title} onChange={(e) => setOfferForm({ ...offerForm, title: e.target.value })} placeholder="e.g. Lunch Combo Deal" className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Description</label>
+                <input type="text" value={offerForm.description} onChange={(e) => setOfferForm({ ...offerForm, description: e.target.value })} placeholder="Optional description" className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Offer Type</label>
+                <select value={offerForm.offerType} onChange={(e) => setOfferForm({ ...offerForm, offerType: e.target.value })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium">
+                  <option value="discount">Percentage Discount</option>
+                  <option value="flat">Flat Amount Off</option>
+                  <option value="combo">Combo Pack</option>
+                </select>
+              </div>
+              {offerForm.offerType === 'discount' && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Discount Percentage (%)</label>
+                  <input type="number" min="1" max="90" value={offerForm.discountPercent} onChange={(e) => setOfferForm({ ...offerForm, discountPercent: Number(e.target.value) })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono" />
+                </div>
+              )}
+              {offerForm.offerType === 'flat' && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Discount Amount (₹)</label>
+                  <input type="number" min="1" value={offerForm.discountAmount} onChange={(e) => setOfferForm({ ...offerForm, discountAmount: Number(e.target.value) })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono" />
+                </div>
+              )}
+              {offerForm.offerType === 'combo' && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Combo Price (₹)</label>
+                  <input type="number" min="1" value={offerForm.comboPrice} onChange={(e) => setOfferForm({ ...offerForm, comboPrice: Number(e.target.value) })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono" />
+                  <p className="text-[10px] text-gray-400 mt-1">Select food items below that belong to this combo pack.</p>
+                  <div className="space-y-1.5 mt-2 max-h-40 overflow-y-auto">
+                    {menuItems.map(item => (
+                      <label key={item.id} className="flex items-center space-x-2 cursor-pointer p-1.5 rounded hover:bg-red-50">
+                        <input type="checkbox" checked={offerForm.comboItemIds.includes(item.id)} onChange={(e) => { const ids = offerForm.comboItemIds; setOfferForm({ ...offerForm, comboItemIds: e.target.checked ? [...ids, item.id] : ids.filter(id => id !== item.id) }); }} className="rounded border-red-300 text-amber-600 focus:ring-amber-500" />
+                        <span className="text-xs text-gray-700">{item.name} — ₹{item.price}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Min Order (₹)</label>
+                  <input type="number" min="0" value={offerForm.minOrderAmount} onChange={(e) => setOfferForm({ ...offerForm, minOrderAmount: Number(e.target.value) })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Max Uses (0=unlimited)</label>
+                  <input type="number" min="0" value={offerForm.maxUses} onChange={(e) => setOfferForm({ ...offerForm, maxUses: Number(e.target.value) })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Valid From</label>
+                  <input type="datetime-local" value={offerForm.validFrom} onChange={(e) => setOfferForm({ ...offerForm, validFrom: e.target.value })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Valid Until</label>
+                  <input type="datetime-local" value={offerForm.validUntil} onChange={(e) => setOfferForm({ ...offerForm, validUntil: e.target.value })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+                </div>
+              </div>
+              <button onClick={saveOffer} className="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-xs font-bold transition shadow-md cursor-pointer">
+                {editingOffer ? 'Update Offer' : 'Create Offer'}
+              </button>
+            </div>
           </div>
         </div>
       )}
