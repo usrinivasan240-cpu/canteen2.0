@@ -1395,10 +1395,7 @@ export default function CanteenAdmin({
               { id: 'chef', label: `Chef Dashboard (${preppingOrdersCount})`, icon: ChefHat },
               { id: 'counter', label: `Counter Staff (${readyOrdersCount})`, icon: QrCode },
               { id: 'owner', label: 'Canteen Owner Hub', icon: ShieldCheck }
-            ].filter(tab => {
-              if (userRole === 'chef') return tab.id === 'chef';
-              return true;
-            }).map(tab => {
+            ].filter(() => true).map(tab => {
               const Icon = tab.icon;
               return (
                 <button
@@ -1677,14 +1674,20 @@ export default function CanteenAdmin({
                     <div className="flex items-center space-x-2">
                       {details.status === 'scheduled' ? (
                         <button
-                          onClick={() => startBatchCooking(itemId)}
+                          onClick={() => {
+                            const matchOrder = orders.find(o => (o.status === 'scheduled') && o.items.some(it => it.itemId === itemId));
+                            startBatchCooking(matchOrder?.pickupSlot || 'ASAP (Instant)', itemId);
+                          }}
                           className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
                         >
                           Start Cooking
                         </button>
                       ) : details.status === 'preparing' ? (
                         <button
-                          onClick={() => finishBatchCooking(itemId)}
+                          onClick={() => {
+                            const matchOrder = orders.find(o => (o.status === 'preparing') && o.items.some(it => it.itemId === itemId));
+                            finishBatchCooking(matchOrder?.pickupSlot || 'ASAP (Instant)', itemId);
+                          }}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
                         >
                           Set Ready
@@ -1744,8 +1747,7 @@ export default function CanteenAdmin({
         </div>
       )}
 
-      {/* ======================= PORTAL: CHEF DASHBOARD (Legacy - keep for owner/staff) ======================= */}
-      {activeTab === 'chef' && (
+      {/* ======================= PORTAL: COUNTER STAFF VIEW ======================= */}
       {activeTab === 'counter' && (
         <div className="space-y-6 text-left">
 
