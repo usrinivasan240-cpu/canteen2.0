@@ -172,6 +172,33 @@ class ApiService {
     return [];
   }
 
+  // Support tickets
+  Future<List<SupportTicket>> getSupportTickets(String userId) async {
+    final data = await _get('/api/support/user', {'userId': userId});
+    if (data['success'] == true && data['tickets'] != null) {
+      return (data['tickets'] as List).map((t) => SupportTicket.fromJson(t)).toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> submitSupportTicket({
+    required String userId,
+    required String userName,
+    required String userEmail,
+    required String category,
+    required String subject,
+    required String message,
+  }) async {
+    return _post('/api/support/submit', {
+      'userId': userId,
+      'userName': userName,
+      'userEmail': userEmail,
+      'category': category,
+      'subject': subject,
+      'message': message,
+    });
+  }
+
   // Update order status
   Future<Map<String, dynamic>> updateOrderStatus(String orderId, String status) async {
     return _post('/api/canteen/order/status', {'id': orderId, 'status': status});
@@ -247,5 +274,42 @@ class ApiService {
   // Mark order collected via QR
   Future<Map<String, dynamic>> collectOrder(String code) async {
     return _post('/api/canteen/qr/verify', {'code': code, 'action': 'collect'});
+  }
+
+  // ── OFFERS ──
+  Future<List<Map<String, dynamic>>> getActiveOffers(String canteenId) async {
+    final data = await _get('/api/offers/active', {'canteenId': canteenId});
+    if (data['success'] == true) {
+      return List<Map<String, dynamic>>.from(data['offers'] ?? []);
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> applyOffer(String offerId, List<Map<String, dynamic>> cartItems, String canteenId) async {
+    return _post('/api/offers/apply', {
+      'offerId': offerId,
+      'cartItems': cartItems,
+      'canteenId': canteenId,
+    });
+  }
+
+  Future<Map<String, dynamic>> saveCanteenSettings({
+    required String canteenId,
+    required int noShowMinutes,
+    required int defaultSlotCapacity,
+    required int slotDuration,
+    required int prepBufferMinutes,
+    required int orderCutoffMinutes,
+    required int advanceBookingDays,
+  }) async {
+    return _post('/api/canteen/settings', {
+      'canteenId': canteenId,
+      'noShowMinutes': noShowMinutes,
+      'defaultSlotCapacity': defaultSlotCapacity,
+      'slotDuration': slotDuration,
+      'prepBufferMinutes': prepBufferMinutes,
+      'orderCutoffMinutes': orderCutoffMinutes,
+      'advanceBookingDays': advanceBookingDays,
+    });
   }
 }

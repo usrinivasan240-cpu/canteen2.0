@@ -9,7 +9,9 @@ import 'providers/theme_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/staff_home_screen.dart';
+import 'screens/kitchen_dashboard_screen.dart';
 import 'screens/legal_pages_screen.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -99,9 +101,13 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   }
 
   Future<void> _init() async {
+    await NotificationService().init();
     final auth = context.read<AuthProvider>();
     await auth.init();
-    setState(() => _initialized = true);
+    if (auth.user != null) {
+      NotificationService().sendTokenToServer(auth.user!.id);
+    }
+    if (mounted) setState(() => _initialized = true);
   }
 
   @override
@@ -171,7 +177,11 @@ class _AppEntryPointState extends State<AppEntryPoint> {
       );
     }
 
-    if (auth.isStaff || auth.isChef) {
+    if (auth.isChef) {
+      return const KitchenDashboardScreen();
+    }
+
+    if (auth.isStaff) {
       return const StaffHomeScreen();
     }
 

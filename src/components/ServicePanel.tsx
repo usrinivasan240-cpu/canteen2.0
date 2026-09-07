@@ -1194,7 +1194,7 @@ export default function ServicePanel({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
             {/* USER ACCOUNT PROVISION FORM */}
-            <div className="lg:col-span-4 bg-white border border-red-100/70 rounded-3xl p-5 md:p-6 shadow-sm space-y-5">
+            <div data-user-form className="lg:col-span-4 bg-white border border-red-100/70 rounded-3xl p-5 md:p-6 shadow-sm space-y-5">
               <div>
                 <h3 className="font-display font-black text-sm text-gray-900 uppercase tracking-wide">
                   Provision User Account
@@ -1330,6 +1330,24 @@ export default function ServicePanel({
                     Active directory of students, kitchen counters, and outlet owners.
                   </p>
                 </div>
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => {
+                      setUsrRole('chef');
+                      setUsrName('');
+                      setUsrEmail('');
+                      setUsrCantId('');
+                      setUsrSubId('');
+                      setUsrPosting('');
+                      const formSection = document.querySelector('[data-user-form]');
+                      if (formSection) formSection.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl px-4 py-2 text-[11px] font-bold transition-all shadow-md cursor-pointer font-display"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    <span>Add User</span>
+                  </button>
+                )}
               </div>
 
               {/* Superadmin User Filters */}

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   Download, Smartphone, Shield, Zap, Clock, QrCode,
-  Star, ChevronLeft, ExternalLink, CheckCircle, Wifi, WifiOff
+  Star, ChevronLeft, ExternalLink, CheckCircle, Wifi, WifiOff,
+  ChefHat, BarChart3, RefreshCw
 } from 'lucide-react';
 
 interface DownloadPageProps {
@@ -18,8 +19,8 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
 
   const handleDownload = () => {
     const link = document.createElement('a');
-link.href = '/EscQ-v2.3.11-universal.apk';
-      link.download = 'EscQ-v2.3.11-universal.apk';
+    link.href = '/EscQ-v2.5.0-universal.apk';
+    link.download = 'EscQ-v2.5.0-universal.apk';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -63,7 +64,7 @@ link.href = '/EscQ-v2.3.11-universal.apk';
               <div className="h-8 w-8 rounded-lg bg-amber-600 flex items-center justify-center">
                 <span className="text-white font-display font-bold text-xs">Esc(Q)</span>
               </div>
-              <span className="text-xs font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">v2.3.11</span>
+              <span className="text-xs font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">v2.5.0 - Chef Dashboard Update</span>
             </div>
           </div>
 
@@ -100,7 +101,7 @@ link.href = '/EscQ-v2.3.11-universal.apk';
                 </div>
                 <div className="text-left">
                   <div className="text-xs font-normal opacity-80">Download APK</div>
-                  <div className="text-sm font-bold">EscQ v2.3.11 (Universal)</div>
+                  <div className="text-sm font-bold">EscQ v2.5.0 (Universal)</div>
                 </div>
                 <ExternalLink className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
               </button>
@@ -113,7 +114,7 @@ link.href = '/EscQ-v2.3.11-universal.apk';
               )}
 
               <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] text-gray-500 mt-1">
-                <span>v2.3.11 — QR ticket after payment</span>
+                <span>v2.5.0 — Chef Dashboard + Kitchen Order Queue</span>
               </div>
 
               <div className="flex items-center gap-4 text-[10px] text-gray-500 mt-1">
@@ -122,14 +123,46 @@ link.href = '/EscQ-v2.3.11-universal.apk';
                   Android 5.0+
                 </span>
                 <span>•</span>
-                <span>~70 MB</span>
+                <span>~37 MB</span>
                 <span>•</span>
                 <span>Free</span>
               </div>
               <div className="text-[10px] text-gray-600 mt-2">
-                Last updated: {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                Last updated: 02 Sep 2026
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* What's New section */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
+        <div className="text-center mb-10">
+          <span className="text-[10px] font-bold text-amber-500 uppercase tracking-[0.2em]">What's New</span>
+          <h2 className="font-display font-bold text-xl sm:text-2xl text-white mt-2">v2.5.0 — Chef Dashboard</h2>
+          <p className="text-xs text-gray-500 mt-2">Updated: 01 Sep 2026</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-gray-900/60 border border-amber-500/30 rounded-2xl p-5">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+              <ChefHat className="h-5 w-5" />
+            </div>
+            <h3 className="font-display font-bold text-sm text-white mb-1">Chef Kitchen Dashboard</h3>
+            <p className="text-xs text-gray-500 leading-relaxed">Dedicated kitchen view for chefs — see pending, cooking, and ready orders at a glance.</p>
+          </div>
+          <div className="bg-gray-900/60 border border-amber-500/30 rounded-2xl p-5">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+              <BarChart3 className="h-5 w-5" />
+            </div>
+            <h3 className="font-display font-bold text-sm text-white mb-1">Live Kitchen Stats</h3>
+            <p className="text-xs text-gray-500 leading-relaxed">Real-time counters for Pending, Cooking, and Ready orders with auto-refresh every 15 seconds.</p>
+          </div>
+          <div className="bg-gray-900/60 border border-amber-500/30 rounded-2xl p-5">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+              <RefreshCw className="h-5 w-5" />
+            </div>
+            <h3 className="font-display font-bold text-sm text-white mb-1">One-Tap Status Updates</h3>
+            <p className="text-xs text-gray-500 leading-relaxed">Chefs can update order status with one tap — Start Preparing, Mark Ready — no complicated menus.</p>
           </div>
         </div>
       </div>
@@ -203,7 +236,7 @@ link.href = '/EscQ-v2.3.11-universal.apk';
               <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-ping" />
               Secure
             </span>
-            <span>v2.3.11 • Android</span>
+            <span>v2.5.0 • Android</span>
           </div>
         </div>
       </div>

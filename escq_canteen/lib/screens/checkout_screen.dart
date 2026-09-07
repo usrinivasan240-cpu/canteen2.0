@@ -4,6 +4,8 @@ import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/theme_provider.dart';
+import '../models/offer.dart';
+import '../services/api_service.dart';
 import 'payment_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -15,6 +17,58 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   String selectedSlot = 'ASAP (Instant)';
+  List<Offer> _activeOffers = [];
+  Offer? _selectedOffer;
+  double _discount = 0;
+  bool _loadingOffers = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchOffers();
+  }
+
+  Future<void> _fetchOffers() async {
+    try {
+      final cart = context.read<CartProvider>();
+      final canteenId = cart.canteenId ?? 'canteen_001';
+      final api = ApiService();
+      final offerMaps = await api.getActiveOffers(canteenId);
+      if (mounted) {
+        setState(() {
+          _activeOffers = offerMaps.map((m) => Offer.fromJson(m)).toList();
+          _loadingOffers = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loadingOffers = false);
+    }
+  }
+
+  void _applyOffer(Offer? offer) {
+    final cart = context.read<CartProvider>();
+    setState(() {
+      if (offer == null || _selectedOffer?.id == offer.id) {
+        _selectedOffer = null;
+        _discount = 0;
+      } else {
+        final cartItems = cart.items.entries.map((e) => {
+          'itemId': e.value.menuItem.id,
+          'name': e.value.menuItem.name,
+          'price': e.value.menuItem.price,
+          'quantity': e.value.quantity,
+        }).toList();
+        final disc = offer.calculateDiscount(cart.subtotal, cartItems);
+        if (disc > 0 && cart.subtotal - disc >= 0) {
+          _selectedOffer = offer;
+          _discount = disc;
+        } else {
+          _selectedOffer = null;
+          _discount = 0;
+        }
+      }
+    });
+  }
 
   List<String> _generateTimeSlots() {
     final slots = ['ASAP (Instant)'];
@@ -201,6 +255,72 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // ── AVAILABLE OFFERS ──
+                  if (!_loadingOffers && _activeOffers.isNotEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFD1FAE5)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            const Icon(Icons.local_offer, size: 16, color: Color(0xFF059669)),
+                            const SizedBox(width: 6),
+                            Text('AVAILABLE OFFERS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF059669), letterSpacing: 0.5)),
+                          ]),
+                          const SizedBox(height: 10),
+                          ...(_activeOffers.map((offer) => GestureDetector(
+                            onTap: () => _applyOffer(offer),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: _selectedOffer?.id == offer.id ? const Color(0xFFD1FAE5) : Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _selectedOffer?.id == offer.id ? const Color(0xFF059669) : Colors.grey[200]!,
+                                  width: _selectedOffer?.id == offer.id ? 2 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: offer.offerType == 'combo' ? const Color(0xFFEDE9FE) : const Color(0xFFDBEAFE),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(offer.typeLabel, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: offer.offerType == 'combo' ? const Color(0xFF7C3AED) : const Color(0xFF2563EB))),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(offer.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                                        Text(offer.displayText, style: const TextStyle(fontSize: 10, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
+                                      ],
+                                    ),
+                                  ),
+                                  if (_selectedOffer?.id == offer.id)
+                                    const Icon(Icons.check_circle, size: 18, color: Color(0xFF059669))
+                                  else
+                                    Icon(Icons.radio_button_unchecked, size: 18, color: Colors.grey[400]),
+                                ],
+                              ),
+                            ),
+                          ))),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  // ── BILL SUMMARY ──
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -211,9 +331,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     child: Column(
                       children: [
                         _summaryRow('Subtotal', '₹${cart.subtotal.toStringAsFixed(2)}'),
+                        if (_discount > 0)
+                          _summaryRow('Offer Discount ($_selectedOffer!.displayText)', '-₹${_discount.toStringAsFixed(2)}', bold: false, isDiscount: true),
                         _summaryRow('Convenience Fee', '₹${cart.convenienceFee.toStringAsFixed(2)} + ₹${cart.pgCharge.toStringAsFixed(2)}'),
                         const Divider(color: Color(0xFFFEE2E2)),
-                        _summaryRow('Grand Total', '₹${cart.totalAmount.toStringAsFixed(2)}', bold: true),
+                        _summaryRow('Grand Total', '₹${(cart.totalAmount - _discount).toStringAsFixed(2)}', bold: true),
                       ],
                     ),
                   ),
@@ -227,7 +349,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           context,
                           MaterialPageRoute(
                             builder: (_) => PaymentScreen(
-                              totalAmount: cart.totalAmount,
+                              totalAmount: cart.totalAmount - _discount,
                               pickupSlot: selectedSlot,
                             ),
                           ),
@@ -244,7 +366,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         children: [
                           const Icon(Icons.lock, size: 16),
                           const SizedBox(width: 8),
-                          Text('Pay via Razorpay ₹${cart.totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                          Text('Pay via Razorpay ₹${(cart.totalAmount - _discount).toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
                         ],
                       ),
                     ),
@@ -272,18 +394,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  Widget _summaryRow(String label, String value, {bool bold = false}) {
+  Widget _summaryRow(String label, String value, {bool bold = false, bool isDiscount = false}) {
     final themeProv = context.watch<ThemeProvider>();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 13, color: themeProv.isDark ? Colors.grey[400] : Colors.grey[500], fontWeight: bold ? FontWeight.w700 : FontWeight.normal)),
+          Text(label, style: TextStyle(fontSize: 13, color: isDiscount ? const Color(0xFF059669) : (themeProv.isDark ? Colors.grey[400] : Colors.grey[500]), fontWeight: bold ? FontWeight.w700 : FontWeight.normal)),
           Text(value, style: TextStyle(
             fontSize: bold ? 16 : 13,
             fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-            color: bold ? const Color(0xFFF59E0B) : (themeProv.isDark ? Colors.grey[300] : Colors.grey[700]),
+            color: isDiscount ? const Color(0xFF059669) : (bold ? const Color(0xFFF59E0B) : (themeProv.isDark ? Colors.grey[300] : Colors.grey[700])),
           )),
         ],
       ),

@@ -82,11 +82,20 @@ export default function App() {
   const fetchUserOrders = async () => {
     if (!currentUser?.id) return;
     try {
-      const resp = await fetch(`${API_BASE}/api/user/orders?userId=${currentUser.id}&canteenId=${selectedCanteenId}`);
-      const data = await resp.json();
-      if (data.success && Array.isArray(data.orders) && data.orders.length > 0) {
-        setUserOrders(data.orders);
-        try { localStorage.setItem('bb_orders', JSON.stringify(data.orders)); } catch {}
+      if (role === 'owner' || role === 'chef' || role === 'staff' || role === 'admin') {
+        const resp = await fetch(`${API_BASE}/api/canteen/all-orders?canteenId=${selectedCanteenId}`);
+        const data = await resp.json();
+        if (data.success && Array.isArray(data.orders)) {
+          setUserOrders(data.orders);
+          try { localStorage.setItem('bb_orders', JSON.stringify(data.orders)); } catch {}
+        }
+      } else {
+        const resp = await fetch(`${API_BASE}/api/user/orders?userId=${currentUser.id}&canteenId=${selectedCanteenId}`);
+        const data = await resp.json();
+        if (data.success && Array.isArray(data.orders) && data.orders.length > 0) {
+          setUserOrders(data.orders);
+          try { localStorage.setItem('bb_orders', JSON.stringify(data.orders)); } catch {}
+        }
       }
     } catch (e) {
       console.error('Failed to fetch user orders:', e);

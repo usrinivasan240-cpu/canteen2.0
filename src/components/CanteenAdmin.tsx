@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   ChefHat, Layers, ClipboardList, TrendingUp, AlertTriangle, Star, CheckCircle,
   Plus, Edit2, Trash2, ShieldCheck, QrCode, Search, RefreshCw, X, MessageSquare, Sparkles, LogOut, Package,
-  Camera, Check, AlertCircle, Clock, User, Play, PlayCircle, Settings, ShieldAlert, ShoppingCart
+  Camera, Check, AlertCircle, Clock, User, Play, PlayCircle, Settings, ShieldAlert, ShoppingCart,
+  List, CalendarClock
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { MenuItem, Order, Review, Ingredient, CanteenSettings } from '../types';
@@ -58,10 +59,10 @@ export default function CanteenAdmin({
     ? rawOrders.filter(o => !o.subCanteenId || o.subCanteenId === subCanteenId)
     : rawOrders;
 
-  const [activeTab, setActiveTab] = useState<'chef' | 'counter' | 'owner'>(
-    userRole === 'chef' ? 'chef' : userRole === 'staff' ? 'counter' : 'owner'
+  const [activeTab, setActiveTab] = useState<'chef' | 'counter' | 'owner' | 'chef_orders' | 'chef_cooklist' | 'chef_prebook'>(
+    userRole === 'chef' ? 'chef_orders' : userRole === 'staff' ? 'counter' : 'owner'
   );
-  const [ownerSubTab, setOwnerSubTab] = useState<'orders_mgr' | 'pos' | 'menu' | 'inventory' | 'revenue' | 'settings' | 'reviews' | 'ai'>('orders_mgr');
+  const [ownerSubTab, setOwnerSubTab] = useState<'orders_mgr' | 'pos' | 'menu' | 'inventory' | 'revenue' | 'settings' | 'reviews' | 'ai' | 'offers'>('orders_mgr');
   
   // State for editing order slots in Canteen Owner Hub
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
@@ -79,6 +80,67 @@ export default function CanteenAdmin({
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [alreadyServedOrderId, setAlreadyServedOrderId] = useState<string | null>(null);
   const [isScanningActive, setIsScanningActive] = useState(false);
+  
+  // Offers state
+  const [offers, setOffers] = useState<any[]>([]);
+  const [showOfferForm, setShowOfferForm] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<any>(null);
+  const [offerForm, setOfferForm] = useState({
+    title: '', description: '', offerType: 'discount',
+    discountPercent: 0, discountAmount: 0,
+    comboPrice: 0, comboItemIds: [] as string[],
+    applicableItemIds: [] as string[],
+    minOrderAmount: 0, maxUses: 0,
+    validFrom: '', validUntil: ''
+  });
+
+  const fetchOffers = async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/offers?canteenId=${canteenId || 'canteen_001'}`);
+      const data = await resp.json();
+      if (data.success) setOffers(data.offers || []);
+    } catch (e) { console.error('Failed to load offers:', e); }
+  };
+
+  const saveOffer = async () => {
+    try {
+      const payload = {
+        ...offerForm,
+        validFrom: offerForm.validFrom ? new Date(offerForm.validFrom).getTime() : 0,
+        validUntil: offerForm.validUntil ? new Date(offerForm.validUntil).getTime() : 0,
+        canteenId: canteenId || 'canteen_001'
+      };
+      const url = editingOffer ? `${API_BASE}/api/offers/${editingOffer.id}` : `${API_BASE}/api/offers`;
+      const method = editingOffer ? 'PUT' : 'POST';
+      const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await resp.json();
+      if (data.success) {
+        setShowOfferForm(false);
+        setEditingOffer(null);
+        setOfferForm({ title: '', description: '', offerType: 'discount', discountPercent: 0, discountAmount: 0, comboPrice: 0, comboItemIds: [], applicableItemIds: [], minOrderAmount: 0, maxUses: 0, validFrom: '', validUntil: '' });
+        fetchOffers();
+      }
+    } catch (e) { console.error('Failed to save offer:', e); }
+  };
+
+  const deleteOffer = async (id: string) => {
+    if (!confirm('Delete this offer?')) return;
+    try {
+      await fetch(`${API_BASE}/api/offers/${id}`, { method: 'DELETE' });
+      fetchOffers();
+    } catch (e) { console.error('Failed to delete offer:', e); }
+  };
+
+  const toggleOfferActive = async (offer: any) => {
+    try {
+      await fetch(`${API_BASE}/api/offers/${offer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !offer.isActive })
+      });
+      fetchOffers();
+    } catch (e) { console.error('Failed to toggle offer:', e); }
+  };
   
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
@@ -151,6 +213,10 @@ export default function CanteenAdmin({
   // Config settings form states
   const [noShowMinutesVal, setNoShowMinutesVal] = useState<string>('30');
   const [defaultSlotCapacityVal, setDefaultSlotCapacityVal] = useState<string>('30');
+  const [slotDurationVal, setSlotDurationVal] = useState<string>('15');
+  const [prepBufferVal, setPrepBufferVal] = useState<string>('5');
+  const [orderCutoffVal, setOrderCutoffVal] = useState<string>('10');
+  const [advanceBookingDaysVal, setAdvanceBookingDaysVal] = useState<string>('7');
   const [updatingSettings, setUpdatingSettings] = useState<boolean>(false);
 
   // Ingredient CRUD Form State
@@ -224,8 +290,19 @@ export default function CanteenAdmin({
     if (settings) {
       setNoShowMinutesVal(settings.noShowMinutes.toString());
       setDefaultSlotCapacityVal(settings.defaultSlotCapacity.toString());
+      setSlotDurationVal((settings.slotDuration || 15).toString());
+      setPrepBufferVal((settings.prepBufferMinutes || 5).toString());
+      setOrderCutoffVal((settings.orderCutoffMinutes || 10).toString());
+      setAdvanceBookingDaysVal((settings.advanceBookingDays || 7).toString());
     }
   }, [settings]);
+
+  // Fetch offers when owner sub-tab is 'offers'
+  React.useEffect(() => {
+    if (activeTab === 'owner' && ownerSubTab === 'offers') {
+      fetchOffers();
+    }
+  }, [activeTab, ownerSubTab]);
 
 
 
@@ -500,7 +577,11 @@ export default function CanteenAdmin({
         body: JSON.stringify({
           canteenId: canteenId,
           noShowMinutes: Number(noShowMinutesVal),
-          defaultSlotCapacity: Number(defaultSlotCapacityVal)
+          defaultSlotCapacity: Number(defaultSlotCapacityVal),
+          slotDuration: Number(slotDurationVal),
+          prepBufferMinutes: Number(prepBufferVal),
+          orderCutoffMinutes: Number(orderCutoffVal),
+          advanceBookingDays: Number(advanceBookingDaysVal)
         })
       });
       const data = await resp.json();
@@ -624,6 +705,47 @@ export default function CanteenAdmin({
       });
     }
   });
+
+  // ===== CHEF COOK LIST AGGREGATION (for Cook List tab) =====
+  const cookListAggregated: { [itemId: string]: { name: string; quantity: number; status: string } } = {};
+  orders.forEach(o => {
+    if (o.status === 'scheduled' || o.status === 'preparing') {
+      o.items.forEach(it => {
+        const itemMenu = menuItems.find(m => m.id === it.itemId);
+        const requiresChef = itemMenu ? itemMenu.requiresChef !== false : true;
+        if (!requiresChef) return;
+        if (!cookListAggregated[it.itemId]) {
+          cookListAggregated[it.itemId] = { name: it.name, quantity: 0, status: o.status };
+        }
+        cookListAggregated[it.itemId].quantity += it.quantity;
+      });
+    }
+  });
+
+  // ===== CHEF PRE-BOOK AGGREGATION (for Pre-book tab) =====
+  const prebookAggregated: { [slot: string]: Order[] } = {};
+  orders.forEach(o => {
+    if (o.status === 'scheduled' || o.status === 'preparing') {
+      const slot = o.pickupSlot || '12:00 PM';
+      const isPrebook = slot !== 'ASAP (Instant)' && slot !== '';
+      if (isPrebook) {
+        if (!prebookAggregated[slot]) prebookAggregated[slot] = [];
+        prebookAggregated[slot].push(o);
+      }
+    }
+  });
+
+  // Helper for prebook aggregated items
+  const aggregatePrebookItems = (orders: Order[]) => {
+    const agg: { [itemId: string]: { name: string; quantity: number } } = {};
+    orders.forEach(o => {
+      o.items.forEach(it => {
+        if (!agg[it.itemId]) agg[it.itemId] = { name: it.name, quantity: 0 };
+        agg[it.itemId].quantity += it.quantity;
+      });
+    });
+    return agg;
+  };
 
   // Counter staff live counters
   const totalCollectedCount = orders.filter(o => o.status === 'collected' || o.status === 'delivered').length;
@@ -1252,33 +1374,61 @@ export default function CanteenAdmin({
 
       {/* 2. ADMIN CHOICES TABS */}
       <div className="flex border-b border-red-100 overflow-x-auto scrollbar-none pb-0.5 gap-4">
-        {[
-          { id: 'chef', label: `Chef Dashboard (${preppingOrdersCount})`, icon: ChefHat },
-          { id: 'counter', label: `Counter Staff (${readyOrdersCount})`, icon: QrCode },
-          { id: 'owner', label: 'Canteen Owner Hub', icon: ShieldCheck }
-        ].filter(tab => {
-          if (userRole === 'chef') return tab.id === 'chef';
-          return true;
-        }).map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id as any);
-                setMatchedOrderId('');
-              }}
-              className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold transition-all border-b-2 tracking-wide whitespace-nowrap cursor-pointer ${
-                activeTab === tab.id
-                  ? 'border-amber-600 text-amber-600 font-extrabold'
-                  : 'border-transparent text-gray-400 hover:text-gray-900'
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+        {userRole === 'chef' ? (
+          <>
+            {[
+              { id: 'chef_orders', label: `Orders (${preppingOrdersCount + readyOrdersCount})`, icon: ChefHat },
+              { id: 'chef_cooklist', label: 'Cook List', icon: List },
+              { id: 'chef_prebook', label: 'Pre-book', icon: CalendarClock }
+            ].map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    setMatchedOrderId('');
+                  }}
+                  className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold transition-all border-b-2 tracking-wide whitespace-nowrap cursor-pointer ${
+                    activeTab === tab.id
+                      ? 'border-amber-600 text-amber-600 font-extrabold'
+                      : 'border-transparent text-gray-400 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            {[
+              { id: 'chef', label: `Chef Dashboard (${preppingOrdersCount})`, icon: ChefHat },
+              { id: 'counter', label: `Counter Staff (${readyOrdersCount})`, icon: QrCode },
+              { id: 'owner', label: 'Canteen Owner Hub', icon: ShieldCheck }
+            ].filter(() => true).map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    setMatchedOrderId('');
+                  }}
+                  className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold transition-all border-b-2 tracking-wide whitespace-nowrap cursor-pointer ${
+                    activeTab === tab.id
+                      ? 'border-amber-600 text-amber-600 font-extrabold'
+                      : 'border-transparent text-gray-400 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </>
+        )}
       </div>
 
       {/* ======================= PORTAL: CHEF DASHBOARD ======================= */}
@@ -1452,7 +1602,163 @@ export default function CanteenAdmin({
         </div>
       )}
 
-      {/* ======================= PORTAL: COUNTER STAFF VIEW ======================= */}
+      {/* ======================= PORTAL: CHEF ORDERS (Mobile-style Orders Tab) ======================= */}
+      {activeTab === 'chef_orders' && (
+        <div className="space-y-6 text-left">
+          <div className="bg-white p-6 rounded-3xl border border-red-100/70 shadow-sm">
+            <h3 className="font-display font-bold text-lg text-gray-900 mb-4">Active Kitchen Orders</h3>
+            <p className="text-xs text-gray-400 mb-4">All orders requiring kitchen preparation. Tap status to advance.</p>
+            {sortedChefOrders.length === 0 ? (
+              <p className="text-xs text-gray-400 py-8 text-center">No active kitchen orders at this time.</p>
+            ) : (
+              <div className="space-y-4 font-sans text-xs">
+                {sortedChefOrders.map(order => {
+                  const isCookingOverdue = order.status === 'scheduled' && Date.now() >= (order.prepStartTime || 0);
+                  return (
+                    <div key={order.id} className="p-4 border border-red-100/50 bg-red-50/10 rounded-2xl space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2 flex-wrap gap-1">
+                            <span className="font-mono font-bold text-amber-600">{order.id}</span>
+                            <span className="text-[10px] text-gray-500 font-mono">Slot: <strong className="text-gray-900">{order.pickupSlot}</strong></span>
+                            {isCookingOverdue && (
+                              <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[9px] px-2 py-0.5 rounded font-black uppercase tracking-wider animate-pulse flex items-center space-x-1">
+                                <AlertCircle className="h-3 w-3" />
+                                <span>START COOKING NOW</span>
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-semibold text-gray-800">For: {order.userName}</p>
+                          <p className="text-gray-450 text-[11px]">
+                            {order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-2 flex-wrap">
+                          {order.status === 'scheduled' ? (
+                            <button
+                              onClick={() => onUpdateOrderStatus(order.id, 'preparing')}
+                              className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                            >
+                              Start Cooking
+                            </button>
+                          ) : order.status === 'preparing' ? (
+                            <button
+                              onClick={() => onUpdateOrderStatus(order.id, 'ready')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                            >
+                              Mark Ready
+                            </button>
+                          ) : order.status === 'ready' ? (
+                            <span className="bg-emerald-100 text-emerald-800 px-3 py-2 text-[10px] font-bold uppercase rounded-lg">
+                              Ready for Pickup
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================= PORTAL: CHEF COOK LIST (Mobile-style Cook List Tab) ======================= */}
+      {activeTab === 'chef_cooklist' && (
+        <div className="space-y-6 text-left">
+          <div className="bg-white p-6 rounded-3xl border border-red-100/70 shadow-sm">
+            <h3 className="font-display font-bold text-lg text-gray-900 mb-4">Aggregated Cook List</h3>
+            <p className="text-xs text-gray-400 mb-4">Total quantities per dish across all active kitchen orders.</p>
+            {Object.keys(cookListAggregated).length === 0 ? (
+              <p className="text-xs text-gray-400 py-8 text-center">Nothing to cook at this time.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(cookListAggregated).map(([itemId, details]) => (
+                  <div key={itemId} className="p-4 border border-red-100/50 bg-red-50/10 rounded-2xl space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold text-gray-800 capitalize">{details.name}</p>
+                        <p className="text-[10px] text-gray-500">Status: <span className={`font-bold ${details.status === 'preparing' ? 'text-amber-600' : 'text-red-600'}`}>{details.status}</span></p>
+                      </div>
+                      <span className="font-mono text-2xl font-bold text-amber-600">x{details.quantity}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {details.status === 'scheduled' ? (
+                        <button
+                          onClick={() => {
+                            const matchOrder = orders.find(o => (o.status === 'scheduled') && o.items.some(it => it.itemId === itemId));
+                            startBatchCooking(matchOrder?.pickupSlot || 'ASAP (Instant)', itemId);
+                          }}
+                          className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                        >
+                          Start Cooking
+                        </button>
+                      ) : details.status === 'preparing' ? (
+                        <button
+                          onClick={() => {
+                            const matchOrder = orders.find(o => (o.status === 'preparing') && o.items.some(it => it.itemId === itemId));
+                            finishBatchCooking(matchOrder?.pickupSlot || 'ASAP (Instant)', itemId);
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                        >
+                          Set Ready
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================= PORTAL: CHEF PRE-BOOK (Mobile-style Pre-book Tab) ======================= */}
+      {activeTab === 'chef_prebook' && (
+        <div className="space-y-6 text-left">
+          <div className="bg-white p-6 rounded-3xl border border-red-100/70 shadow-sm">
+            <h3 className="font-display font-bold text-lg text-gray-900 mb-4">Pre-booked Orders</h3>
+            <p className="text-xs text-gray-400 mb-4">Orders scheduled for future time slots, grouped by slot.</p>
+            {Object.keys(prebookAggregated).length === 0 ? (
+              <p className="text-xs text-gray-400 py-8 text-center">No pre-booked orders.</p>
+            ) : (
+              <div className="space-y-4">
+                {Object.entries(prebookAggregated).map(([slot, orders]) => (
+                  <div key={slot} className="p-4 border border-red-100/50 bg-red-50/10 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center border-b border-red-50 pb-2">
+                      <span className="font-bold text-red-800 font-mono text-sm">{slot} Slot</span>
+                      <span className="bg-red-100 text-red-900 px-2.5 py-0.5 rounded text-[10px] font-bold">
+                        {orders.length} Order(s) • {Object.values(aggregatePrebookItems(orders)).reduce((sum: number, v: any) => sum + v.quantity, 0)} Total Dishes
+                      </span>
+                    </div>
+                    <div className="space-y-3 text-xs">
+                      {orders.map(order => (
+                        <div key={order.id} className="p-3 border border-red-100/50 bg-white rounded-xl space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="font-mono font-bold text-amber-600">{order.id}</span>
+                            <span className="text-gray-500">For: {order.userName}</span>
+                          </div>
+                          <p className="text-gray-600">{order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}</p>
+                          {order.status === 'scheduled' && (
+                            <button
+                              onClick={() => onUpdateOrderStatus(order.id, 'preparing')}
+                              className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer self-start"
+                            >
+                              Start Preparing
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ======================= PORTAL: COUNTER STAFF VIEW ======================= */}
       {activeTab === 'counter' && (
         <div className="space-y-6 text-left">
@@ -1692,7 +1998,8 @@ export default function CanteenAdmin({
               { id: 'inventory', label: 'Raw Inventory', icon: Package },
               { id: 'revenue', label: 'Revenue Dashboard', icon: TrendingUp },
               { id: 'settings', label: 'Capacity Settings', icon: Settings },
-              { id: 'reviews', label: 'Student Reviews', icon: MessageSquare }
+              { id: 'reviews', label: 'Student Reviews', icon: MessageSquare },
+              { id: 'offers', label: 'Offers & Combos', icon: Sparkles }
             ].map(sub => {
               const Icon = sub.icon;
               return (
@@ -2101,6 +2408,58 @@ export default function CanteenAdmin({
                   />
                 </div>
 
+                <div className="border-t border-red-50 pt-4 space-y-4">
+                  <h4 className="font-display font-bold text-xs text-gray-900">Time Slot Configuration</h4>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Slot Duration (Minutes)</label>
+                    <select
+                      value={slotDurationVal}
+                      onChange={(e) => setSlotDurationVal(e.target.value)}
+                      className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium cursor-pointer"
+                    >
+                      <option value="15">15 Minutes</option>
+                      <option value="30">30 Minutes</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Preparation Buffer (Minutes before slot)</label>
+                    <input
+                      type="number"
+                      value={prepBufferVal}
+                      onChange={(e) => setPrepBufferVal(e.target.value)}
+                      min="0"
+                      max="120"
+                      className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Order Cutoff (Minutes before slot)</label>
+                    <input
+                      type="number"
+                      value={orderCutoffVal}
+                      onChange={(e) => setOrderCutoffVal(e.target.value)}
+                      min="0"
+                      max="120"
+                      className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Advance Booking Window (Days)</label>
+                    <input
+                      type="number"
+                      value={advanceBookingDaysVal}
+                      onChange={(e) => setAdvanceBookingDaysVal(e.target.value)}
+                      min="0"
+                      max="30"
+                      className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
                 <button
                   type="submit"
                   disabled={updatingSettings}
@@ -2150,6 +2509,80 @@ export default function CanteenAdmin({
             </div>
           )}
 
+          {/* OWNER SUBTAB: OFFERS & COMBOS */}
+          {ownerSubTab === 'offers' && (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-display font-bold text-sm text-gray-900">Offers, Discounts & Combo Packs</h3>
+                    <p className="text-xs text-gray-400 font-sans">Create and manage promotional offers for your canteen.</p>
+                  </div>
+                  <button
+                    onClick={() => { setEditingOffer(null); setOfferForm({ title: '', description: '', offerType: 'discount', discountPercent: 10, discountAmount: 0, comboPrice: 0, comboItemIds: [], applicableItemIds: [], minOrderAmount: 0, maxUses: 0, validFrom: '', validUntil: '' }); setShowOfferForm(true); }}
+                    className="bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 text-white font-semibold py-2 px-4 rounded-xl text-xs tracking-wide transition-all shadow-md flex items-center space-x-2 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Create Offer</span>
+                  </button>
+                </div>
+
+                {offers.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <Sparkles className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                    <p className="text-xs font-semibold">No offers created yet</p>
+                    <p className="text-[10px] mt-1">Click "Create Offer" to set up your first promotion</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {offers.map(offer => (
+                      <div key={offer.id} className={`p-4 rounded-2xl border space-y-3 ${offer.isActive ? 'border-amber-200 bg-amber-50/30' : 'border-gray-200 bg-gray-50/50 opacity-60'}`}>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                              offer.offerType === 'discount' ? 'bg-blue-100 text-blue-700' :
+                              offer.offerType === 'combo' ? 'bg-purple-100 text-purple-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>{offer.offerType}</span>
+                            <h4 className="font-bold text-gray-900 text-sm mt-2">{offer.title}</h4>
+                            {offer.description && <p className="text-[10px] text-gray-500 mt-0.5">{offer.description}</p>}
+                          </div>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${offer.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
+                            {offer.isActive ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                        </div>
+                        <div className="text-xs font-sans space-y-1">
+                          {offer.offerType === 'discount' && (
+                            <p className="text-amber-700 font-bold">
+                              {offer.discountPercent > 0 ? `${offer.discountPercent}% OFF` : `₹${offer.discountAmount} OFF`}
+                              {offer.minOrderAmount > 0 && <span className="font-normal text-gray-500"> on orders above ₹{offer.minOrderAmount}</span>}
+                            </p>
+                          )}
+                          {offer.offerType === 'combo' && (
+                            <p className="text-purple-700 font-bold">Combo Price: ₹{offer.comboPrice}</p>
+                          )}
+                          {offer.maxUses > 0 && (
+                            <p className="text-gray-400 text-[10px]">{offer.usedCount}/{offer.maxUses} used</p>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button onClick={() => toggleOfferActive(offer)} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition cursor-pointer ${offer.isActive ? 'bg-gray-200 hover:bg-gray-300 text-gray-600' : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700'}`}>
+                            {offer.isActive ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button onClick={() => { setEditingOffer(offer); setOfferForm({ title: offer.title, description: offer.description || '', offerType: offer.offerType, discountPercent: offer.discountPercent || 0, discountAmount: offer.discountAmount || 0, comboPrice: offer.comboPrice || 0, comboItemIds: offer.comboItemIds || [], applicableItemIds: offer.applicableItemIds || [], minOrderAmount: offer.minOrderAmount || 0, maxUses: offer.maxUses || 0, validFrom: offer.validFrom ? new Date(offer.validFrom).toISOString().slice(0, 16) : '', validUntil: offer.validUntil ? new Date(offer.validUntil).toISOString().slice(0, 16) : '' }); setShowOfferForm(true); }} className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 transition cursor-pointer">
+                            Edit
+                          </button>
+                          <button onClick={() => deleteOffer(offer.id)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 transition cursor-pointer">
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
         </div>
       )}
@@ -2350,6 +2783,88 @@ export default function CanteenAdmin({
                 Save Food Details
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* OFFER FORM MODAL */}
+      {showOfferForm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-red-100 max-h-[90vh] overflow-y-auto">
+            <div className="bg-red-50 px-6 py-4 border-b border-red-100 flex items-center justify-between">
+              <h3 className="font-display font-bold text-sm text-gray-900">{editingOffer ? 'Edit Offer' : 'Create New Offer'}</h3>
+              <button onClick={() => { setShowOfferForm(false); setEditingOffer(null); }} className="p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-gray-650 transition cursor-pointer">
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 text-xs font-sans">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Offer Title</label>
+                <input type="text" required value={offerForm.title} onChange={(e) => setOfferForm({ ...offerForm, title: e.target.value })} placeholder="e.g. Lunch Combo Deal" className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Description</label>
+                <input type="text" value={offerForm.description} onChange={(e) => setOfferForm({ ...offerForm, description: e.target.value })} placeholder="Optional description" className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Offer Type</label>
+                <select value={offerForm.offerType} onChange={(e) => setOfferForm({ ...offerForm, offerType: e.target.value })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium">
+                  <option value="discount">Percentage Discount</option>
+                  <option value="flat">Flat Amount Off</option>
+                  <option value="combo">Combo Pack</option>
+                </select>
+              </div>
+              {offerForm.offerType === 'discount' && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Discount Percentage (%)</label>
+                  <input type="number" min="1" max="90" value={offerForm.discountPercent} onChange={(e) => setOfferForm({ ...offerForm, discountPercent: Number(e.target.value) })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono" />
+                </div>
+              )}
+              {offerForm.offerType === 'flat' && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Discount Amount (₹)</label>
+                  <input type="number" min="1" value={offerForm.discountAmount} onChange={(e) => setOfferForm({ ...offerForm, discountAmount: Number(e.target.value) })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono" />
+                </div>
+              )}
+              {offerForm.offerType === 'combo' && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Combo Price (₹)</label>
+                  <input type="number" min="1" value={offerForm.comboPrice} onChange={(e) => setOfferForm({ ...offerForm, comboPrice: Number(e.target.value) })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono" />
+                  <p className="text-[10px] text-gray-400 mt-1">Select food items below that belong to this combo pack.</p>
+                  <div className="space-y-1.5 mt-2 max-h-40 overflow-y-auto">
+                    {menuItems.map(item => (
+                      <label key={item.id} className="flex items-center space-x-2 cursor-pointer p-1.5 rounded hover:bg-red-50">
+                        <input type="checkbox" checked={offerForm.comboItemIds.includes(item.id)} onChange={(e) => { const ids = offerForm.comboItemIds; setOfferForm({ ...offerForm, comboItemIds: e.target.checked ? [...ids, item.id] : ids.filter(id => id !== item.id) }); }} className="rounded border-red-300 text-amber-600 focus:ring-amber-500" />
+                        <span className="text-xs text-gray-700">{item.name} — ₹{item.price}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Min Order (₹)</label>
+                  <input type="number" min="0" value={offerForm.minOrderAmount} onChange={(e) => setOfferForm({ ...offerForm, minOrderAmount: Number(e.target.value) })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Max Uses (0=unlimited)</label>
+                  <input type="number" min="0" value={offerForm.maxUses} onChange={(e) => setOfferForm({ ...offerForm, maxUses: Number(e.target.value) })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Valid From</label>
+                  <input type="datetime-local" value={offerForm.validFrom} onChange={(e) => setOfferForm({ ...offerForm, validFrom: e.target.value })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Valid Until</label>
+                  <input type="datetime-local" value={offerForm.validUntil} onChange={(e) => setOfferForm({ ...offerForm, validUntil: e.target.value })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+                </div>
+              </div>
+              <button onClick={saveOffer} className="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-xs font-bold transition shadow-md cursor-pointer">
+                {editingOffer ? 'Update Offer' : 'Create Offer'}
+              </button>
+            </div>
           </div>
         </div>
       )}

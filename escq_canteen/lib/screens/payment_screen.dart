@@ -33,6 +33,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   late Razorpay _razorpay;
   Timer? _recoveryTimer;
   int _recoverySeconds = 0;
+  Order? _successOrder;
 
   @override
   void initState() {
@@ -57,7 +58,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     _pollTimer?.cancel();
 
     if (!mounted) return;
-    setState(() { waitingForPayment = false; isProcessing = false; isComplete = true; });
+    setState(() { waitingForPayment = false; isProcessing = false; });
 
     final api = ApiService();
     final auth = context.read<AuthProvider>();
@@ -78,9 +79,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
           try {
             final order = Order.fromJson(verifyResult['order']);
             if (!mounted) return;
+            _successOrder = order;
             orderProv.setLastOrder(order);
             debugPrint('[Razorpay] Order loaded from verify: ${order.id}');
             orderProv.loadOrders(userId);
+            setState(() { isComplete = true; });
             return;
           } catch (e) {
             debugPrint('[Razorpay] Order.fromJson failed: $e');
@@ -106,8 +109,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
           final order = match.first;
           if (order.paymentStatus == 'paid' || order.status == 'scheduled' || order.status == 'ready') {
             if (!mounted) return;
+            _successOrder = order;
             orderProv.setLastOrder(order);
             orderProv.loadOrders(userId);
+            setState(() { isComplete = true; });
             debugPrint('[Razorpay] Order found via poll: ${order.id} status=${order.status}');
             return;
           }
@@ -118,6 +123,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       await Future.delayed(const Duration(seconds: 2));
     }
     debugPrint('[Razorpay] All recovery attempts exhausted — lastOrder still null');
+    if (mounted) setState(() { isComplete = true; });
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
@@ -425,7 +431,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Widget _buildSuccess() {
-    final order = context.watch<OrderProvider>().lastOrder;
+    final order = _successOrder;
 
     if (order == null) {
       _startRecoveryTimer();
@@ -473,7 +479,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () {
-                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
+                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 'history')), (_) => false);
                 },
                 child: const Text('Go to My Orders', style: TextStyle(fontSize: 12, color: Color(0xFFD97706))),
               ),
@@ -623,7 +629,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     width: double.infinity, height: 52,
                     child: OutlinedButton(
                       onPressed: () {
-                        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
+                        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 'history')), (_) => false);
                       },
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: const Color(0xFFF59E0B), width: 2),

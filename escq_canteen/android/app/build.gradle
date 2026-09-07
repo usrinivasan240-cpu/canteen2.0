@@ -1,8 +1,8 @@
 plugins {
     id "com.android.application"
     id "kotlin-android"
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
 }
 
 def localProperties = new Properties()
@@ -32,11 +32,12 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.escq.canteen.escq_canteen"
+    namespace = "com.escq.canteen"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "25.1.8937393"
 
     compileOptions {
+        coreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -46,11 +47,15 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.escq.canteen.escq_canteen"
-        minSdkVersion = flutter.minSdkVersion
+        applicationId = "com.escq.canteen"
+        minSdkVersion = 21
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
+    }
+
+    dependencies {
+        coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"
     }
 
     signingConfigs {

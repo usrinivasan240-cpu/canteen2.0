@@ -22,7 +22,8 @@ import 'login_screen.dart';
 import 'help_support_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String initialTab;
+  const HomeScreen({super.key, this.initialTab = 'menu'});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -30,7 +31,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String selectedCategory = 'Meals';
-  String customerTab = 'menu';
+  late String customerTab = widget.initialTab;
   Order? successOrder;
   bool _isLoading = false;
   String? _error;
@@ -81,30 +82,31 @@ class _HomeScreenState extends State<HomeScreen> {
       final auth = context.read<AuthProvider>();
       final user = auth.user;
 
-      _selectedCanteenId = user?.canteenId ?? 'canteen_001';
-
       final colleges = await api.getColleges().catchError((_) => <College>[]);
       final canteens = await api.getCanteens().catchError((_) => <Canteen>[]);
       final subCanteens = await api.getSubCanteens().catchError((_) => <SubCanteen>[]);
-      final canteenData = await api.getCanteenData(_selectedCanteenId).catchError((_) => <String, dynamic>{});
-      final userOrders = await api.getUserOrders(user?.id ?? '').catchError((_) => <Order>[]);
 
       _colleges = colleges;
       _canteens = canteens;
       _subCanteens = subCanteens;
+
+      String canteenId = user?.canteenId ?? (canteens.isNotEmpty ? canteens.first.id : 'canteen_001');
+
+      if (user?.collegeId != null) {
+        final collegeCanteens = canteens.where((c) => c.collegeId == user!.collegeId).toList();
+        if (collegeCanteens.isNotEmpty && !collegeCanteens.any((c) => c.id == canteenId)) {
+          canteenId = collegeCanteens.first.id;
+        }
+      }
+
+      _selectedCanteenId = canteenId;
+
+      final canteenData = await api.getCanteenData(_selectedCanteenId).catchError((_) => <String, dynamic>{});
+      final userOrders = await api.getUserOrders(user?.id ?? '').catchError((_) => <Order>[]);
+
       _menuItems = api.parseMenuItems(canteenData);
       _reviews = api.parseReviews(canteenData);
       _userOrders = userOrders;
-
-      if (user?.collegeId != null) {
-        try {
-          _canteens.firstWhere((c) => c.id == _selectedCanteenId);
-        } catch (_) {
-          if (_canteens.isNotEmpty) _selectedCanteenId = _canteens.first.id;
-        }
-      } else if (_canteens.isNotEmpty) {
-        _selectedCanteenId = _canteens.first.id;
-      }
 
       if (_subCanteens.isNotEmpty) {
         try {
@@ -1064,6 +1066,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: ElevatedButton(
                 onPressed: () => setState(() {
                   successOrder = null;
+                  customerTab = 'menu';
                   context.read<OrderProvider>().setLastOrder(null);
                 }),
                 style: ElevatedButton.styleFrom(
@@ -1147,7 +1150,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _formatOrderTime(Order order) {
     if (order.timestamp != null && order.timestamp!.isNotEmpty) {
       try {
-        final dt = DateTime.parse(order.timestamp!);
+        final dt = DateTime.parse(order.timestamp!).toLocal();
         final day = dt.day;
         final month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.month - 1];
         final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
@@ -1157,7 +1160,7 @@ class _HomeScreenState extends State<HomeScreen> {
       } catch (_) {}
     }
     if (order.createdAt != null && order.createdAt! > 0) {
-      final dt = DateTime.fromMillisecondsSinceEpoch(order.createdAt!);
+      final dt = DateTime.fromMillisecondsSinceEpoch(order.createdAt!).toLocal();
       final day = dt.day;
       final month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.month - 1];
       final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);

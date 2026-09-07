@@ -17,6 +17,7 @@ class MenuItem {
   final String? canteenId;
   final String? subCanteenId;
   final String? collegeId;
+  final bool requiresChef;
 
   MenuItem({
     required this.id,
@@ -37,6 +38,7 @@ class MenuItem {
     this.canteenId,
     this.subCanteenId,
     this.collegeId,
+    this.requiresChef = true,
   });
 
   bool get inStock => stock > 0 && bookedToday < dailyLimit && !isPaused;
@@ -61,6 +63,7 @@ class MenuItem {
       canteenId: json['canteenId'],
       subCanteenId: json['subCanteenId'],
       collegeId: json['collegeId'],
+      requiresChef: json['requiresChef'] != false,
     );
   }
 }

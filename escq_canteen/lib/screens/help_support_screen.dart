@@ -1,5 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../config.dart';
+import '../providers/auth_provider.dart';
+import 'my_support_tickets_screen.dart';
 
 class HelpSupportScreen extends StatefulWidget {
   const HelpSupportScreen({super.key});
@@ -15,6 +21,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   final _messageCtrl = TextEditingController();
   String _selectedCategory = 'General Inquiry';
   bool _submitted = false;
+  bool _submitting = false;
 
   final _categories = [
     'General Inquiry',
@@ -57,14 +64,44 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
     super.dispose();
   }
 
-  void _submitTicket() {
+  Future<void> _submitTicket() async {
     if (_nameCtrl.text.isEmpty || _emailCtrl.text.isEmpty || _messageCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all required fields'), backgroundColor: Color(0xFFF59E0B)),
       );
       return;
     }
-    setState(() => _submitted = true);
+    setState(() => _submitting = true);
+    try {
+      final auth = context.read<AuthProvider>();
+      final userId = auth.user?.id ?? '';
+      final resp = await http.post(
+        Uri.parse('${AppConfig.apiBase}/api/support/submit'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'userId': userId,
+          'userName': _nameCtrl.text.trim(),
+          'userEmail': _emailCtrl.text.trim(),
+          'category': _selectedCategory.toLowerCase().replaceAll(' ', '_'),
+          'subject': _subjectCtrl.text.trim().isEmpty ? _selectedCategory : _subjectCtrl.text.trim(),
+          'description': _messageCtrl.text.trim(),
+        }),
+      );
+      final data = jsonDecode(resp.body);
+      if (data['success'] == true) {
+        setState(() { _submitted = true; _submitting = false; });
+      } else {
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['error'] ?? 'Failed to submit ticket'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Network error: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -130,9 +167,24 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
       children: [
         _buildQuickActions(),
         const SizedBox(height: 24),
+        _buildMyTicketsSection(),
+        const SizedBox(height: 24),
         _buildFaqSection(),
         const SizedBox(height: 24),
         _buildTicketForm(),
+      ],
+    );
+  }
+
+  Widget _buildMyTicketsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('MY TICKETS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B), letterSpacing: 1.2)),
+        const SizedBox(height: 12),
+        _quickAction(Icons.confirmation_number_outlined, 'View My Tickets', 'Check status & admin replies', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const MySupportTicketsScreen()));
+        }),
       ],
     );
   }
@@ -243,21 +295,23 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: _submitTicket,
+              onPressed: _submitting ? null : _submitTicket,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFF59E0B),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 0,
               ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.send, size: 16),
-                  SizedBox(width: 8),
-                  Text('Submit Ticket', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                ],
-              ),
+              child: _submitting
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.send, size: 16),
+                        SizedBox(width: 8),
+                        Text('Submit Ticket', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
             ),
           ),
         ],

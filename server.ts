@@ -503,7 +503,11 @@ const INITIAL_INGREDIENTS: Ingredient[] = [
 
 let canteenSettings: CanteenSettings = {
   noShowMinutes: 30,
-  defaultSlotCapacity: 30
+  defaultSlotCapacity: 30,
+  slotDuration: 15,
+  prepBufferMinutes: 5,
+  orderCutoffMinutes: 10,
+  advanceBookingDays: 7
 };
 
 const INITIAL_MENU_ITEMS: MenuItem[] = [
@@ -814,7 +818,7 @@ function getCanteenState(canteenId: string): Canteen {
       orders: [],
       reviews: [],
       ingredients: [],
-      settings: { noShowMinutes: 30, defaultSlotCapacity: 30, canteenId }
+      settings: { noShowMinutes: 30, defaultSlotCapacity: 30, slotDuration: 15, prepBufferMinutes: 5, orderCutoffMinutes: 10, advanceBookingDays: 7, canteenId }
     };
     canteensState.push(c);
   }
@@ -1428,7 +1432,7 @@ app.post('/api/canteens', async (req, res) => {
       orders: [],
       reviews: [],
       ingredients: INITIAL_INGREDIENTS.map(ing => ({ ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id })),
-      settings: { noShowMinutes: 30, defaultSlotCapacity: 30, canteenId: canteenData.id }
+      settings: { noShowMinutes: 30, defaultSlotCapacity: 30, slotDuration: 15, prepBufferMinutes: 5, orderCutoffMinutes: 10, advanceBookingDays: 7, canteenId: canteenData.id }
     });
   }
   dataCache.delete('canteens');
@@ -1944,6 +1948,36 @@ app.get('/api/user/orders', async (req, res) => {
   res.json({ success: true, orders: memoryOrders });
 });
 
+// 1b. Get ALL orders for a canteen (Owner/Admin/Chef/Staff view)
+app.get('/api/canteen/all-orders', async (req, res) => {
+  const canteenId = req.query.canteenId as string;
+
+  if (pgReady) {
+    try {
+      let orders: Order[];
+      if (canteenId) {
+        orders = await pgGetWhere('orders', { canteenId }) as Order[];
+      } else {
+        orders = await pgGetAll('orders') as Order[];
+      }
+      orders = orders.map(o => {
+        if (!o.qrPayload) o.qrPayload = generateSignedQR(o.id);
+        return o;
+      });
+      orders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      return res.json({ success: true, orders: orders.slice(0, 200) });
+    } catch (err) {
+      console.error('Failed to fetch all orders:', err);
+    }
+  }
+
+  let orders = canteenId
+    ? canteenState.orders.filter(o => o.canteenId === canteenId)
+    : canteenState.orders;
+  orders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  res.json({ success: true, orders: orders.slice(0, 200) });
+});
+
 // 2. Add / Edit Menu Items (Owner)
 app.post('/api/canteen/menu', async (req, res) => {
   const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe, requiresChef, canteenId } = req.body;
@@ -2274,7 +2308,6 @@ app.post('/api/canteen/order', async (req, res) => {
         receipt: orderId,
       });
 
-      const signedQrPayload = generateSignedQR(orderId);
       const newOrder: Order = {
         id: orderId,
         userId: userId || 'user_guest',
@@ -2283,12 +2316,12 @@ app.post('/api/canteen/order', async (req, res) => {
         totalPrice,
         paymentStatus: 'pending',
         paymentMethod: 'Razorpay',
-        qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
-        qrPayload: signedQrPayload,
+        qrCode: '',
+        qrPayload: '',
         status: 'pending',
         timestamp: new Date().toISOString(),
         createdAt: Date.now(),
-        pickupTimeText: 'Pending payment confirmation',
+        pickupTimeText: 'Complete payment to confirm order',
         razorpayOrderId: razorpayOrder.id,
         pickupSlot: selectedSlot,
         prepStartTime,
@@ -2310,8 +2343,7 @@ app.post('/api/canteen/order', async (req, res) => {
         amount: totalPrice,
         amountPaise: totalAmountPaise,
         currency: 'INR',
-        order: newOrder,
-        qrPayload: generateSignedQR(orderId)
+        order: newOrder
       });
     } catch (err: any) {
       const errDetail = typeof err === 'string'
@@ -2328,7 +2360,6 @@ app.post('/api/canteen/order', async (req, res) => {
       const totalPrice = Number((subtotal / 0.9764).toFixed(2));
       const totalAmountPaise = Math.round(totalPrice * 100);
 
-      const signedQrPayload = generateSignedQR(orderId);
       const newOrder: Order = {
         id: orderId,
         userId: userId || 'user_guest',
@@ -2337,12 +2368,12 @@ app.post('/api/canteen/order', async (req, res) => {
         totalPrice,
         paymentStatus: 'pending',
         paymentMethod: 'UPI Dynamic QR',
-        qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
-        qrPayload: signedQrPayload,
+        qrCode: '',
+        qrPayload: '',
         status: 'pending',
         timestamp: new Date().toISOString(),
         createdAt: Date.now(),
-        pickupTimeText: 'Pending UPI payment',
+        pickupTimeText: 'Complete UPI payment to confirm',
         pickupSlot: selectedSlot,
         prepStartTime,
         expiryTime,
@@ -2513,6 +2544,9 @@ app.post('/api/canteen/order', async (req, res) => {
   }
 
   canteenState.orders.unshift(newOrder);
+
+  await sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
+
   res.json({ success: true, useRazorpay: false, order: newOrder, qrPayload: generateSignedQR(orderId), message: 'Order placed & payment verified!' });
   } catch (topErr: any) {
     console.error('Order endpoint unhandled error:', typeof topErr === 'string' ? topErr : topErr?.message || JSON.stringify(topErr));
@@ -2575,12 +2609,16 @@ async function fulfillRazorpayOrder(targetOrder: Order, razorpay_payment_id: str
     return itemMenu ? itemMenu.requiresChef !== false : true;
   });
 
+  const signedQrPayload = generateSignedQR(targetOrder.id);
+
   const updatedOrder: Order = {
     ...targetOrder,
     paymentStatus: 'paid',
     status: containsChefItems ? 'scheduled' : 'ready',
     razorpayPaymentId: razorpay_payment_id,
     razorpaySignature: razorpay_signature,
+    qrCode: `QR_${targetOrder.id}_${Math.floor(Math.random() * 1000)}`,
+    qrPayload: signedQrPayload,
     pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
   };
 
@@ -2589,7 +2627,7 @@ async function fulfillRazorpayOrder(targetOrder: Order, razorpay_payment_id: str
   }
 
   canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
-  console.log(`[Razorpay Verify] ✅ Order ${targetOrder.id} marked as paid`);
+  console.log(`[Razorpay Verify] ✅ Order ${targetOrder.id} marked as paid — QR generated`);
   return updatedOrder;
 }
 
@@ -2722,6 +2760,9 @@ app.post('/api/razorpay/verify', async (req, res) => {
     // Deduct stock, decrement item stock, increment bookedToday, deduct ingredients
     const updatedOrder = await fulfillRazorpayOrder(targetOrder, razorpay_payment_id, razorpay_signature);
 
+    await sendPushNotification(updatedOrder.userId, '🛒 Order Placed & Paid', `Your order ${updatedOrder.id} is confirmed! Total: ₹${updatedOrder.totalPrice}`, { orderId: updatedOrder.id, status: updatedOrder.status });
+    await sendPushNotification(updatedOrder.userId, '✅ Payment Confirmed', `Your order ${updatedOrder.id} payment has been confirmed!`, { orderId: updatedOrder.id, status: 'scheduled' });
+
     res.json({ success: true, message: 'Payment verified successfully', order: updatedOrder });
   } catch (err: any) {
     console.error('[Razorpay Verify] Error:', err?.message || err);
@@ -2837,10 +2878,13 @@ app.post('/api/vyapar/verify', async (req, res) => {
       return itemMenu ? itemMenu.requiresChef !== false : true;
     });
 
+    const signedQrPayload = generateSignedQR(targetOrder.id);
     const updatedOrder: Order = {
       ...targetOrder,
       paymentStatus: 'paid',
       status: containsChefItems ? 'scheduled' : 'ready',
+      qrCode: `QR_${targetOrder.id}_${Math.floor(Math.random() * 1000)}`,
+      qrPayload: signedQrPayload,
       pickupTimeText: containsChefItems ? `Scheduled for pickup at ${targetOrder.pickupSlot}` : 'Ready for collection at counter'
     };
 
@@ -2849,7 +2893,8 @@ app.post('/api/vyapar/verify', async (req, res) => {
     }
     canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
 
-    console.log(`[VyaparGateway Verify] Order ${orderId} marked as paid`);
+    console.log(`[VyaparGateway Verify] Order ${orderId} marked as paid — QR generated`);
+    await sendPushNotification(updatedOrder.userId, '🛒 Order Placed & Paid', `Your order ${updatedOrder.id} is confirmed! Total: ₹${updatedOrder.totalPrice}`, { orderId: updatedOrder.id, status: updatedOrder.status });
     res.json({ success: true, message: 'Payment verified successfully', order: updatedOrder });
   } catch (err: any) {
     console.error('[VyaparGateway Verify] Error:', err?.message || err);
@@ -3285,8 +3330,8 @@ app.post('/api/support/submit', async (req, res) => {
   try {
     const { userId, userName, userEmail, category, subject, description, orderId, canteenId, collegeId } = req.body;
 
-    if (!userId || !userName || !userEmail || !category || !subject || !description) {
-      return res.status(400).json({ success: false, error: 'Missing required fields: userId, userName, userEmail, category, subject, description' });
+    if (!userName || !userEmail || !category || !subject || !description) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: userName, userEmail, category, subject, description' });
     }
 
     const ticketId = `TKT_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -3798,6 +3843,9 @@ app.post('/api/canteen/order/status', async (req, res) => {
   }
 
   canteenState.orders = canteenState.orders.map(order => order.id === id ? updatedOrder : order);
+
+  await notifyOrderStatus(updatedOrder, targetOrder.status, mappedStatus);
+
   res.json({ success: true, message: `Order status set to: ${mappedStatus}` });
 });
 
@@ -3885,6 +3933,187 @@ app.post('/api/canteen/order/batch-status', async (req, res) => {
   }
 
   res.json({ success: true, count: updatedOrders.length, message: `Updated status to ${status} for ${updatedOrders.length} orders.` });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 5b. OFFERS / DISCOUNTS / COMBO PACKS
+// ──────────────────────────────────────────────────────────────────────────────
+
+// GET /api/offers — list offers for a canteen
+app.get('/api/offers', async (req, res) => {
+  try {
+    const canteenId = (req.query.canteenId as string) || 'canteen_001';
+    let offers: any[] = [];
+    if (pgReady) {
+      offers = await pgGetWhere('offers', { canteenId });
+    } else {
+      offers = (canteenState as any).offers || [];
+    }
+    res.json({ success: true, offers });
+  } catch (err: any) {
+    console.error('[Offers] List error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to load offers' });
+  }
+});
+
+// GET /api/offers/active — customer-facing: only active, non-expired offers
+app.get('/api/offers/active', async (req, res) => {
+  try {
+    const canteenId = (req.query.canteenId as string) || 'canteen_001';
+    const now = Date.now();
+    let offers: any[] = [];
+    if (pgReady) {
+      offers = await pgGetWhere('offers', { canteenId });
+    } else {
+      offers = (canteenState as any).offers || [];
+    }
+    const active = offers.filter((o: any) =>
+      o.isActive &&
+      (o.validFrom === 0 || now >= o.validFrom) &&
+      (o.validUntil === 0 || now <= o.validUntil) &&
+      (o.maxUses === 0 || o.usedCount < o.maxUses)
+    );
+    res.json({ success: true, offers: active });
+  } catch (err: any) {
+    console.error('[Offers] Active list error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to load offers' });
+  }
+});
+
+// POST /api/offers — create offer (owner/superadmin)
+app.post('/api/offers', async (req, res) => {
+  try {
+    const { title, description, offerType, discountPercent, discountAmount, comboPrice, comboItemIds, applicableItemIds, minOrderAmount, maxUses, validFrom, validUntil, canteenId } = req.body;
+    if (!title || !offerType) {
+      return res.status(400).json({ success: false, error: 'title and offerType are required' });
+    }
+    const offerId = `OFFER_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const offer = {
+      id: offerId,
+      title,
+      description: description || '',
+      offerType,
+      discountPercent: discountPercent || 0,
+      discountAmount: discountAmount || 0,
+      comboPrice: comboPrice || 0,
+      comboItemIds: comboItemIds || [],
+      applicableItemIds: applicableItemIds || [],
+      minOrderAmount: minOrderAmount || 0,
+      maxUses: maxUses || 0,
+      usedCount: 0,
+      validFrom: validFrom || 0,
+      validUntil: validUntil || 0,
+      isActive: true,
+      canteenId: canteenId || 'canteen_001',
+      createdAt: Date.now()
+    };
+    if (pgReady) {
+      await pgSet('offers', offerId, offer);
+    }
+    if (!(canteenState as any).offers) (canteenState as any).offers = [];
+    (canteenState as any).offers.unshift(offer);
+    console.log(`[Offers] Created: ${offerId} (${offerType})`);
+    res.json({ success: true, offer });
+  } catch (err: any) {
+    console.error('[Offers] Create error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to create offer' });
+  }
+});
+
+// PUT /api/offers/:id — update offer
+app.put('/api/offers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    let existing: any = null;
+    if (pgReady) {
+      existing = await pgGetById('offers', id);
+    } else {
+      existing = ((canteenState as any).offers || []).find((o: any) => o.id === id);
+    }
+    if (!existing) return res.status(404).json({ success: false, error: 'Offer not found' });
+    const updated = { ...existing, ...updates, id };
+    if (pgReady) {
+      await pgSet('offers', id, updated);
+    }
+    if ((canteenState as any).offers) {
+      (canteenState as any).offers = (canteenState as any).offers.map((o: any) => o.id === id ? updated : o);
+    }
+    console.log(`[Offers] Updated: ${id}`);
+    res.json({ success: true, offer: updated });
+  } catch (err: any) {
+    console.error('[Offers] Update error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to update offer' });
+  }
+});
+
+// DELETE /api/offers/:id — delete offer
+app.delete('/api/offers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (pgReady) {
+      await pgDelete('offers', id);
+    }
+    if ((canteenState as any).offers) {
+      (canteenState as any).offers = (canteenState as any).offers.filter((o: any) => o.id !== id);
+    }
+    console.log(`[Offers] Deleted: ${id}`);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Offers] Delete error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to delete offer' });
+  }
+});
+
+// POST /api/offers/apply — apply offer to cart (returns discount info)
+app.post('/api/offers/apply', async (req, res) => {
+  try {
+    const { offerId, cartItems, canteenId } = req.body;
+    if (!offerId || !cartItems) {
+      return res.status(400).json({ success: false, error: 'offerId and cartItems required' });
+    }
+    let offer: any = null;
+    if (pgReady) {
+      offer = await pgGetById('offers', offerId);
+    } else {
+      offer = ((canteenState as any).offers || []).find((o: any) => o.id === offerId);
+    }
+    if (!offer || !offer.isActive) {
+      return res.status(404).json({ success: false, error: 'Offer not found or inactive' });
+    }
+    const now = Date.now();
+    if ((offer.validFrom > 0 && now < offer.validFrom) || (offer.validUntil > 0 && now > offer.validUntil)) {
+      return res.status(400).json({ success: false, error: 'Offer is not valid at this time' });
+    }
+    if (offer.maxUses > 0 && offer.usedCount >= offer.maxUses) {
+      return res.status(400).json({ success: false, error: 'Offer usage limit reached' });
+    }
+    let cartTotal = 0;
+    for (const item of cartItems) {
+      cartTotal += (item.price || 0) * (item.quantity || 1);
+    }
+    if (cartTotal < offer.minOrderAmount) {
+      return res.status(400).json({ success: false, error: `Minimum order ₹${offer.minOrderAmount} required for this offer` });
+    }
+    let discount = 0;
+    if (offer.offerType === 'discount') {
+      if (offer.discountPercent > 0) {
+        discount = Math.round(cartTotal * offer.discountPercent / 100);
+      } else if (offer.discountAmount > 0) {
+        discount = Math.min(offer.discountAmount, cartTotal);
+      }
+    } else if (offer.offerType === 'combo') {
+      const comboItems = cartItems.filter((item: any) => (offer.comboItemIds || []).includes(item.itemId));
+      if (comboItems.length > 0) {
+        const comboOriginal = comboItems.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
+        discount = Math.max(0, comboOriginal - offer.comboPrice);
+      }
+    }
+    res.json({ success: true, discount, finalTotal: Math.max(0, cartTotal - discount), offer });
+  } catch (err: any) {
+    console.error('[Offers] Apply error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to apply offer' });
+  }
 });
 
 // 6. Add Review & Trigger sentiment analyzer (Customer)
@@ -4038,17 +4267,25 @@ async function checkExpiredOrders() {
 
 // 7b. Update Settings (Owner)
 app.post('/api/canteen/settings', async (req, res) => {
-  const { noShowMinutes, defaultSlotCapacity, canteenId } = req.body;
+  const { noShowMinutes, defaultSlotCapacity, slotDuration, prepBufferMinutes, orderCutoffMinutes, advanceBookingDays, canteenId } = req.body;
   const targetCanteenId = (typeof canteenId === 'string' && canteenId.trim()) ? canteenId.trim() : 'canteen_001';
 
   if (noShowMinutes !== undefined) canteenSettings.noShowMinutes = Number(noShowMinutes);
   if (defaultSlotCapacity !== undefined) canteenSettings.defaultSlotCapacity = Number(defaultSlotCapacity);
+  if (slotDuration !== undefined) canteenSettings.slotDuration = Number(slotDuration);
+  if (prepBufferMinutes !== undefined) canteenSettings.prepBufferMinutes = Number(prepBufferMinutes);
+  if (orderCutoffMinutes !== undefined) canteenSettings.orderCutoffMinutes = Number(orderCutoffMinutes);
+  if (advanceBookingDays !== undefined) canteenSettings.advanceBookingDays = Number(advanceBookingDays);
 
   if (pgReady) {
     try {
       await pgSet('settings', `settings_${targetCanteenId}`, {
         noShowMinutes: Number(canteenSettings.noShowMinutes),
         defaultSlotCapacity: Number(canteenSettings.defaultSlotCapacity),
+        slotDuration: Number(canteenSettings.slotDuration),
+        prepBufferMinutes: Number(canteenSettings.prepBufferMinutes),
+        orderCutoffMinutes: Number(canteenSettings.orderCutoffMinutes),
+        advanceBookingDays: Number(canteenSettings.advanceBookingDays),
         canteenId: targetCanteenId
       });
     } catch (e) {
@@ -4393,6 +4630,298 @@ Your output must be structured exactly in JSON matching this schema:
     }
   });
 });
+
+// ─── FCM TOKEN STORAGE ──────────────────────────────────────
+const fcmTokens = new Map<string, string>(); // userId -> fcmToken (in-memory cache)
+
+app.post('/api/fcm-token', async (req, res) => {
+  const { userId, fcmToken } = req.body;
+  if (!userId || !fcmToken) {
+    return res.status(400).json({ success: false, error: 'userId and fcmToken required' });
+  }
+  fcmTokens.set(userId, fcmToken);
+  console.log(`[FCM] Token registered in memory for user ${userId} (token: ${fcmToken.substring(0, 20)}...)`);
+  if (pgReady) {
+    try {
+      await pgSet('fcm_tokens', userId, { userId, fcmToken, updatedAt: new Date().toISOString() });
+      console.log(`[FCM] Token saved to Postgres for user ${userId}`);
+    } catch (err) {
+      console.error('[FCM] Failed to save token to Postgres:', err);
+    }
+  } else {
+    console.log(`[FCM] Postgres not ready, token only saved in memory`);
+  }
+  res.json({ success: true, stored: pgReady ? 'postgres+memory' : 'memory-only' });
+});
+
+app.get('/api/fcm-tokens', async (req, res) => {
+  if (pgReady) {
+    try {
+      const tokens = await pgGetAll('fcm_tokens');
+      res.json({ success: true, count: tokens.length, tokens });
+      return;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  res.json({ success: true, count: fcmTokens.size, tokens: Array.from(fcmTokens.entries()).map(([userId, token]) => ({ userId, token })) });
+});
+
+app.get('/api/diagnose-push', async (req, res) => {
+  const report: any = {
+    hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT1,
+    serviceAccountLength: process.env.FIREBASE_SERVICE_ACCOUNT1?.length || 0,
+    projectId: process.env.FIREBASE_PROJECT_ID || 'canteen2-0 (default)',
+    pgReady,
+  };
+
+  if (process.env.FIREBASE_SERVICE_ACCOUNT1) {
+    try {
+      const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT1);
+      report.serviceAccountProjectId = sa.project_id;
+      report.hasClientEmail = !!sa.client_email;
+      report.hasPrivateKey = !!sa.private_key;
+      report.privateKeyLength = sa.private_key?.length || 0;
+      report.privateKeyHasNewlines = sa.private_key?.includes('\n') ?? false;
+
+      const accessToken = await getFcmAccessToken();
+      report.hasAccessToken = !!accessToken;
+      report.accessTokenLength = accessToken?.length || 0;
+
+      if (accessToken) {
+        report.fcmAuthStatus = 'SUCCESS';
+      } else {
+        report.fcmAuthStatus = 'FAILED - could not get access token';
+      }
+    } catch (e: any) {
+      report.parseError = e.message;
+      report.fcmAuthStatus = 'FAILED - parse error';
+    }
+  } else {
+    report.fcmAuthStatus = 'FAILED - not set';
+  }
+
+  const tokens = fcmTokens.size;
+  report.inMemoryTokens = tokens;
+
+  if (pgReady) {
+    try {
+      const pgTokens = await pgGetAll('fcm_tokens');
+      report.pgTokenCount = pgTokens.length;
+    } catch (e: any) {
+      report.pgTokenError = e.message;
+    }
+  }
+
+  res.json(report);
+});
+
+app.post('/api/test-push', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ success: false, error: 'userId required' });
+  }
+
+  let token = fcmTokens.get(userId);
+  let tokenSource = 'memory';
+
+  if (!token && pgReady) {
+    try {
+      const doc = await pgGetById('fcm_tokens', userId);
+      if (doc && (doc as any).fcmToken) {
+        token = (doc as any).fcmToken;
+        tokenSource = 'postgres';
+      }
+    } catch (err) {}
+  }
+
+  if (!token) {
+    return res.json({ success: false, error: 'No FCM token found for this user', tokenSource });
+  }
+
+  const accessToken = await getFcmAccessToken();
+  if (!accessToken) {
+    return res.json({ success: false, error: 'Failed to get FCM access token' });
+  }
+
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'canteen2-0';
+  try {
+    const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          token,
+          notification: { title: '🔔 Test Push', body: 'Push notifications are working!' },
+          data: { type: 'test' },
+          android: {
+            priority: 'high',
+          },
+        },
+      }),
+    });
+    const respBody = await resp.json();
+    res.json({
+      success: resp.ok,
+      httpStatus: resp.status,
+      fcmResponse: respBody,
+      tokenSource,
+      projectId,
+    });
+  } catch (e: any) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+app.delete('/api/fcm-token/:userId', async (req, res) => {
+  fcmTokens.delete(req.params.userId);
+  if (pgReady) {
+    try { await pgDelete('fcm_tokens', req.params.userId); } catch (_) {}
+  }
+  res.json({ success: true });
+});
+
+// Load FCM tokens from Postgres on startup
+async function loadFcmTokens() {
+  if (!pgReady) return;
+  try {
+    const tokens = await pgGetAll('fcm_tokens');
+    for (const t of tokens) {
+      if (t.userId && t.fcmToken) {
+        fcmTokens.set(t.userId, t.fcmToken);
+      }
+    }
+    console.log(`Loaded ${tokens.length} FCM tokens from Postgres`);
+  } catch (err) {
+    console.log('No fcm_tokens table found (will be created on first token registration)');
+  }
+}
+
+// ─── PUSH NOTIFICATION HELPER ──────────────────────────────
+async function sendPushNotification(userId: string, title: string, body: string, data: Record<string, string> = {}) {
+  let token = fcmTokens.get(userId);
+
+  if (!token && pgReady) {
+    try {
+      const doc = await pgGetById('fcm_tokens', userId);
+      if (doc && (doc as any).fcmToken) {
+        token = (doc as any).fcmToken;
+        fcmTokens.set(userId, token!);
+        console.log(`[Push] Loaded token from Postgres for ${userId}`);
+      }
+    } catch (err) {
+      console.error('[Push] Failed to load token from Postgres:', err);
+    }
+  }
+
+  if (!token) {
+    console.log(`[Push] No FCM token for user ${userId}, skipping push`);
+    return;
+  }
+
+  const accessToken = await getFcmAccessToken();
+  if (!accessToken) {
+    console.log(`[Push] Failed to get FCM access token, skipping push for ${userId}`);
+    return;
+  }
+
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'canteen2-0';
+  try {
+    const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          token,
+          notification: { title, body },
+          data,
+          android: {
+            priority: 'high',
+          },
+        },
+      }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`[Push] FCM send failed for ${userId}: ${resp.status} - ${errText}`);
+      if (resp.status === 404 || resp.status === 403) {
+        fcmTokens.delete(userId);
+        console.log(`[Push] Removed invalid FCM token for user ${userId}`);
+      }
+    } else {
+      console.log(`[Push] ✅ Push sent to ${userId}: ${title}`);
+    }
+  } catch (e) {
+    console.error(`[Push] FCM error for ${userId}:`, e);
+  }
+}
+
+async function getFcmAccessToken(): Promise<string> {
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT1;
+  if (!serviceAccount) return '';
+  try {
+    const sa = JSON.parse(serviceAccount);
+    const now = Math.floor(Date.now() / 1000);
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({
+      iss: sa.client_email,
+      scope: 'https://www.googleapis.com/auth/firebase.messaging',
+      aud: 'https://oauth2.googleapis.com/token',
+      iat: now,
+      exp: now + 3600,
+    })).toString('base64url');
+    const signInput = `${header}.${payload}`;
+    const sign = crypto.createSign('RSA-SHA256').update(signInput).sign(sa.private_key, 'base64url');
+    const jwt = `${signInput}.${sign}`;
+    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+    });
+    const tokenData = await tokenResp.json();
+    return tokenData.access_token || '';
+  } catch (e) {
+    console.error('FCM auth error:', e);
+    return '';
+  }
+}
+
+// ─── ORDER STATUS NOTIFICATION HOOK ──────────────────────────
+async function notifyOrderStatus(order: any, oldStatus: string, newStatus: string) {
+  const userId = order.userId;
+  if (!userId) return;
+
+  const orderId = order.id;
+
+  switch (newStatus) {
+    case 'scheduled':
+    case 'pending':
+      await sendPushNotification(userId, '✅ Order Confirmed', `Your order ${orderId} has been received and is being processed.`, { orderId, status: newStatus });
+      break;
+    case 'preparing':
+      await sendPushNotification(userId, '👨‍🍳 Preparing Your Food', `Chef is now preparing your order ${orderId}.`, { orderId, status: newStatus });
+      break;
+    case 'ready':
+      await sendPushNotification(userId, '🟢 Ready to Collect!', `Your order ${orderId} is ready! Please collect from the counter.`, { orderId, status: newStatus });
+      break;
+    case 'collected':
+    case 'delivered':
+      await sendPushNotification(userId, '🎉 Order Collected', `Order ${orderId} has been collected. Thank you!`, { orderId, status: newStatus });
+      break;
+    case 'expired':
+      await sendPushNotification(userId, '⏰ Order Expired', `Order ${orderId} has expired. Please place a new order.`, { orderId, status: newStatus });
+      break;
+    case 'cancelled':
+      await sendPushNotification(userId, '❌ Order Cancelled', `Order ${orderId} has been cancelled.`, { orderId, status: newStatus });
+      break;
+  }
+}
 
 
 
