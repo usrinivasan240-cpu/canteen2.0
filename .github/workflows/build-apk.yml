@@ -25,6 +25,40 @@ jobs:
         run: flutter pub get
         working-directory: escq_canteen
 
+      - name: Create google-services.json
+        run: |
+          cat > escq_canteen/android/app/google-services.json << 'EOF'
+          {
+            "project_info": {
+              "project_number": "123456789012",
+              "project_id": "canteen2-placeholder",
+              "storage_bucket": "canteen2-placeholder.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:123456789012:android:abcdef123456",
+                  "android_client_info": {
+                    "package_name": "com.escq.canteen"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "PLACEHOLDER_API_KEY"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+        shell: bash
+
       - name: Build APK
         run: flutter build apk --release
         working-directory: escq_canteen
