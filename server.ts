@@ -1385,18 +1385,24 @@ app.delete('/api/colleges/:id', async (req, res) => {
 
 // --- Canteens CRUD ---
 app.get('/api/canteens', async (req, res) => {
-  const cached = getCached('canteens');
-  if (cached) return res.json({ success: true, canteens: cached });
+  const { ownerId } = req.query;
   if (pgReady) {
     try {
-      const list = await pgGetAll('canteens');
-      setCache('canteens', list);
+      let list = await pgGetAll('canteens');
+      if (ownerId) {
+        list = list.filter((c: any) => c.ownerId === ownerId);
+      }
       return res.json({ success: true, canteens: list });
     } catch (e) {
       console.error(e);
+      return res.status(500).json({ success: false, error: 'Failed to fetch canteens' });
     }
   }
-  res.json({ success: true, canteens: canteensState });
+  let list = canteensState;
+  if (ownerId) {
+    list = list.filter((c: any) => c.ownerId === ownerId);
+  }
+  res.json({ success: true, canteens: list });
 });
 
 app.post('/api/canteens', async (req, res) => {

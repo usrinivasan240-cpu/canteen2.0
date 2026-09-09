@@ -141,6 +141,36 @@ export default function App() {
     return () => clearInterval(interval);
   }, [selectedCanteenId]);
 
+  // Fetch owner's canteen and set as selected
+  const fetchOwnerCanteen = async () => {
+    if (role !== 'owner' || !currentUser?.id) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/canteens?ownerId=${currentUser.id}`);
+      const data = await resp.json();
+      if (data.success && data.canteens && data.canteens.length > 0) {
+        const ownerCanteen = data.canteens[0];
+        if (ownerCanteen.id !== selectedCanteenId) {
+          setSelectedCanteenId(ownerCanteen.id);
+          await fetchCanteenData(ownerCanteen.id);
+        }
+      } else if (currentUser.canteenId && currentUser.canteenId !== selectedCanteenId) {
+        // Fallback to user's canteenId if available
+        setSelectedCanteenId(currentUser.canteenId);
+        await fetchCanteenData(currentUser.canteenId);
+      }
+    } catch (e) {
+      console.error('Failed to fetch owner canteen:', e);
+    }
+  };
+
+  // Fetch colleges - hydrate from cache first, then refresh
+  // Fetch owner's canteen when owner logs in
+  useEffect(() => {
+    if (role === 'owner' && isLoggedIn) {
+      fetchOwnerCanteen();
+    }
+  }, [role, isLoggedIn]);
+
   // Fetch colleges - hydrate from cache first, then refresh
   useEffect(() => {
     if (isLoggedIn) {
