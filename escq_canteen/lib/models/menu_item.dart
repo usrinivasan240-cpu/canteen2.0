@@ -18,6 +18,9 @@ class MenuItem {
   final String? subCanteenId;
   final String? collegeId;
   final bool requiresChef;
+  final String? primaryChefId;
+  final String? backupChefId;
+  final String preparationType; // COOKABLE | READY_TO_SERVE
 
   MenuItem({
     required this.id,
@@ -39,7 +42,13 @@ class MenuItem {
     this.subCanteenId,
     this.collegeId,
     this.requiresChef = true,
+    this.primaryChefId,
+    this.backupChefId,
+    this.preparationType = 'COOKABLE',
   });
+
+  bool get isCookable => requiresChef && preparationType == 'COOKABLE';
+  bool get isReadyToServe => !requiresChef || preparationType == 'READY_TO_SERVE';
 
   bool get inStock => stock > 0 && bookedToday < dailyLimit && !isPaused;
 
@@ -64,6 +73,9 @@ class MenuItem {
       subCanteenId: json['subCanteenId'],
       collegeId: json['collegeId'],
       requiresChef: json['requiresChef'] != false,
+      primaryChefId: json['primaryChefId']?.toString(),
+      backupChefId: json['backupChefId']?.toString(),
+      preparationType: json['preparationType']?.toString() ?? 'COOKABLE',
     );
   }
 }

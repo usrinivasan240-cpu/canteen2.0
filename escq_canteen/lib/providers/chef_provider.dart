@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/chef.dart'
+import '../models/chef.dart';
 import '../services/api_service.dart';
 
 class ChefProvider extends ChangeNotifier {
@@ -71,9 +71,38 @@ class ChefProvider extends ChangeNotifier {
       final response = await _api.getKitchenTasks(canteenId: canteenId, chefId: chefId);
       if (response['success'] == true && response['tasks'] != null) {
         _kitchenTasks = response['tasks'];
+        notifyListeners();
       }
     } catch (e) {
       debugPrint('Failed to load kitchen tasks: $e');
+    }
+  }
+
+  Future<bool> updateKitchenTaskStatus({
+    required String taskId,
+    required String status,
+  }) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final response = await _api.updateKitchenTaskStatus(
+        taskId: taskId,
+        status: status,
+      );
+
+      if (response['success'] == true) {
+        await loadKitchenTasks(); // Reload to get updated status
+        return true;
+      } else {
+        _setError(response['error'] ?? 'Failed to update task status');
+        return false;
+      }
+    } catch (e) {
+      _setError('Failed to update task status: $e');
+      return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
@@ -228,8 +257,9 @@ class ChefProvider extends ChangeNotifier {
 
   Future<bool> assignItemToChef({
     required String itemId,
-    required String chefId,
-    bool isBackup = false,
+    String? primaryChefId,
+    String? backupChefId,
+    String? preparationType,
   }) async {
     _setLoading(true);
     _clearError();
@@ -237,8 +267,9 @@ class ChefProvider extends ChangeNotifier {
     try {
       final response = await _api.assignChefToItem(
         itemId: itemId,
-        chefId: chefId,
-        isBackup: isBackup,
+        primaryChefId: primaryChefId,
+        backupChefId: backupChefId,
+        preparationType: preparationType,
       );
 
       if (response['success'] == true) {
@@ -253,20 +284,5 @@ class ChefProvider extends ChangeNotifier {
     } finally {
       _setLoading(false);
     }
-  }
-
-  void _setLoading(bool value) {
-    _loading = value;
-    notifyListeners();
-  }
-
-  void _setError(String message) {
-    _error = message;
-    notifyListeners();
-  }
-
-  void _clearError() {
-    _error = null;
-    notifyListeners();
   }
 }

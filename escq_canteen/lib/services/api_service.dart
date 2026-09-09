@@ -6,6 +6,7 @@ import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../models/college.dart';
 import '../models/review.dart';
+import '../models/chef.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._();
@@ -366,7 +367,7 @@ class ApiService {
     });
   }
 
-  Future<Map<String, dynamic>> requestRefund({
+Future<Map<String, dynamic>> requestRefund({
     required String transactionId,
     required int amount,
     required String idempotencyKey,
@@ -378,4 +379,108 @@ class ApiService {
     });
   }
 
+  // ── CHEFS ──
+  Future<Map<String, dynamic>> getChefs({String? canteenId}) async {
+    final params = <String, String>{};
+    if (canteenId != null) params['canteenId'] = canteenId;
+    return _get('/api/chefs', params);
   }
+
+  Future<Map<String, dynamic>> createChef({
+    required String canteenId,
+    required String name,
+    String? phone,
+    String? email,
+    List<String> specialization = const [],
+    String? userId,
+  }) async {
+    return _post('/api/chefs', {
+      'canteenId': canteenId,
+      'name': name,
+      if (phone != null) 'phone': phone,
+      if (email != null) 'email': email,
+      'specialization': specialization,
+      if (userId != null) 'userId': userId,
+    });
+  }
+
+  Future<Map<String, dynamic>> updateChef({
+    required String chefId,
+    String? name,
+    String? phone,
+    String? email,
+    List<String>? specialization,
+    String? status,
+    bool? isAvailable,
+  }) async {
+    final body = <String, dynamic>{};
+    if (name != null) body['name'] = name;
+    if (phone != null) body['phone'] = phone;
+    if (email != null) body['email'] = email;
+    if (specialization != null) body['specialization'] = specialization;
+    if (status != null) body['status'] = status;
+    if (isAvailable != null) body['isAvailable'] = isAvailable;
+    return _post('/api/chefs/$chefId', body);
+  }
+
+  Future<Map<String, dynamic>> deleteChef({required String chefId}) async {
+    final resp = await http.delete(
+      Uri.parse('$_baseUrl/api/chefs/$chefId'),
+      headers: {'Content-Type': 'application/json'},
+    ).timeout(_timeout);
+    final data = jsonDecode(resp.body);
+    if (resp.statusCode >= 500 && data['error'] != null) {
+      return {'success': false, 'error': data['error'], 'retryable': true};
+    }
+    return data;
+  }
+
+  Future<Map<String, dynamic>> setChefLeave({
+    required String chefId,
+    required int startDate,
+    required int endDate,
+    String? reason,
+  }) async {
+    return _post('/api/chefs/$chefId/leave', {
+      'startDate': startDate,
+      'endDate': endDate,
+      if (reason != null) 'reason': reason,
+    });
+  }
+
+  Future<Map<String, dynamic>> getChefLeave({String? chefId}) async {
+    final params = <String, String>{};
+    if (chefId != null) params['chefId'] = chefId;
+    return _get('/api/chefs/leave', params);
+  }
+
+  // ── KITCHEN TASKS ──
+  Future<Map<String, dynamic>> getKitchenTasks({String? canteenId, String? chefId}) async {
+    final params = <String, String>{};
+    if (canteenId != null) params['canteenId'] = canteenId;
+    if (chefId != null) params['chefId'] = chefId;
+    return _get('/api/kitchen/tasks', params);
+  }
+
+  Future<Map<String, dynamic>> updateKitchenTaskStatus({
+    required String taskId,
+    required String status,
+  }) async {
+    return _post('/api/kitchen/tasks/$taskId/status', {'status': status});
+  }
+
+  // ── ITEM CHEF ASSIGNMENT ──
+  Future<Map<String, dynamic>> assignChefToItem({
+    required String itemId,
+    String? primaryChefId,
+    String? backupChefId,
+    String? preparationType,
+  }) async {
+    return _post('/api/items/$itemId/assign-chef', {
+      if (primaryChefId != null) 'primaryChefId': primaryChefId,
+      if (backupChefId != null) 'backupChefId': backupChefId,
+      if (preparationType != null) 'preparationType': preparationType,
+    });
+  }
+
+}
