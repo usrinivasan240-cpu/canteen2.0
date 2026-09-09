@@ -3453,6 +3453,103 @@ export default function CanteenAdmin({
         </div>
       )}
 
+      {/* CHEF FORM MODAL */}
+      {showChefForm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-red-100 max-h-[90vh] overflow-y-auto">
+            <div className="bg-red-50 px-6 py-4 border-b border-red-100 flex items-center justify-between">
+              <h3 className="font-display font-bold text-sm text-gray-900">{editingChef ? 'Edit Chef' : 'Add New Chef'}</h3>
+              <button onClick={() => { setShowChefForm(false); setEditingChef(null); }} className="p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-gray-650 transition cursor-pointer">
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 text-xs font-sans">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Chef Name</label>
+                <input type="text" required value={chefForm.name} onChange={(e) => setChefForm({ ...chefForm, name: e.target.value })} placeholder="e.g. Chef Rajesh" className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Phone</label>
+                <input type="text" value={chefForm.phone} onChange={(e) => setChefForm({ ...chefForm, phone: e.target.value })} placeholder="+91 98765 43210" className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Email</label>
+                <input type="email" value={chefForm.email} onChange={(e) => setChefForm({ ...chefForm, email: e.target.value })} placeholder="chef@college.edu" className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Specialization</label>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {['North Indian', 'South Indian', 'Chinese', 'Continental', 'Bakery', 'Beverages', 'Grill', 'Desserts'].map(spec => (
+                    <label key={spec} className="flex items-center space-x-2 cursor-pointer p-1.5 rounded hover:bg-red-50">
+                      <input type="checkbox" checked={chefForm.specialization.includes(spec)} onChange={(e) => { const specs = chefForm.specialization; setChefForm({ ...chefForm, specialization: e.target.checked ? [...specs, spec] : specs.filter(s => s !== spec) }); }} className="rounded border-red-300 text-amber-600 focus:ring-amber-500" />
+                      <span className="text-xs text-gray-700">{spec}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Status</label>
+                <select value={chefForm.status} onChange={(e) => setChefForm({ ...chefForm, status: e.target.value as 'AVAILABLE' | 'UNAVAILABLE' | 'ON_LEAVE' | 'INACTIVE' })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium">
+                  <option value="AVAILABLE">Available</option>
+                  <option value="UNAVAILABLE">Unavailable</option>
+                  <option value="ON_LEAVE">On Leave</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Linked User ID (Optional)</label>
+                <input type="text" value={chefForm.userId} onChange={(e) => setChefForm({ ...chefForm, userId: e.target.value })} placeholder="Leave empty for auto-assignment" className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+              </div>
+              <button onClick={saveChef} className="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-xs font-bold transition shadow-md cursor-pointer">
+                {editingChef ? 'Update Chef' : 'Create Chef'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LEAVE FORM MODAL */}
+      {showLeaveForm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-red-100 max-h-[90vh] overflow-y-auto">
+            <div className="bg-red-50 px-6 py-4 border-b border-red-100 flex items-center justify-between">
+              <h3 className="font-display font-bold text-sm text-gray-900">Add Chef Leave</h3>
+              <button onClick={() => { setShowLeaveForm(false); }} className="p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-gray-650 transition cursor-pointer">
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 text-xs font-sans">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Select Chef</label>
+                <select value={leaveForm.chefId} onChange={(e) => setLeaveForm({ ...leaveForm, chefId: e.target.value })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium">
+                  <option value="">Select Chef</option>
+                  {chefs.filter(c => c.status === 'AVAILABLE' || c.status === 'UNAVAILABLE').map(chef => (
+                    <option key={chef.id} value={chef.id}>{chef.name} ({chef.specialization?.join(', ') || 'General'})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Start Date & Time</label>
+                  <input type="datetime-local" required value={leaveForm.startDate} onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">End Date & Time</label>
+                  <input type="datetime-local" required value={leaveForm.endDate} onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })} className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Reason (Optional)</label>
+                <input type="text" value={leaveForm.reason} onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })} placeholder="e.g. Vacation, Medical, Personal" className="w-full bg-red-50/40 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs" />
+              </div>
+              <button onClick={saveChefLeave} className="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-xs font-bold transition shadow-md cursor-pointer">
+                Save Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CONFIRM SAVE DIALOG */}
       {showConfirmSave && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => !isSaving && setShowConfirmSave(false)}>

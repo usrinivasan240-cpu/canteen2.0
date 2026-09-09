@@ -116,6 +116,7 @@ export interface Order {
   canteenId?: string;
   subCanteenId?: string;
   collegeId?: string;
+  platformFee?: number;
 }
 
 export interface Ingredient {
@@ -195,11 +196,21 @@ export interface PlatformFeeTier {
   feeAmount: number;             // platform fee for this tier
 }
 
+export interface PaytmConfig {
+  enabled: boolean;
+  merchantId?: string;
+  merchantKey?: string;
+  website?: string;
+  channelId?: string;
+  industryType?: string;
+  callbackUrl?: string;
+}
+
 export interface RazorpayConfig {
   enabled: boolean;
   accountId?: string;
   keyId?: string;
-  keySecret?: string; // encrypted or stored securely
+  keySecret?: string;
   webhookSecret?: string;
 }
 
@@ -215,6 +226,7 @@ export interface College {
   status: 'active' | 'inactive';
   platformFees?: PlatformFeesConfig;
   razorpayConfig?: RazorpayConfig;
+  paytmConfig?: PaytmConfig;
 }
 
 export interface Canteen {

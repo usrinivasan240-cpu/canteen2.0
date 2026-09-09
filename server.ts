@@ -2291,8 +2291,75 @@ app.post('/api/canteen/order', async (req, res) => {
     }
   }
 
+  // Calculate platform fee based on college configuration
+  async function calculatePlatformFee(collegeId: string, amount: number): Promise<number> {
+    try {
+      let college: any = null;
+      if (pgReady) {
+        college = await pgGetById('colleges', collegeId);
+      } else {
+        college = collegesState.find((c: any) => c.id === collegeId);
+      }
+      if (!college || !college.platformFees) return 0;
+
+      const pf = college.platformFees;
+      switch (pf.type) {
+        case 'free':
+          return 0;
+        case 'flat':
+          return pf.flatAmount || 0;
+        case 'percentage':
+          return Math.round((amount * (pf.percentage || 0)) / 100);
+        case 'tiered':
+          if (pf.tiers && Array.isArray(pf.tiers)) {
+            for (const tier of pf.tiers) {
+              const min = tier.minAmount || 0;
+              const max = tier.maxAmount || Infinity;
+              if (amount >= min && (max === Infinity || amount <= max)) {
+                return tier.feeAmount || 0;
+              }
+            }
+          }
+          return 0;
+        case 'custom':
+          if (pf.customFormula) {
+            try {
+              const amountVar = amount;
+              // eslint-disable-next-line no-new-func
+              const fn = new Function('amount', `return ${pf.customFormula}`);
+              return Math.round(fn(amountVar));
+            } catch (e) {
+              console.error('Custom platform fee formula error:', e);
+              return 0;
+            }
+          }
+          return 0;
+        default:
+          return 0;
+      }
+    } catch (e) {
+      console.error('Platform fee calculation error:', e);
+      return 0;
+    }
+  }
+
+  // Get college ID from canteen
+  let collegeId = 'college_001';
+  try {
+    let canteen: any = null;
+    if (pgReady) {
+      canteen = await pgGetById('canteens', canteenId || 'canteen_001');
+    } else {
+      canteen = canteensState.find((c: any) => c.id === (canteenId || 'canteen_001'));
+    }
+    if (canteen?.collegeId) collegeId = canteen.collegeId;
+  } catch (e) {
+    console.warn('Failed to get college ID for platform fee:', e);
+  }
+
+  const platformFee = await calculatePlatformFee(collegeId, foodAmount);
   const convenienceFee = foodAmount > 0 ? Math.ceil(foodAmount / 100) : 0;
-  const subtotal = foodAmount + convenienceFee;
+  const subtotal = foodAmount + convenienceFee + platformFee;
   const orderId = `ORD_${Math.floor(1000 + Math.random() * 9000)}`;
 
   const pickupTimestamp = parseSlotToTimestamp(selectedSlot);
@@ -2340,7 +2407,9 @@ app.post('/api/canteen/order', async (req, res) => {
         prepStartTime,
         expiryTime,
         canteenId: canteenId || 'canteen_001',
-        subCanteenId: subCanteenId || 'sub_001'
+        subCanteenId: subCanteenId || 'sub_001',
+        collegeId: collegeId,
+        platformFee: platformFee,
       };
 
       if (pgReady) {
