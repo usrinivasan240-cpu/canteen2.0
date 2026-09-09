@@ -69,6 +69,18 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
+// Active users tracking (in-memory, single instance)
+let activeUsers = 0;
+app.use((req, res, next) => {
+  activeUsers++;
+  res.on('finish', () => { activeUsers--; });
+  next();
+});
+
+app.get('/api/stats/active-users', (req, res) => {
+  res.json({ activeUsers });
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
