@@ -11,7 +11,7 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createClient, SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
-import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User } from './src/types';
+import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User, Chef, ChefLeave } from './src/types';
 import { pgGetById, pgGetAll, pgGetWhere, pgGetWhereOrdered, pgSet, pgUpdate, pgDelete, pgDeleteWhere, pgIncrement, pgGetByEmail, isPgAvailable, query, queryOne, execute } from './db';
 
 // Load environment variables
@@ -4195,6 +4195,176 @@ app.post('/api/canteen/review', async (req, res) => {
   }
 
   res.json({ success: true, review: newReview, message: 'Review added. Sentiment calculated.' });
+});
+
+// ─── CHEFS API ───
+// GET /api/chefs — list chefs for a canteen
+app.get('/api/chefs', async (req, res) => {
+  try {
+    const { canteenId } = req.query;
+    if (!canteenId) {
+      return res.status(400).json({ success: false, error: 'canteenId required' });
+    }
+    let chefs: Chef[] = [];
+    if (pgReady) {
+      chefs = await pgGetWhere('chefs', { canteen_id: canteenId });
+    } else {
+      chefs = ((canteenState as any).chefs || []).filter((c: any) => c.canteenId === canteenId);
+    }
+    res.json({ success: true, chefs });
+  } catch (err: any) {
+    console.error('[Chefs] List error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to load chefs' });
+  }
+});
+
+// POST /api/chefs — create chef
+app.post('/api/chefs', async (req, res) => {
+  try {
+    const { canteenId, name, phone, email, specialization, userId } = req.body;
+    if (!canteenId || !name) {
+      return res.status(400).json({ success: false, error: 'canteenId and name required' });
+    }
+    const chefId = `chef_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const newChef: Chef = {
+      id: chefId,
+      canteenId,
+      name,
+      phone: phone || '',
+      email: email || '',
+      specialization: specialization || [],
+      userId: userId || null,
+      status: 'AVAILABLE',
+      isAvailable: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    if (pgReady) {
+      await pgSet('chefs', chefId, newChef);
+    } else {
+      (canteenState as any).chefs = (canteenState as any).chefs || [];
+      (canteenState as any).chefs.push(newChef);
+    }
+    console.log('[Chefs] Created:', newChef.name);
+    res.json({ success: true, chef: newChef });
+  } catch (err: any) {
+    console.error('[Chefs] Create error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to create chef' });
+  }
+});
+
+// PUT /api/chefs/:id — update chef
+app.put('/api/chefs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, phone, email, specialization, status, isAvailable } = req.body;
+    let chef: Chef | undefined;
+    if (pgReady) {
+      chef = await pgGetById('chefs', id);
+    } else {
+      chef = ((canteenState as any).chefs || []).find((c: any) => c.id === id);
+    }
+    if (!chef) {
+      return res.status(404).json({ success: false, error: 'Chef not found' });
+    }
+    if (name !== undefined) chef.name = name;
+    if (phone !== undefined) chef.phone = phone;
+    if (email !== undefined) chef.email = email;
+    if (specialization !== undefined) chef.specialization = specialization;
+    if (status !== undefined) {
+      chef.status = status;
+      chef.isAvailable = status === 'AVAILABLE';
+    }
+    if (isAvailable !== undefined) chef.isAvailable = isAvailable;
+    chef.updatedAt = Date.now();
+    if (pgReady) {
+      await pgSet('chefs', id, chef);
+    }
+    console.log('[Chefs] Updated:', chef.name);
+    res.json({ success: true, chef });
+  } catch (err: any) {
+    console.error('[Chefs] Update error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to update chef' });
+  }
+});
+
+// DELETE /api/chefs/:id — delete chef
+app.delete('/api/chefs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (pgReady) {
+      await pgDelete('chefs', id);
+    }
+    if ((canteenState as any).chefs) {
+      (canteenState as any).chefs = (canteenState as any).chefs.filter((c: any) => c.id !== id);
+    }
+    console.log(`[Chefs] Deleted: ${id}`);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Chefs] Delete error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to delete chef' });
+  }
+});
+
+// POST /api/chefs/:id/leave — set chef leave
+app.post('/api/chefs/:id/leave', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate, reason } = req.body;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: 'startDate and endDate required' });
+    }
+    const leaveId = `leave_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const newLeave: ChefLeave = {
+      id: leaveId,
+      chefId: id,
+      startDate,
+      endDate,
+      reason: reason || '',
+      createdAt: Date.now(),
+    };
+    if (pgReady) {
+      await pgSet('chef_leave', leaveId, newLeave);
+    } else {
+      (canteenState as any).chefLeave = (canteenState as any).chefLeave || [];
+      (canteenState as any).chefLeave.push(newLeave);
+    }
+    console.log('[Chefs] Leave added for chef:', id);
+    res.json({ success: true, leave: newLeave });
+  } catch (err: any) {
+    console.error('[Chefs] Leave error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to set leave' });
+  }
+});
+
+// GET /api/chefs/leaves — get chef leaves
+app.get('/api/chefs/leaves', async (req, res) => {
+  try {
+    const { canteenId, chefId } = req.query;
+    let leaves: ChefLeave[] = [];
+    if (pgReady) {
+      if (chefId) {
+        leaves = await pgGetWhere('chef_leave', { chef_id: chefId });
+      } else {
+        // Get all chefs for this canteen first
+        const chefs = await pgGetWhere('chefs', { canteen_id: canteenId });
+        const chefIds = chefs.map((c: any) => c.id);
+        if (chefIds.length > 0) {
+          const allLeaves = await pgGetWhere('chef_leave', {});
+          leaves = allLeaves.filter((l: any) => chefIds.includes(l.chef_id));
+        }
+      }
+    } else {
+      leaves = (canteenState as any).chefLeave || [];
+      if (chefId) {
+        leaves = leaves.filter((l: any) => l.chefId === chefId);
+      }
+    }
+    res.json({ success: true, leave: leaves });
+  } catch (err: any) {
+    console.error('[Chefs] Leave list error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to load leaves' });
+  }
 });
 
 // 7. Reset state (for demo debugging)
