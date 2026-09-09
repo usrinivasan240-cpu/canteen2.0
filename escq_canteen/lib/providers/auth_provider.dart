@@ -13,6 +13,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isCustomer => user?.isCustomer ?? false;
   bool get isStaff => user?.isStaff ?? false;
   bool get isChef => user?.isChef ?? false;
+  bool get isOwner => user?.isOwner ?? false;
 
   bool _loading = false;
   bool get loading => _loading;

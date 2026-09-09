@@ -13,6 +13,8 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { createClient, SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
 import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User, Chef, ChefLeave } from './src/types';
 import { pgGetById, pgGetAll, pgGetWhere, pgGetWhereOrdered, pgSet, pgUpdate, pgDelete, pgDeleteWhere, pgIncrement, pgGetByEmail, isPgAvailable, query, queryOne, execute } from './db';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 
 // Load environment variables
 dotenv.config();
@@ -46,6 +48,26 @@ function supabaseNotConfigured(res: any) {
 
 const app = express();
 const PORT = 3000;
+
+// Security: Helmet for security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for now to avoid breaking inline scripts
+  crossOriginEmbedderPolicy: false,
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  noSniff: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  xssFilter: true,
+}));
+
+// Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // limit each IP to 200 requests per windowMs
+  message: { success: false, error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', apiLimiter);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -145,6 +167,22 @@ async function requireManagementAccess(req: any, res: any, next: any) {
   } catch {
     return res.status(500).json({ success: false, error: 'Authorization check failed' });
   }
+}
+
+// Role-based access control
+function requireRole(allowedRoles: string[]) {
+  return async (req: any, res: any, next: any) => {
+    try {
+      const profile = await getCallerProfile(req);
+      if (!isProfileActive(profile) || !allowedRoles.includes(profile!.role)) {
+        return res.status(403).json({ success: false, error: 'Forbidden: insufficient role' });
+      }
+      (req as any).callerProfile = profile;
+      next();
+    } catch {
+      return res.status(500).json({ success: false, error: 'Authorization check failed' });
+    }
+  };
 }
 
 // ============================================================================
@@ -257,6 +295,19 @@ app.use('/api/canteen/settings', (req, res, next) => {
 app.use('/api/support-tickets', (req, res, next) => {
   if (req.method === 'GET') return next();
   authMiddleware(req, res, next);
+});
+// Chefs & Kitchen: owner/superadmin for writes, chef for kitchen tasks
+app.use('/api/chefs', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, () => requireManagementAccess(req, res, next));
+});
+app.use('/api/kitchen', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, () => requireRole(['owner', 'superadmin', 'chef'])(req, res, next));
+});
+app.use('/api/items', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, () => requireManagementAccess(req, res, next));
 });
 
 // Razorpay configuration
