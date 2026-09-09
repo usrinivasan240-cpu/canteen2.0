@@ -171,7 +171,10 @@ export default function CanteenAdmin({
   };
 
   const saveChef = async () => {
-    if (!canteenId) return;
+    if (!canteenId) {
+      alert('Error: No canteen ID available. Please select a canteen first.');
+      return;
+    }
     try {
       const payload = {
         ...chefForm,
@@ -181,15 +184,24 @@ export default function CanteenAdmin({
       };
       const url = editingChef ? `${API_BASE}/api/chefs/${editingChef.id}` : `${API_BASE}/api/chefs`;
       const method = editingChef ? 'PUT' : 'POST';
+      console.log('[Chef] Saving:', { url, method, payload });
       const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      console.log('[Chef] Response status:', resp.status);
       const data = await resp.json();
+      console.log('[Chef] Response data:', data);
       if (data.success) {
         setShowChefForm(false);
         setEditingChef(null);
         setChefForm({ name: '', phone: '', email: '', specialization: [], status: 'AVAILABLE', userId: '' });
         fetchChefs();
+        alert(editingChef ? 'Chef updated successfully!' : 'Chef created successfully!');
+      } else {
+        alert('Failed to save chef: ' + (data.error || 'Unknown error'));
       }
-    } catch (e) { console.error('Failed to save chef:', e); }
+    } catch (e) {
+      console.error('Failed to save chef:', e);
+      alert('Network error: ' + e.message);
+    }
   };
 
   const deleteChef = async (id: string) => {
@@ -221,22 +233,38 @@ export default function CanteenAdmin({
   };
 
   const saveChefLeave = async () => {
-    if (!canteenId) return;
+    if (!canteenId) {
+      alert('Error: No canteen ID available.');
+      return;
+    }
+    if (!leaveForm.chefId) {
+      alert('Please select a chef.');
+      return;
+    }
     try {
       const payload = {
         ...leaveForm,
         startDate: new Date(leaveForm.startDate).getTime(),
         endDate: new Date(leaveForm.endDate).getTime()
       };
+      console.log('[Chef Leave] Saving:', { payload });
       const resp = await fetch(`${API_BASE}/api/chefs/${leaveForm.chefId}/leave`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      console.log('[Chef Leave] Response status:', resp.status);
       const data = await resp.json();
+      console.log('[Chef Leave] Response data:', data);
       if (data.success) {
         setShowLeaveForm(false);
         setLeaveForm({ chefId: '', startDate: '', endDate: '', reason: '' });
         fetchChefLeaves();
-        fetchChefs(); // refresh availability
+        fetchChefs();
+        alert('Leave added successfully!');
+      } else {
+        alert('Failed to add leave: ' + (data.error || 'Unknown error'));
       }
-    } catch (e) { console.error('Failed to save chef leave:', e); }
+    } catch (e) {
+      console.error('Failed to save chef leave:', e);
+      alert('Network error: ' + e.message);
+    }
   };
 
   const updateTaskStatus = async (taskId: string, status: KitchenTask['status']) => {
