@@ -1,0 +1,154 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with PgBouncer
+  postgres:
+    image: postgres:16-alpine
+    container_name: canteen_postgres
+    environment:
+      POSTGRES_DB: canteen
+      POSTGRES_USER: ${POSTGRES_USER:-canteen}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-canteen}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: canteen_pgbouncer
+    environment:
+      DATABASES_HOST: postgres
+      DATABASES_PORT: 5432
+      DATABASES_DBNAME: canteen
+      DATABASES_USER: ${POSTGRES_USER:-canteen}
+      DATABASES_PASSWORD: ${POSTGRES_PASSWORD}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 25
+      MIN_POOL_SIZE: 5
+      RESERVE_POOL_SIZE: 5
+      RESERVE_POOL_TIMEOUT: 5
+    ports:
+      - "6432:6432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "6432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching, rate limiting, sessions
+  redis:
+    image: redis:7-alpine
+    container_name: canteen_redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # API Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: canteen_api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Database (via PgBouncer)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-canteen}:${POSTGRES_PASSWORD}@pgbouncer:6432/canteen?pgbouncer=true&connection_limit=1
+      # Or direct for migrations
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: canteen
+      PGUSER: ${POSTGRES_USER:-canteen}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # Redis
+      REDIS_URL: redis://redis:6379
+      # Supabase
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      # Auth
+      JWT_SECRET: ${JWT_SECRET}
+      # Payment
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      VYAPAR_API_KEY: ${VYAPAR_API_KEY}
+      VYAPAR_MERCHANT_ID: ${VYAPAR_MERCHANT_ID}
+      VYAPAR_SECRET: ${VYAPAR_SECRET}
+      VYAPAR_BASE_URL: ${VYAPAR_BASE_URL}
+      # Google AI
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY}
+      # CORS
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://canteen20.vercel.app,https://staging.canteen20.vercel.app}
+      # Rate limiting
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX: 200
+      # Sentry
+      SENTRY_DSN: ${SENTRY_DSN}
+    ports:
+      - "3000:3000"
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (for production)
+  nginx:
+    image: nginx:alpine
+    container_name: canteen_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: canteen_network

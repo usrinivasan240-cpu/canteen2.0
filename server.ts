@@ -15,6 +15,9 @@ import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSetting
 import { pgGetById, pgGetAll, pgGetWhere, pgGetWhereOrdered, pgSet, pgUpdate, pgDelete, pgDeleteWhere, pgIncrement, pgGetByEmail, isPgAvailable, query, queryOne, execute } from './db';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import pino from 'pino';
+import * as Sentry from '@sentry/node';
+import { expressErrorHandler } from '@sentry/core';
 
 // Load environment variables
 dotenv.config();
@@ -45,6 +48,39 @@ function ensureSupabaseClients(): boolean {
 function supabaseNotConfigured(res: any) {
   return res.status(503).json({ success: false, error: 'Authentication server is not configured. Please contact support.' });
 }
+
+// Initialize Sentry
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    integrations: [
+      Sentry.httpIntegration(),
+      Sentry.expressIntegration(),
+    ],
+    tracesSampleRate: 0.1,
+    profilesSampleRate: 0.1,
+  });
+  console.log('[Sentry] Initialized');
+} else {
+  console.log('[Sentry] DSN not configured, skipping error tracking');
+}
+
+// Initialize Pino logger
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  transport: process.env.NODE_ENV !== 'production' ? {
+    target: 'pino-pretty',
+    options: { colorize: true, translateTime: 'HH:MM:ss Z', ignore: 'pid,hostname' }
+  } : undefined,
+  formatters: {
+    level: (label) => ({ level: label.toUpperCase() })
+  }
+});
+
+// Add logger to global for use in other modules
+(global as any).logger = logger;
+logger.info('Logger initialized');
 
 const app = express();
 const PORT = 3000;
@@ -79,6 +115,33 @@ app.use((req, res, next) => {
 
 app.get('/api/stats/active-users', (req, res) => {
   res.json({ activeUsers });
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    version: process.env.npm_package_version || 'unknown'
+  });
+});
+
+// Readiness check (for Kubernetes/load balancer)
+app.get('/api/ready', async (req, res) => {
+  try {
+    // Check database
+    if (pgReady) {
+      await query('SELECT 1');
+    }
+    // Check Redis (if configured)
+    // await redis.ping();
+    
+    res.json({ status: 'ready', checks: { database: pgReady ? 'ok' : 'unavailable' } });
+  } catch (e) {
+    res.status(503).json({ status: 'not ready', error: String(e) });
+  }
 });
 
 app.use(express.json({ limit: '10mb' }));
@@ -5300,5 +5363,10 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   console.error('GLOBAL SERVER ERROR:', err);
   res.status(500).json({ success: false, error: err?.message || String(err) });
 });
+
+// Sentry error handler (must be before other error handlers)
+if (process.env.SENTRY_DSN) {
+  app.use(expressErrorHandler());
+}
 
 export default app;
