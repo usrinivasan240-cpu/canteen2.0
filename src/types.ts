@@ -179,6 +179,30 @@ export interface CollegeBranding {
   headerStyle?: 'rounded' | 'flat' | 'shadow';
 }
 
+export interface PlatformFeesConfig {
+  type: 'free' | 'flat' | 'percentage' | 'tiered' | 'custom';
+  flatAmount?: number;           // e.g., 1 rupee per order
+  percentage?: number;           // e.g., 1% of bill amount
+  tiers?: PlatformFeeTier[];     // e.g., 1₹ for 0-100, 2₹ for 101-200, 3₹ for 301-400
+  customFormula?: string;        // custom JS expression for complex calculations
+  razorpayEnabled?: boolean;     // whether to use Razorpay for platform fee collection
+  razorpayAccountId?: string;    // Razorpay account ID for fee collection
+}
+
+export interface PlatformFeeTier {
+  minAmount: number;             // minimum bill amount (inclusive)
+  maxAmount: number;             // maximum bill amount (inclusive), 0 = no upper limit
+  feeAmount: number;             // platform fee for this tier
+}
+
+export interface RazorpayConfig {
+  enabled: boolean;
+  accountId?: string;
+  keyId?: string;
+  keySecret?: string; // encrypted or stored securely
+  webhookSecret?: string;
+}
+
 export interface College {
   id: string;
   name: string;
@@ -189,6 +213,8 @@ export interface College {
   bannerFeatures?: string[];
   branding?: CollegeBranding;
   status: 'active' | 'inactive';
+  platformFees?: PlatformFeesConfig;
+  razorpayConfig?: RazorpayConfig;
 }
 
 export interface Canteen {

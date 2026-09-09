@@ -1329,7 +1329,7 @@ app.put('/api/colleges/:id/branding', async (req, res) => {
 
 app.put('/api/colleges/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, location } = req.body;
+  const { name, location, platformFees, razorpayConfig } = req.body;
   if (!name) {
     return res.status(400).json({ success: false, error: 'College name is required' });
   }
@@ -1339,7 +1339,14 @@ app.put('/api/colleges/:id', async (req, res) => {
       if (!existing) {
         return res.status(404).json({ success: false, error: 'College not found' });
       }
-      const updated = { ...existing, name, location: location ?? existing.location, updatedAt: new Date().toISOString() };
+      const updated = { 
+        ...existing, 
+        name, 
+        location: location ?? existing.location,
+        platformFees: platformFees ?? existing.platformFees,
+        razorpayConfig: razorpayConfig ?? existing.razorpayConfig,
+        updatedAt: new Date().toISOString() 
+      };
       await pgUpdate('colleges', id, updated);
     } catch (e) {
       console.error('College update error:', e);
@@ -1348,7 +1355,13 @@ app.put('/api/colleges/:id', async (req, res) => {
   }
   const idx = collegesState.findIndex(c => c.id === id);
   if (idx !== -1) {
-    collegesState[idx] = { ...collegesState[idx], name, location: location ?? collegesState[idx].location };
+    collegesState[idx] = { 
+      ...collegesState[idx], 
+      name, 
+      location: location ?? collegesState[idx].location,
+      platformFees: platformFees ?? collegesState[idx].platformFees,
+      razorpayConfig: razorpayConfig ?? collegesState[idx].razorpayConfig
+    };
   }
   dataCache.delete('colleges');
   saveLocalDB();

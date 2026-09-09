@@ -5,7 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Users, Trash2, LogOut, CheckCircle, AlertTriangle, UserPlus, Sparkles, X, Globe, MapPin, Plus, TrendingUp, LifeBuoy
+  Users, Trash2, LogOut, CheckCircle, AlertTriangle, UserPlus, Sparkles, X, Globe, MapPin, Plus, TrendingUp, LifeBuoy,
+  Tag, CreditCard
 } from 'lucide-react';
 import { SupportTicket } from '../types';
 import { Order, MenuItem } from '../types';
@@ -96,8 +97,32 @@ export default function ServicePanel({
   const [colName, setColName] = useState('');
   const [colLoc, setColLoc] = useState('');
   const [colLogo, setColLogo] = useState('');
+  const [colPlatformFeesType, setColPlatformFeesType] = useState<'free' | 'flat' | 'percentage' | 'tiered' | 'custom'>('free');
+  const [colPlatformFeesFlatAmount, setColPlatformFeesFlatAmount] = useState<number>(0);
+  const [colPlatformFeesPercentage, setColPlatformFeesPercentage] = useState<number>(0);
+  const [colPlatformFeesTiers, setColPlatformFeesTiers] = useState<Array<{minAmount: number; maxAmount: number; feeAmount: number}>>([
+    { minAmount: 0, maxAmount: 100, feeAmount: 1 },
+    { minAmount: 101, maxAmount: 200, feeAmount: 2 },
+    { minAmount: 301, maxAmount: 400, feeAmount: 3 },
+  ]);
+  const [colPlatformFeesCustomFormula, setColPlatformFeesCustomFormula] = useState<string>('');
+  const [colRazorpayEnabled, setColRazorpayEnabled] = useState<boolean>(false);
+  const [colRazorpayAccountId, setColRazorpayAccountId] = useState<string>('');
+  const [colRazorpayKeyId, setColRazorpayKeyId] = useState<string>('');
+  const [colRazorpayKeySecret, setColRazorpayKeySecret] = useState<string>('');
+  const [colRazorpayWebhookSecret, setColRazorpayWebhookSecret] = useState<string>('');
 
-  // Form states for Canteen
+  // Edit college platform fees form states
+  const [editColPlatformFeesType, setEditColPlatformFeesType] = useState<'free' | 'flat' | 'percentage' | 'tiered' | 'custom'>('free');
+  const [editColPlatformFeesFlatAmount, setEditColPlatformFeesFlatAmount] = useState<number>(0);
+  const [editColPlatformFeesPercentage, setEditColPlatformFeesPercentage] = useState<number>(0);
+  const [editColPlatformFeesTiers, setEditColPlatformFeesTiers] = useState<Array<{minAmount: number; maxAmount: number; feeAmount: number}>>([]);
+  const [editColPlatformFeesCustomFormula, setEditColPlatformFeesCustomFormula] = useState<string>('');
+  const [editColRazorpayEnabled, setEditColRazorpayEnabled] = useState<boolean>(false);
+  const [editColRazorpayAccountId, setEditColRazorpayAccountId] = useState<string>('');
+  const [editColRazorpayKeyId, setEditColRazorpayKeyId] = useState<string>('');
+  const [editColRazorpayKeySecret, setEditColRazorpayKeySecret] = useState<string>('');
+  const [editColRazorpayWebhookSecret, setEditColRazorpayWebhookSecret] = useState<string>('');
   const [cantName, setCantName] = useState('');
   const [cantCol, setCantCol] = useState('');
   const [cantOwnName, setCantOwnName] = useState('');
@@ -201,20 +226,64 @@ export default function ServicePanel({
     syncAdminData();
   }, []);
 
+  const buildPlatformFeesConfig = () => {
+    switch (colPlatformFeesType) {
+      case 'flat':
+        return { type: 'flat', flatAmount: colPlatformFeesFlatAmount };
+      case 'percentage':
+        return { type: 'percentage', percentage: colPlatformFeesPercentage };
+      case 'tiered':
+        return { type: 'tiered', tiers: colPlatformFeesTiers };
+      case 'custom':
+        return { type: 'custom', customFormula: colPlatformFeesCustomFormula };
+      default:
+        return { type: 'free' };
+    }
+  };
+
   const handleCreateCollege = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!colName) return;
     try {
+      const platformFees = buildPlatformFeesConfig();
+      const razorpayConfig = colRazorpayEnabled ? {
+        enabled: true,
+        accountId: colRazorpayAccountId,
+        keyId: colRazorpayKeyId,
+        keySecret: colRazorpayKeySecret,
+        webhookSecret: colRazorpayWebhookSecret
+      } : { enabled: false };
+
       const resp = await fetch(`${API_BASE}/api/colleges`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: colName, location: colLoc, logoUrl: colLogo })
+        body: JSON.stringify({ 
+          name: colName, 
+          location: colLoc, 
+          logoUrl: colLogo,
+          platformFees,
+          razorpayConfig
+        })
       });
       const d = await resp.json();
       if (d.success) {
         setColName('');
         setColLoc('');
         setColLogo('');
+        setColPlatformFeesType('free');
+        setColPlatformFeesFlatAmount(0);
+        setColPlatformFeesPercentage(0);
+        setColPlatformFeesTiers([
+          { minAmount: 0, maxAmount: 100, feeAmount: 1 },
+          { minAmount: 101, maxAmount: 200, feeAmount: 2 },
+          { minAmount: 301, maxAmount: 400, feeAmount: 3 },
+        ]);
+        setColPlatformFeesCustomFormula('');
+        setColRazorpayEnabled(false);
+        setColRazorpayAccountId('');
+        setColRazorpayKeyId('');
+        setColRazorpayKeySecret('');
+        setColRazorpayWebhookSecret('');
         setScanStatus({ success: true, text: `Successfully registered college: ${colName}` });
         await syncAdminData();
       } else {
@@ -455,15 +524,64 @@ export default function ServicePanel({
     setEditingCollege(col);
     setEditColName(col.name || '');
     setEditColLoc(col.location || '');
+    
+    // Populate platform fees
+    const pf = col.platformFees || { type: 'free' };
+    setEditColPlatformFeesType(pf.type || 'free');
+    setEditColPlatformFeesFlatAmount(pf.flatAmount || 0);
+    setEditColPlatformFeesPercentage(pf.percentage || 0);
+    setEditColPlatformFeesTiers(pf.tiers || [
+      { minAmount: 0, maxAmount: 100, feeAmount: 1 },
+      { minAmount: 101, maxAmount: 200, feeAmount: 2 },
+      { minAmount: 301, maxAmount: 400, feeAmount: 3 },
+    ]);
+    setEditColPlatformFeesCustomFormula(pf.customFormula || '');
+    
+    // Populate Razorpay config
+    const rz = col.razorpayConfig || { enabled: false };
+    setEditColRazorpayEnabled(rz.enabled || false);
+    setEditColRazorpayAccountId(rz.accountId || '');
+    setEditColRazorpayKeyId(rz.keyId || '');
+    setEditColRazorpayKeySecret(rz.keySecret || '');
+    setEditColRazorpayWebhookSecret(rz.webhookSecret || '');
+  };
+
+  const buildEditPlatformFeesConfig = () => {
+    switch (editColPlatformFeesType) {
+      case 'flat':
+        return { type: 'flat', flatAmount: editColPlatformFeesFlatAmount };
+      case 'percentage':
+        return { type: 'percentage', percentage: editColPlatformFeesPercentage };
+      case 'tiered':
+        return { type: 'tiered', tiers: editColPlatformFeesTiers };
+      case 'custom':
+        return { type: 'custom', customFormula: editColPlatformFeesCustomFormula };
+      default:
+        return { type: 'free' };
+    }
   };
 
   const handleUpdateCollege = async () => {
     if (!editingCollege || !editColName) return;
     try {
+      const platformFees = buildEditPlatformFeesConfig();
+      const razorpayConfig = editColRazorpayEnabled ? {
+        enabled: true,
+        accountId: editColRazorpayAccountId,
+        keyId: editColRazorpayKeyId,
+        keySecret: editColRazorpayKeySecret,
+        webhookSecret: editColRazorpayWebhookSecret
+      } : { enabled: false };
+
       const resp = await fetch(`${API_BASE}/api/colleges/${editingCollege.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editColName, location: editColLoc })
+        body: JSON.stringify({ 
+          name: editColName, 
+          location: editColLoc,
+          platformFees,
+          razorpayConfig
+        })
       });
       const d = await resp.json();
       if (d.success) {
@@ -761,6 +879,211 @@ export default function ServicePanel({
                   />
                   {colLogo && <img src={colLogo} alt="Logo preview" className="h-10 w-10 rounded-full object-cover border border-red-100 mt-1" />}
                 </div>
+
+                {/* Platform Fees Configuration */}
+                <div className="space-y-4 border-t border-red-100 pt-4">
+                  <h4 className="font-display font-bold text-xs text-gray-700 flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5" />
+                    Platform Fees Configuration
+                  </h4>
+                  <p className="text-[9px] text-gray-500">Configure how platform fees are calculated for this college's orders</p>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Fee Type</label>
+                    <select
+                      value={colPlatformFeesType}
+                      onChange={(e) => setColPlatformFeesType(e.target.value as any)}
+                      className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium"
+                    >
+                      <option value="free">Free (No platform fee)</option>
+                      <option value="flat">Flat Amount per Order (e.g., ₹1 per order)</option>
+                      <option value="percentage">Percentage of Bill (e.g., 1% of order total)</option>
+                      <option value="tiered">Tiered Slabs (Different fees for different bill ranges)</option>
+                      <option value="custom">Custom Formula (JavaScript expression)</option>
+                    </select>
+                  </div>
+
+                  {colPlatformFeesType === 'flat' && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Flat Fee Amount (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={colPlatformFeesFlatAmount}
+                        onChange={(e) => setColPlatformFeesFlatAmount(Number(e.target.value))}
+                        placeholder="e.g., 1"
+                        className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                      />
+                    </div>
+                  )}
+
+                  {colPlatformFeesType === 'percentage' && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Percentage (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={colPlatformFeesPercentage}
+                        onChange={(e) => setColPlatformFeesPercentage(Number(e.target.value))}
+                        placeholder="e.g., 1 for 1%"
+                        className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                      />
+                    </div>
+                  )}
+
+                  {colPlatformFeesType === 'tiered' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Tiered Slabs</label>
+                        <button
+                          type="button"
+                          onClick={() => setColPlatformFeesTiers([...colPlatformFeesTiers, { minAmount: 0, maxAmount: 100, feeAmount: 1 }])}
+                          className="text-[10px] font-bold text-amber-600 hover:text-red-900 cursor-pointer"
+                        >
+                          + Add Slab
+                        </button>
+                      </div>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {colPlatformFeesTiers.map((tier, idx) => (
+                          <div key={idx} className="flex items-center gap-2 p-2 bg-red-50/30 rounded-xl">
+                            <input
+                              type="number"
+                              min="0"
+                              value={tier.minAmount}
+                              onChange={(e) => {
+                                const newTiers = [...colPlatformFeesTiers];
+                                newTiers[idx] = { ...newTiers[idx], minAmount: Number(e.target.value) };
+                                setColPlatformFeesTiers(newTiers);
+                              }}
+                              placeholder="Min"
+                              className="w-20 bg-white border border-red-100 rounded-lg px-2 py-1.5 outline-none focus:bg-white text-xs font-mono"
+                            />
+                            <span className="text-gray-400 text-[10px]">to</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={tier.maxAmount}
+                              onChange={(e) => {
+                                const newTiers = [...colPlatformFeesTiers];
+                                newTiers[idx] = { ...newTiers[idx], maxAmount: Number(e.target.value) };
+                                setColPlatformFeesTiers(newTiers);
+                              }}
+                              placeholder="Max (0=∞)"
+                              className="w-24 bg-white border border-red-100 rounded-lg px-2 py-1.5 outline-none focus:bg-white text-xs font-mono"
+                            />
+                            <span className="text-gray-400 text-[10px]">=</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={tier.feeAmount}
+                              onChange={(e) => {
+                                const newTiers = [...colPlatformFeesTiers];
+                                newTiers[idx] = { ...newTiers[idx], feeAmount: Number(e.target.value) };
+                                setColPlatformFeesTiers(newTiers);
+                              }}
+                              placeholder="Fee ₹"
+                              className="w-20 bg-white border border-red-100 rounded-lg px-2 py-1.5 outline-none focus:bg-white text-xs font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setColPlatformFeesTiers(colPlatformFeesTiers.filter((_, i) => i !== idx))}
+                              className="text-red-500 hover:text-red-700 text-[10px] font-bold ml-auto"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[9px] text-gray-500">Example: ₹1 for ₹0-100, ₹2 for ₹101-200, ₹3 for ₹301-400</p>
+                    </div>
+                  )}
+
+                  {colPlatformFeesType === 'custom' && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Custom Formula (JS Expression)</label>
+                      <textarea
+                        value={colPlatformFeesCustomFormula}
+                        onChange={(e) => setColPlatformFeesCustomFormula(e.target.value)}
+                        placeholder="e.g., (amount > 500 ? amount * 0.02 : amount * 0.01)"
+                        rows={3}
+                        className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono font-family-monospace"
+                      />
+                      <p className="text-[9px] text-gray-500">Available variable: <code className="font-mono">amount</code> (bill total in ₹). Return fee amount in ₹.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Razorpay Configuration */}
+                <div className="space-y-4 border-t border-red-100 pt-4">
+                  <h4 className="font-display font-bold text-xs text-gray-700 flex items-center gap-1.5">
+                    <CreditCard className="h-3.5 w-3.5" />
+                    Razorpay Integration
+                  </h4>
+                  <p className="text-[9px] text-gray-500">Enable Razorpay for automatic platform fee collection</p>
+                  
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={colRazorpayEnabled}
+                        onChange={(e) => setColRazorpayEnabled(e.target.checked)}
+                        className="rounded border-red-300 text-amber-600 focus:ring-amber-500 h-4 w-4"
+                      />
+                      <span className="text-xs font-bold text-gray-700">Enable Razorpay for this college</span>
+                    </label>
+                  </div>
+
+                  {colRazorpayEnabled && (
+                    <div className="space-y-3 pl-6 border-l-2 border-amber-200">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Razorpay Account ID</label>
+                        <input
+                          type="text"
+                          value={colRazorpayAccountId}
+                          onChange={(e) => setColRazorpayAccountId(e.target.value)}
+                          placeholder="acc_xxxxxxxxxxxxx"
+                          className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Key ID</label>
+                        <input
+                          type="text"
+                          value={colRazorpayKeyId}
+                          onChange={(e) => setColRazorpayKeyId(e.target.value)}
+                          placeholder="rzp_test_xxxxxxxxxxxxx"
+                          className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Key Secret</label>
+                        <input
+                          type="password"
+                          value={colRazorpayKeySecret}
+                          onChange={(e) => setColRazorpayKeySecret(e.target.value)}
+                          placeholder="••••••••••••••••"
+                          className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Webhook Secret</label>
+                        <input
+                          type="password"
+                          value={colRazorpayWebhookSecret}
+                          onChange={(e) => setColRazorpayWebhookSecret(e.target.value)}
+                          placeholder="••••••••••••••••"
+                          className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                        />
+                      </div>
+                      <p className="text-[9px] text-amber-600">Platform fees will be automatically collected via Razorpay when students place orders.</p>
+                    </div>
+                  )}
+                </div>
+
                 <button
                   type="submit"
                   className="w-full bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 text-white rounded-xl text-xs py-3 font-bold transition-all shadow-md cursor-pointer flex items-center justify-center space-x-1.5 font-display"
@@ -2149,6 +2472,211 @@ export default function ServicePanel({
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Location / Address</label>
                 <input type="text" value={editColLoc} onChange={e => setEditColLoc(e.target.value)} className="w-full bg-red-50/30 text-xs px-3.5 py-2.5 border border-red-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold" />
               </div>
+
+              {/* Platform Fees Configuration */}
+              <div className="space-y-4 border-t border-red-100 pt-4">
+                <h4 className="font-display font-bold text-xs text-gray-700 flex items-center gap-1.5">
+                  <Tag className="h-3.5 w-3.5" />
+                  Platform Fees Configuration
+                </h4>
+                <p className="text-[9px] text-gray-500">Configure how platform fees are calculated for this college's orders</p>
+                
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Fee Type</label>
+                  <select
+                    value={editColPlatformFeesType}
+                    onChange={(e) => setEditColPlatformFeesType(e.target.value as any)}
+                    className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium"
+                  >
+                    <option value="free">Free (No platform fee)</option>
+                    <option value="flat">Flat Amount per Order (e.g., ₹1 per order)</option>
+                    <option value="percentage">Percentage of Bill (e.g., 1% of order total)</option>
+                    <option value="tiered">Tiered Slabs (Different fees for different bill ranges)</option>
+                    <option value="custom">Custom Formula (JavaScript expression)</option>
+                  </select>
+                </div>
+
+                {editColPlatformFeesType === 'flat' && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Flat Fee Amount (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={editColPlatformFeesFlatAmount}
+                      onChange={(e) => setEditColPlatformFeesFlatAmount(Number(e.target.value))}
+                      placeholder="e.g., 1"
+                      className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    />
+                  </div>
+                )}
+
+                {editColPlatformFeesType === 'percentage' && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Percentage (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={editColPlatformFeesPercentage}
+                      onChange={(e) => setEditColPlatformFeesPercentage(Number(e.target.value))}
+                      placeholder="e.g., 1 for 1%"
+                      className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                    />
+                  </div>
+                )}
+
+                {editColPlatformFeesType === 'tiered' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Tiered Slabs</label>
+                      <button
+                        type="button"
+                        onClick={() => setEditColPlatformFeesTiers([...editColPlatformFeesTiers, { minAmount: 0, maxAmount: 100, feeAmount: 1 }])}
+                        className="text-[10px] font-bold text-amber-600 hover:text-red-900 cursor-pointer"
+                      >
+                        + Add Slab
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {editColPlatformFeesTiers.map((tier, idx) => (
+                        <div key={idx} className="flex items-center gap-2 p-2 bg-red-50/30 rounded-xl">
+                          <input
+                            type="number"
+                            min="0"
+                            value={tier.minAmount}
+                            onChange={(e) => {
+                              const newTiers = [...editColPlatformFeesTiers];
+                              newTiers[idx] = { ...newTiers[idx], minAmount: Number(e.target.value) };
+                              setEditColPlatformFeesTiers(newTiers);
+                            }}
+                            placeholder="Min"
+                            className="w-20 bg-white border border-red-100 rounded-lg px-2 py-1.5 outline-none focus:bg-white text-xs font-mono"
+                          />
+                          <span className="text-gray-400 text-[10px]">to</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={tier.maxAmount}
+                            onChange={(e) => {
+                              const newTiers = [...editColPlatformFeesTiers];
+                              newTiers[idx] = { ...newTiers[idx], maxAmount: Number(e.target.value) };
+                              setEditColPlatformFeesTiers(newTiers);
+                            }}
+                            placeholder="Max (0=∞)"
+                            className="w-24 bg-white border border-red-100 rounded-lg px-2 py-1.5 outline-none focus:bg-white text-xs font-mono"
+                          />
+                          <span className="text-gray-400 text-[10px]">=</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={tier.feeAmount}
+                            onChange={(e) => {
+                              const newTiers = [...editColPlatformFeesTiers];
+                              newTiers[idx] = { ...newTiers[idx], feeAmount: Number(e.target.value) };
+                              setEditColPlatformFeesTiers(newTiers);
+                            }}
+                            placeholder="Fee ₹"
+                            className="w-20 bg-white border border-red-100 rounded-lg px-2 py-1.5 outline-none focus:bg-white text-xs font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setEditColPlatformFeesTiers(editColPlatformFeesTiers.filter((_, i) => i !== idx))}
+                            className="text-red-500 hover:text-red-700 text-[10px] font-bold ml-auto"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[9px] text-gray-500">Example: ₹1 for ₹0-100, ₹2 for ₹101-200, ₹3 for ₹301-400</p>
+                  </div>
+                )}
+
+                {editColPlatformFeesType === 'custom' && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Custom Formula (JS Expression)</label>
+                    <textarea
+                      value={editColPlatformFeesCustomFormula}
+                      onChange={(e) => setEditColPlatformFeesCustomFormula(e.target.value)}
+                      placeholder="e.g., (amount > 500 ? amount * 0.02 : amount * 0.01)"
+                      rows={3}
+                      className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono font-family-monospace"
+                    />
+                    <p className="text-[9px] text-gray-500">Available variable: <code className="font-mono">amount</code> (bill total in ₹). Return fee amount in ₹.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Razorpay Configuration */}
+              <div className="space-y-4 border-t border-red-100 pt-4">
+                <h4 className="font-display font-bold text-xs text-gray-700 flex items-center gap-1.5">
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Razorpay Integration
+                </h4>
+                <p className="text-[9px] text-gray-500">Enable Razorpay for automatic platform fee collection</p>
+                
+                <div className="space-y-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editColRazorpayEnabled}
+                      onChange={(e) => setEditColRazorpayEnabled(e.target.checked)}
+                      className="rounded border-red-300 text-amber-600 focus:ring-amber-500 h-4 w-4"
+                    />
+                    <span className="text-xs font-bold text-gray-700">Enable Razorpay for this college</span>
+                  </label>
+                </div>
+
+                {editColRazorpayEnabled && (
+                  <div className="space-y-3 pl-6 border-l-2 border-amber-200">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Razorpay Account ID</label>
+                      <input
+                        type="text"
+                        value={editColRazorpayAccountId}
+                        onChange={(e) => setEditColRazorpayAccountId(e.target.value)}
+                        placeholder="acc_xxxxxxxxxxxxx"
+                        className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Key ID</label>
+                      <input
+                        type="text"
+                        value={editColRazorpayKeyId}
+                        onChange={(e) => setEditColRazorpayKeyId(e.target.value)}
+                        placeholder="rzp_test_xxxxxxxxxxxxx"
+                        className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Key Secret</label>
+                      <input
+                        type="password"
+                        value={editColRazorpayKeySecret}
+                        onChange={(e) => setEditColRazorpayKeySecret(e.target.value)}
+                        placeholder="••••••••••••••••"
+                        className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Webhook Secret</label>
+                      <input
+                        type="password"
+                        value={editColRazorpayWebhookSecret}
+                        onChange={(e) => setEditColRazorpayWebhookSecret(e.target.value)}
+                        placeholder="••••••••••••••••"
+                        className="w-full bg-red-50/30 border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-mono"
+                      />
+                    </div>
+                    <p className="text-[9px] text-amber-600">Platform fees will be automatically collected via Razorpay when students place orders.</p>
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setEditingCollege(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl py-2.5 text-xs font-bold transition-all cursor-pointer">Cancel</button>
                 <button onClick={handleUpdateCollege} className="flex-1 bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 text-white rounded-xl py-2.5 text-xs font-bold transition-all shadow-md cursor-pointer">Save Changes</button>
