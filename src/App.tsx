@@ -538,6 +538,7 @@ export default function App() {
             userRole={role}
             subCanteenId={currentUser?.subCanteenId}
             canteenId={selectedCanteenId || currentUser?.canteenId}
+            currentUser={currentUser}
           />
         ) : (
           <ServicePanel

@@ -3,10 +3,10 @@ import {
   ChefHat, Layers, ClipboardList, TrendingUp, AlertTriangle, Star, CheckCircle,
   Plus, Edit2, Trash2, ShieldCheck, QrCode, Search, RefreshCw, X, MessageSquare, Sparkles, LogOut, Package,
   Camera, Check, AlertCircle, Clock, User, Play, PlayCircle, Settings, ShieldAlert, ShoppingCart,
-  List, CalendarClock
+  List, CalendarClock, Users, ChefHat as ChefHatIcon, ForkKnife, AlertCircle as AlertCircleIcon
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { MenuItem, Order, Review, Ingredient, CanteenSettings } from '../types';
+import { MenuItem, Order, Review, Ingredient, CanteenSettings, Chef, KitchenTask, KitchenTaskItem, ChefLeave } from '../types';
 import { API_BASE } from '../config';
 import WalkinPOS from './WalkinPOS';
 
@@ -24,6 +24,7 @@ interface CanteenAdminProps {
   userRole?: 'owner' | 'chef' | 'staff';
   subCanteenId?: string;
   canteenId?: string;
+  currentUser?: { id?: string; userId?: string; email?: string; role?: string };
 }
 
 function parseSlotToTimestamp(slot: string): number {
@@ -53,16 +54,17 @@ export default function CanteenAdmin({
   onLogout,
   userRole,
   subCanteenId,
-  canteenId
+  canteenId,
+  currentUser
 }: CanteenAdminProps) {
   const orders = subCanteenId
     ? rawOrders.filter(o => !o.subCanteenId || o.subCanteenId === subCanteenId)
     : rawOrders;
 
-  const [activeTab, setActiveTab] = useState<'chef' | 'counter' | 'owner' | 'chef_orders' | 'chef_cooklist' | 'chef_prebook'>(
+  const [activeTab, setActiveTab] = useState<'chef' | 'counter' | 'owner' | 'chef_orders' | 'chef_cooklist' | 'chef_prebook' | 'my_tasks'>(
     userRole === 'chef' ? 'chef_orders' : userRole === 'staff' ? 'counter' : 'owner'
   );
-  const [ownerSubTab, setOwnerSubTab] = useState<'orders_mgr' | 'pos' | 'menu' | 'inventory' | 'revenue' | 'settings' | 'reviews' | 'ai' | 'offers'>('orders_mgr');
+  const [ownerSubTab, setOwnerSubTab] = useState<'orders_mgr' | 'pos' | 'menu' | 'inventory' | 'revenue' | 'settings' | 'reviews' | 'ai' | 'offers' | 'chefs' | 'kitchen'>('orders_mgr');
   
   // State for editing order slots in Canteen Owner Hub
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
@@ -92,6 +94,22 @@ export default function CanteenAdmin({
     applicableItemIds: [] as string[],
     minOrderAmount: 0, maxUses: 0,
     validFrom: '', validUntil: ''
+  });
+
+  // Chefs & Kitchen state
+  const [chefs, setChefs] = useState<Chef[]>([]);
+  const [kitchenTasks, setKitchenTasks] = useState<KitchenTask[]>([]);
+  const [chefLeaves, setChefLeaves] = useState<ChefLeave[]>([]);
+  const [showChefForm, setShowChefForm] = useState(false);
+  const [editingChef, setEditingChef] = useState<Chef | null>(null);
+  const [chefForm, setChefForm] = useState({
+    name: '', phone: '', email: '', specialization: [] as string[],
+    status: 'AVAILABLE' as 'AVAILABLE' | 'UNAVAILABLE' | 'ON_LEAVE' | 'INACTIVE',
+    userId: '' as string
+  });
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [leaveForm, setLeaveForm] = useState({
+    chefId: '', startDate: '', endDate: '', reason: ''
   });
 
   const fetchOffers = async () => {
@@ -140,6 +158,114 @@ export default function CanteenAdmin({
       });
       fetchOffers();
     } catch (e) { console.error('Failed to toggle offer:', e); }
+  };
+
+  // Fetch Chefs
+  const fetchChefs = async () => {
+    if (!canteenId) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/chefs?canteenId=${canteenId}`);
+      const data = await resp.json();
+      if (data.success) setChefs(data.chefs || []);
+    } catch (e) { console.error('Failed to load chefs:', e); }
+  };
+
+  const saveChef = async () => {
+    if (!canteenId) return;
+    try {
+      const payload = {
+        ...chefForm,
+        canteenId,
+        specialization: chefForm.specialization || [],
+        userId: chefForm.userId || undefined
+      };
+      const url = editingChef ? `${API_BASE}/api/chefs/${editingChef.id}` : `${API_BASE}/api/chefs`;
+      const method = editingChef ? 'PUT' : 'POST';
+      const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await resp.json();
+      if (data.success) {
+        setShowChefForm(false);
+        setEditingChef(null);
+        setChefForm({ name: '', phone: '', email: '', specialization: [], status: 'AVAILABLE', userId: '' });
+        fetchChefs();
+      }
+    } catch (e) { console.error('Failed to save chef:', e); }
+  };
+
+  const deleteChef = async (id: string) => {
+    if (!confirm('Delete this chef?')) return;
+    try {
+      await fetch(`${API_BASE}/api/chefs/${id}`, { method: 'DELETE' });
+      fetchChefs();
+    } catch (e) { console.error('Failed to delete chef:', e); }
+  };
+
+  // Fetch Kitchen Tasks
+  const fetchKitchenTasks = async () => {
+    if (!canteenId) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/kitchen/tasks?canteenId=${canteenId}`);
+      const data = await resp.json();
+      if (data.success) setKitchenTasks(data.tasks || []);
+    } catch (e) { console.error('Failed to load kitchen tasks:', e); }
+  };
+
+  // Fetch Chef Leaves
+  const fetchChefLeaves = async () => {
+    if (!canteenId) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/chefs/leaves?canteenId=${canteenId}`);
+      const data = await resp.json();
+      if (data.success) setChefLeaves(data.leaves || []);
+    } catch (e) { console.error('Failed to load chef leaves:', e); }
+  };
+
+  const saveChefLeave = async () => {
+    if (!canteenId) return;
+    try {
+      const payload = {
+        ...leaveForm,
+        startDate: new Date(leaveForm.startDate).getTime(),
+        endDate: new Date(leaveForm.endDate).getTime()
+      };
+      const resp = await fetch(`${API_BASE}/api/chefs/${leaveForm.chefId}/leave`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await resp.json();
+      if (data.success) {
+        setShowLeaveForm(false);
+        setLeaveForm({ chefId: '', startDate: '', endDate: '', reason: '' });
+        fetchChefLeaves();
+        fetchChefs(); // refresh availability
+      }
+    } catch (e) { console.error('Failed to save chef leave:', e); }
+  };
+
+  const updateTaskStatus = async (taskId: string, status: KitchenTask['status']) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/kitchen/tasks/${taskId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        fetchKitchenTasks();
+      }
+    } catch (e) { console.error('Failed to update task status:', e); }
+  };
+
+  // Assign chef to menu item
+  const assignChefToItem = async (itemId: string, primaryChefId: string | null, backupChefId: string | null, preparationType: 'COOKABLE' | 'READY_TO_SERVE') => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/items/${itemId}/assign-chef`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ primaryChefId, backupChefId, preparationType })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        onFetchCanteen();
+      }
+    } catch (e) { console.error('Failed to assign chef:', e); }
   };
   
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
@@ -208,6 +334,9 @@ export default function CanteenAdmin({
   const [formPrepTime, setFormPrepTime] = useState<string>('15');
   const [formDailyLimit, setFormDailyLimit] = useState<string>('100');
   const [formRequiresChef, setFormRequiresChef] = useState<boolean>(true);
+  const [formPrimaryChefId, setFormPrimaryChefId] = useState<string>('');
+  const [formBackupChefId, setFormBackupChefId] = useState<string>('');
+  const [formPreparationType, setFormPreparationType] = useState<'COOKABLE' | 'READY_TO_SERVE'>('COOKABLE');
   const [formRecipe, setFormRecipe] = useState<{ ingredientId: string; amountGrams: number }[]>([]);
 
   // Config settings form states
@@ -297,15 +426,36 @@ export default function CanteenAdmin({
     }
   }, [settings]);
 
-  // Fetch offers when owner sub-tab is 'offers'
+// Fetch offers when owner sub-tab is 'offers'
   React.useEffect(() => {
     if (activeTab === 'owner' && ownerSubTab === 'offers') {
       fetchOffers();
     }
   }, [activeTab, ownerSubTab]);
 
+  // Fetch chefs when owner sub-tab is 'chefs'
+  React.useEffect(() => {
+    if (activeTab === 'owner' && ownerSubTab === 'chefs') {
+      fetchChefs();
+      fetchChefLeaves();
+    }
+  }, [activeTab, ownerSubTab]);
 
+  // Fetch kitchen tasks when owner sub-tab is 'kitchen' or chef role tabs
+  React.useEffect(() => {
+    if ((activeTab === 'owner' && ownerSubTab === 'kitchen') || activeTab === 'my_tasks') {
+      fetchKitchenTasks();
+    }
+  }, [activeTab, ownerSubTab]);
 
+  // Fetch kitchen tasks for chef orders/cooklist/prebook tabs to keep in sync
+  React.useEffect(() => {
+    if (activeTab === 'chef_orders' || activeTab === 'chef_cooklist' || activeTab === 'chef_prebook') {
+      fetchKitchenTasks();
+    }
+  }, [activeTab]);
+
+  
   // Compute stats
   const totalIncome = orders
     .filter(o => o.status === 'collected' || o.status === 'delivered')
@@ -332,6 +482,9 @@ export default function CanteenAdmin({
     setFormPrepTime('15');
     setFormDailyLimit('100');
     setFormRequiresChef(true);
+    setFormPrimaryChefId('');
+    setFormBackupChefId('');
+    setFormPreparationType('COOKABLE');
     setFormRecipe([]);
     setItemFormError('');
     setShowItemModal(true);
@@ -348,6 +501,9 @@ export default function CanteenAdmin({
     setFormPrepTime(item.prepTime?.toString() || '15');
     setFormDailyLimit(item.dailyLimit?.toString() || '100');
     setFormRequiresChef(item.requiresChef !== false);
+    setFormPrimaryChefId(item.primaryChefId || '');
+    setFormBackupChefId(item.backupChefId || '');
+    setFormPreparationType(item.preparationType || 'COOKABLE');
     setFormRecipe(item.recipe || []);
     setShowItemModal(true);
   };
@@ -382,6 +538,9 @@ export default function CanteenAdmin({
       prepTime: Number(formPrepTime) || 10,
       dailyLimit: Number(formDailyLimit) || 100,
       requiresChef: formRequiresChef,
+      primaryChefId: formPrimaryChefId || null,
+      backupChefId: formBackupChefId || null,
+      preparationType: formPreparationType,
       isPaused: editingItem ? editingItem.isPaused : false,
       recipe: formRecipe.filter(r => r.amountGrams > 0)
     };
@@ -1379,7 +1538,8 @@ export default function CanteenAdmin({
             {[
               { id: 'chef_orders', label: `Orders (${preppingOrdersCount + readyOrdersCount})`, icon: ChefHat },
               { id: 'chef_cooklist', label: 'Cook List', icon: List },
-              { id: 'chef_prebook', label: 'Pre-book', icon: CalendarClock }
+              { id: 'chef_prebook', label: 'Pre-book', icon: CalendarClock },
+              { id: 'my_tasks', label: 'My Tasks', icon: ForkKnife }
             ].map(tab => {
               const Icon = tab.icon;
               return (
@@ -1759,6 +1919,103 @@ export default function CanteenAdmin({
         </div>
       )}
 
+      {/* ======================= PORTAL: CHEF MY TASKS ======================= */}
+      {activeTab === 'my_tasks' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="font-display font-bold text-sm text-gray-900">My Kitchen Tasks</h3>
+                <p className="text-xs text-gray-400 font-sans">Your assigned cooking tasks from paid orders.</p>
+              </div>
+            </div>
+
+            {kitchenTasks.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <ForkKnife className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                <p className="text-xs font-semibold">No tasks assigned yet</p>
+                <p className="text-[10px] mt-1">Tasks appear here when orders with your assigned items are paid</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {kitchenTasks
+                  .filter(task => {
+                    // Filter tasks for the current chef (linked by userId)
+                    const chef = chefs.find(c => c.userId === currentUser?.id || c.userId === currentUser?.userId);
+                    return chef ? task.chefId === chef.id : false;
+                  })
+                  .map(task => (
+                    <div key={task.id} className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-mono text-[10px] font-bold text-gray-600">Order: {task.orderId}</span>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono ml-2 ${
+                            task.status === 'PENDING' ? 'bg-gray-100 text-gray-600' :
+                            task.status === 'ACCEPTED' ? 'bg-blue-100 text-blue-700' :
+                            task.status === 'PREPARING' ? 'bg-amber-100 text-amber-700' :
+                            task.status === 'READY' ? 'bg-emerald-100 text-emerald-700' :
+                            task.status === 'COMPLETED' ? 'bg-gray-100 text-gray-500' :
+                            'bg-rose-100 text-rose-700'
+                          }`}>
+                            {task.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          {task.priority !== undefined && (
+                            <span className="text-[9px] font-mono text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Priority: {task.priority}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-600 space-y-1">
+                        {task.items.map((item, idx) => (
+                          <div key={idx} className="flex justify-between py-1 border-b border-gray-50 last:border-0">
+                            <span>{item.itemName} x{item.quantity}</span>
+                            {item.price && <span className="text-amber-600 font-bold">₹{item.price * item.quantity}</span>}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center space-x-2 pt-2 border-t border-gray-100">
+                        {task.status === 'PENDING' && (
+                          <button
+                            onClick={() => updateTaskStatus(task.id, 'ACCEPTED')}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 rounded cursor-pointer"
+                          >
+                            Accept
+                          </button>
+                        )}
+                        {(task.status === 'ACCEPTED' || task.status === 'PENDING') && (
+                          <button
+                            onClick={() => updateTaskStatus(task.id, 'PREPARING')}
+                            className="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold py-1.5 rounded cursor-pointer"
+                          >
+                            Start Cooking
+                          </button>
+                        )}
+                        {task.status === 'PREPARING' && (
+                          <button
+                            onClick={() => updateTaskStatus(task.id, 'READY')}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 rounded cursor-pointer"
+                          >
+                            Mark Ready
+                          </button>
+                        )}
+                        {(task.status === 'READY' || task.status === 'COMPLETED') && (
+                          <button
+                            onClick={() => updateTaskStatus(task.id, 'COMPLETED')}
+                            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white text-[10px] font-bold py-1.5 rounded cursor-pointer"
+                          >
+                            Complete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ======================= PORTAL: COUNTER STAFF VIEW ======================= */}
       {activeTab === 'counter' && (
         <div className="space-y-6 text-left">
@@ -1999,7 +2256,9 @@ export default function CanteenAdmin({
               { id: 'revenue', label: 'Revenue Dashboard', icon: TrendingUp },
               { id: 'settings', label: 'Capacity Settings', icon: Settings },
               { id: 'reviews', label: 'Student Reviews', icon: MessageSquare },
-              { id: 'offers', label: 'Offers & Combos', icon: Sparkles }
+              { id: 'offers', label: 'Offers & Combos', icon: Sparkles },
+              { id: 'chefs', label: 'Chef Management', icon: Users },
+              { id: 'kitchen', label: 'Kitchen Tasks', icon: ChefHatIcon }
             ].map(sub => {
               const Icon = sub.icon;
               return (
@@ -2584,6 +2843,281 @@ export default function CanteenAdmin({
             </div>
           )}
 
+            {/* OWNER SUBTAB: CHEF MANAGEMENT */}
+            {ownerSubTab === 'chefs' && (
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="font-display font-bold text-sm text-gray-900">Chef Management</h3>
+                      <p className="text-xs text-gray-400 font-sans">Manage kitchen staff, assignments, and availability.</p>
+                    </div>
+                    <button
+                      onClick={() => { setEditingChef(null); setChefForm({ name: '', phone: '', email: '', specialization: [], status: 'AVAILABLE', userId: '' }); setShowChefForm(true); }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-xl text-xs tracking-wide transition-all shadow-md flex items-center space-x-2 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Add Chef</span>
+                    </button>
+                  </div>
+
+                  {chefs.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      <Users className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                      <p className="text-xs font-semibold">No chefs added yet</p>
+                      <p className="text-[10px] mt-1">Click "Add Chef" to register your kitchen staff</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {chefs.map(chef => {
+                        const leave = chefLeaves.find(l => l.chefId === chef.id);
+                        const isOnLeave = leave && Date.now() >= leave.startDate && Date.now() <= leave.endDate;
+                        const statusColor = isOnLeave ? 'bg-amber-100 text-amber-700' :
+                          chef.status === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-700' :
+                          chef.status === 'UNAVAILABLE' ? 'bg-rose-100 text-rose-700' :
+                          chef.status === 'INACTIVE' ? 'bg-gray-100 text-gray-500' :
+                          'bg-blue-100 text-blue-700';
+                        return (
+                          <div key={chef.id} className={`p-4 rounded-2xl border space-y-3 ${isOnLeave ? 'border-amber-200 bg-amber-50/30' : chef.status === 'AVAILABLE' ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-200 bg-gray-50/50'}`}>
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${statusColor}`}>
+                                  {isOnLeave ? 'ON LEAVE' : chef.status}
+                                </span>
+                                <h4 className="font-bold text-gray-900 text-sm mt-2">{chef.name}</h4>
+                                {chef.specialization && chef.specialization.length > 0 && (
+                                  <p className="text-[10px] text-gray-500 mt-0.5">{chef.specialization.join(', ')}</p>
+                                )}
+                                {chef.userId && (
+                                  <p className="text-[9px] text-blue-600 font-mono mt-0.5">Linked: {chef.userId}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  onClick={() => {
+                                    setEditingChef(chef);
+                                    setChefForm({ name: chef.name, phone: chef.phone || '', email: chef.email || '', specialization: chef.specialization || [], status: chef.status, userId: chef.userId || '' });
+                                    setShowChefForm(true);
+                                  }}
+                                  className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 transition cursor-pointer"
+                                >
+                                  Edit
+                                </button>
+                                <button onClick={() => deleteChef(chef.id)} className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 transition cursor-pointer">
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                            <div className="text-xs font-sans space-y-1 text-gray-600">
+                              {chef.phone && <p>📞 {chef.phone}</p>}
+                              {chef.email && <p>✉️ {chef.email}</p>}
+                              {isOnLeave && leave && (
+                                <p className="text-amber-700">On leave: {new Date(leave.startDate).toLocaleDateString()} - {new Date(leave.endDate).toLocaleDateString()}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 pt-2 border-t border-gray-100">
+                              <button
+                                onClick={() => {
+                                  setShowLeaveForm(true);
+                                  setLeaveForm({ chefId: chef.id, startDate: new Date().toISOString().slice(0, 16), endDate: new Date(Date.now() + 86400000).toISOString().slice(0, 16), reason: '' });
+                                }}
+                                className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 transition cursor-pointer flex-1"
+                              >
+                                Add Leave
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                </div>
+
+                {/* Chef Leaves Section */}
+                <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="font-display font-bold text-sm text-gray-900">Chef Leave Records</h3>
+                      <p className="text-xs text-gray-400 font-sans">Track chef availability and time off.</p>
+                    </div>
+                    <button
+                      onClick={() => { setShowLeaveForm(true); setLeaveForm({ chefId: chefs[0]?.id || '', startDate: new Date().toISOString().slice(0, 16), endDate: new Date(Date.now() + 86400000).toISOString().slice(0, 16), reason: '' }); }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-xl text-xs tracking-wide transition-all shadow-md flex items-center space-x-2 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Add Leave</span>
+                    </button>
+                  </div>
+
+                  {chefLeaves.length === 0 ? (
+                    <p className="text-center py-8 text-gray-400 text-xs">No leave records yet.</p>
+                  ) : (
+                    <div className="overflow-x-auto text-xs">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-red-50 text-gray-400 uppercase tracking-wider font-semibold text-[10px]">
+                            <th className="pb-3.5">Chef</th>
+                            <th className="pb-3.5">Start Date</th>
+                            <th className="pb-3.5">End Date</th>
+                            <th className="pb-3.5">Reason</th>
+                            <th className="pb-3.5">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-red-50 font-sans text-slate-755">
+                          {chefLeaves.map((leave, idx) => {
+                            const chef = chefs.find(c => c.id === leave.chefId);
+                            const now = Date.now();
+                            const isActive = now >= leave.startDate && now <= leave.endDate;
+                            const isUpcoming = now < leave.startDate;
+                            const isPast = now > leave.endDate;
+                            return (
+                              <tr key={idx} className="hover:bg-red-50/25">
+                                <td className="py-4 font-bold capitalize">{chef?.name || leave.chefId}</td>
+                                <td className="py-4 font-mono text-gray-400">{new Date(leave.startDate).toLocaleString()}</td>
+                                <td className="py-4 font-mono text-gray-400">{new Date(leave.endDate).toLocaleString()}</td>
+                                <td className="py-4 text-gray-600">{leave.reason || '—'}</td>
+                                <td className="py-4">
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono ${isActive ? 'bg-amber-100 text-amber-700' : isUpcoming ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    {isActive ? 'Active' : isUpcoming ? 'Upcoming' : 'Completed'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* OWNER SUBTAB: KITCHEN TASKS */}
+            {ownerSubTab === 'kitchen' && (
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-xs">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="font-display font-bold text-sm text-gray-900">Kitchen Task Board</h3>
+                      <p className="text-xs text-gray-400 font-sans">View and manage all kitchen tasks grouped by chef.</p>
+                    </div>
+                  </div>
+
+                  {kitchenTasks.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      <ChefHatIcon className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                      <p className="text-xs font-semibold">No kitchen tasks yet</p>
+                      <p className="text-[10px] mt-1">Tasks appear here when paid orders contain cookable items</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Group tasks by chef */}
+                      {(() => {
+                        const grouped = kitchenTasks.reduce((acc, task) => {
+                          const chefId = task.chefId || 'unassigned';
+                          if (!acc[chefId]) acc[chefId] = [];
+                          acc[chefId].push(task);
+                          return acc;
+                        }, {} as Record<string, KitchenTask[]>);
+
+                        return Object.entries(grouped).map(([chefId, tasks]: [string, KitchenTask[]]) => {
+                          const chef = chefs.find(c => c.id === chefId);
+                          return (
+                            <div key={chefId} className="bg-gray-50/50 rounded-2xl border border-gray-100 overflow-hidden">
+                              <div className="bg-gray-100/50 px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
+                                    <ChefHatIcon className="h-4 w-4 text-amber-600" />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-bold text-gray-900 text-sm">{chef?.name || (chefId === 'unassigned' ? 'Unassigned' : chefId)}</h4>
+                                    <p className="text-[10px] text-gray-500">{tasks.length} task(s)</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  {tasks.some(t => t.status === 'PENDING' || t.status === 'ACCEPTED') && (
+                                    <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded">Pending</span>
+                                  )}
+                                  {tasks.some(t => t.status === 'PREPARING') && (
+                                    <span className="bg-blue-100 text-blue-700 text-[9px] font-bold px-2 py-0.5 rounded">Cooking</span>
+                                  )}
+                                  {tasks.every(t => t.status === 'READY' || t.status === 'COMPLETED') && (
+                                    <span className="bg-emerald-100 text-emerald-700 text-[9px] font-bold px-2 py-0.5 rounded">All Ready</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="p-4 space-y-3">
+                                {tasks.map(task => (
+                                  <div key={task.id} className="bg-white rounded-xl border border-gray-100 p-3 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-mono text-[10px] font-bold text-gray-600">Order: {task.orderId}</span>
+                                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono ${
+                                        task.status === 'PENDING' ? 'bg-gray-100 text-gray-600' :
+                                        task.status === 'ACCEPTED' ? 'bg-blue-100 text-blue-700' :
+                                        task.status === 'PREPARING' ? 'bg-amber-100 text-amber-700' :
+                                        task.status === 'READY' ? 'bg-emerald-100 text-emerald-700' :
+                                        task.status === 'COMPLETED' ? 'bg-gray-100 text-gray-500' :
+                                        'bg-rose-100 text-rose-700'
+                                      }`}>
+                                        {task.status}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-gray-600 space-y-1">
+                                      {task.items.map((item, idx) => (
+                                        <div key={idx} className="flex justify-between">
+                                          <span>{item.itemName} x{item.quantity}</span>
+                                          {item.price && <span className="text-amber-600 font-bold">₹{item.price * item.quantity}</span>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <div className="flex items-center space-x-2 pt-2 border-t border-gray-100">
+                                      {task.status === 'PENDING' && (
+                                        <button
+                                          onClick={() => updateTaskStatus(task.id, 'ACCEPTED')}
+                                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 rounded cursor-pointer"
+                                        >
+                                          Accept
+                                        </button>
+                                      )}
+                                      {(task.status === 'ACCEPTED' || task.status === 'PENDING') && (
+                                        <button
+                                          onClick={() => updateTaskStatus(task.id, 'PREPARING')}
+                                          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold py-1.5 rounded cursor-pointer"
+                                        >
+                                          Start Cooking
+                                        </button>
+                                      )}
+                                      {task.status === 'PREPARING' && (
+                                        <button
+                                          onClick={() => updateTaskStatus(task.id, 'READY')}
+                                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 rounded cursor-pointer"
+                                        >
+                                          Mark Ready
+                                        </button>
+                                      )}
+                                      {(task.status === 'READY' || task.status === 'COMPLETED') && (
+                                        <button
+                                          onClick={() => updateTaskStatus(task.id, 'COMPLETED')}
+                                          className="flex-1 bg-gray-600 hover:bg-gray-700 text-white text-[10px] font-bold py-1.5 rounded cursor-pointer"
+                                        >
+                                          Complete
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
         </div>
       )}
       {/* ======================= GLOBAL ADD/EDIT PRODUCT MODAL ======================= */}
@@ -2702,6 +3236,56 @@ export default function CanteenAdmin({
                   Requires Chef cooking (Send to Kitchen Queue)
                 </label>
               </div>
+
+              {/* Chef Assignment Fields (shown when Requires Chef is checked) */}
+              {formRequiresChef && (
+                <div className="space-y-3 border border-red-100 p-3 rounded-xl bg-red-50/20">
+                  <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block mb-2">Chef Assignment</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Primary Chef</label>
+                      <select
+                        value={formPrimaryChefId}
+                        onChange={(e) => setFormPrimaryChefId(e.target.value)}
+                        className="w-full bg-white border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs"
+                      >
+                        <option value="">Auto-assign (Primary → Backup → Available)</option>
+                        {chefs
+                          .filter(c => c.status === 'AVAILABLE' && c.isAvailable)
+                          .map(chef => (
+                            <option key={chef.id} value={chef.id}>{chef.name} ({chef.specialization?.join(', ') || 'General'})</option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Backup Chef</label>
+                      <select
+                        value={formBackupChefId}
+                        onChange={(e) => setFormBackupChefId(e.target.value)}
+                        className="w-full bg-white border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs"
+                      >
+                        <option value="">None (Auto-assign)</option>
+                        {chefs
+                          .filter(c => c.status === 'AVAILABLE' && c.isAvailable)
+                          .map(chef => (
+                            <option key={chef.id} value={chef.id}>{chef.name} ({chef.specialization?.join(', ') || 'General'})</option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block font-semibold">Preparation Type</label>
+                    <select
+                      value={formPreparationType}
+                      onChange={(e) => setFormPreparationType(e.target.value as 'COOKABLE' | 'READY_TO_SERVE')}
+                      className="w-full bg-white border border-red-100 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white text-xs font-medium"
+                    >
+                      <option value="COOKABLE">Cookable (Requires Kitchen Time)</option>
+                      <option value="READY_TO_SERVE">Ready to Serve (Skip Kitchen Queue)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {/* INGREDIENTS RECIPE MAPPING editor inside Save item modal */}
               <div className="space-y-2 border border-red-100 p-3 rounded-xl bg-red-50/20">

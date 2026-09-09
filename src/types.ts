@@ -29,6 +29,55 @@ export interface MenuItem {
   subCanteenId?: string;
   collegeId?: string;
   requiresChef?: boolean;
+  primaryChefId?: string | null;
+  backupChefId?: string | null;
+  preparationType?: 'COOKABLE' | 'READY_TO_SERVE';
+}
+
+export interface Chef {
+  id: string;
+  canteenId: string;
+  userId?: string | null;
+  name: string;
+  phone?: string;
+  email?: string;
+  specialization?: string[];
+  status: 'AVAILABLE' | 'UNAVAILABLE' | 'ON_LEAVE' | 'INACTIVE';
+  isAvailable: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface KitchenTaskItem {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  price?: number;
+}
+
+export interface KitchenTask {
+  id: string;
+  orderId: string;
+  canteenId: string;
+  subCanteenId?: string;
+  chefId: string | null;
+  items: KitchenTaskItem[];
+  status: 'PENDING' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'CANCELLED' | 'COMPLETED';
+  priority?: number;
+  assignedAt?: number;
+  startedAt?: number;
+  completedAt?: number;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface ChefLeave {
+  id: string;
+  chefId: string;
+  startDate: number;
+  endDate: number;
+  reason?: string;
+  createdAt?: number;
 }
 
 export interface OrderItem {
