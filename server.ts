@@ -12,7 +12,7 @@ import crypto from 'crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createClient, SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
 import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSettings, College, SubCanteen, User, Chef, ChefLeave } from './src/types';
-import { pgGetById, pgGetAll, pgGetWhere, pgGetWhereOrdered, pgSet, pgUpdate, pgDelete, pgDeleteWhere, pgIncrement, pgGetByEmail, isPgAvailable, query, queryOne, execute } from './db';
+import { pgGetById, pgGetAll, pgGetWhere, pgGetWhereOrdered, pgSet, pgUpdate, pgDelete, pgDeleteWhere, pgIncrement, pgGetByEmail, isPgAvailable, query, queryOne, execute, pgTransaction, toSnakeCase } from './db';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import pino from 'pino';
@@ -81,6 +81,15 @@ const logger = pino({
 // Add logger to global for use in other modules
 (global as any).logger = logger;
 logger.info('Logger initialized');
+
+// Helper function to sort array by createdAt descending
+function sortByCreatedAtDesc<T extends { createdAt?: number | string }>(arr: T[]): T[] {
+  return [...arr].sort((a: T, b: T): number => {
+    const aTime = Number(a?.createdAt ?? 0);
+    const bTime = Number(b?.createdAt ?? 0);
+    return bTime - aTime;
+  });
+}
 
 const app = express();
 const PORT = 3000;
@@ -2699,34 +2708,79 @@ async function fulfillRazorpayOrder(targetOrder: Order, razorpay_payment_id: str
     currentIngredients = canteenState.ingredients || [];
   }
 
-  for (const item of targetOrder.items) {
-    const itemInMenu = currentItems.find(i => i.id === item.itemId);
-    if (itemInMenu) {
-      itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
-      itemInMenu.bookedToday += item.quantity;
-      if (itemInMenu.stock <= 0) {
-        itemInMenu.available = false;
-      }
-      if (pgReady) {
-        await pgSet('items', itemInMenu.id, itemInMenu);
-      }
+  // Use transaction for stock/ingredient deductions to prevent race conditions
+  if (pgReady) {
+    await pgTransaction(async (client: any) => {
+      for (const item of targetOrder.items) {
+        const itemInMenu = currentItems.find(i => i.id === item.itemId);
+        if (itemInMenu) {
+          itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
+          itemInMenu.bookedToday += item.quantity;
+          if (itemInMenu.stock <= 0) {
+            itemInMenu.available = false;
+          }
+          const snakeItem = toSnakeCase({ ...itemInMenu });
+          const pk = 'id';
+          const columns = Object.keys(snakeItem);
+          const placeholders = columns.map((_, i) => `$${i + 1}`);
+          const updateColumns = columns.filter(c => c !== 'id');
+          const updateClauses = updateColumns.map(c => `${c} = $${columns.indexOf(c) + 1}`);
+          const values = columns.map(c => {
+            const v = snakeItem[c];
+            return (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v;
+          });
+          const sql = `UPDATE items SET ${updateClauses.join(', ')} WHERE id = $${columns.indexOf('id') + 1}`;
+          await client.query(sql, values);
 
-      if (itemInMenu.recipe) {
-        for (const recipeItem of itemInMenu.recipe) {
-          const reqAmount = recipeItem.amountGrams * item.quantity;
-          const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
-          if (ingredient) {
-            ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
-            if (pgReady) {
-              await pgSet('ingredients', ingredient.id, ingredient);
+          // Deduct ingredients if recipe exists
+          if (itemInMenu.recipe) {
+            for (const recipeItem of itemInMenu.recipe) {
+              const reqAmount = recipeItem.amountGrams * item.quantity;
+              const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
+              if (ingredient) {
+                ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
+                const snakeIng = toSnakeCase({ ...ingredient });
+                const ingColumns = Object.keys(snakeIng);
+                const ingPlaceholders = ingColumns.map((_, i) => `$${i + 1}`);
+                const ingUpdateColumns = ingColumns.filter(c => c !== 'id');
+                const ingUpdateClauses = ingUpdateColumns.map(c => `${c} = $${ingColumns.indexOf(c) + 1}`);
+                const ingValues = ingColumns.map(c => {
+                  const v = snakeIng[c];
+                  return (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v;
+                });
+                const ingSql = `UPDATE ingredients SET ${ingUpdateClauses.join(', ')} WHERE id = $${ingColumns.indexOf('id') + 1}`;
+                await client.query(ingSql, ingValues);
+              }
+            }
+          }
+        }
+      }
+    });
+  } else {
+    // In-memory fallback (no transaction)
+    for (const item of targetOrder.items) {
+      const itemInMenu = currentItems.find(i => i.id === item.itemId);
+      if (itemInMenu) {
+        itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
+        itemInMenu.bookedToday += item.quantity;
+        if (itemInMenu.stock <= 0) {
+          itemInMenu.available = false;
+        }
+
+        if (itemInMenu.recipe) {
+          for (const recipeItem of itemInMenu.recipe) {
+            const reqAmount = recipeItem.amountGrams * item.quantity;
+            const ingredient = currentIngredients.find(ing => ing.id === recipeItem.ingredientId);
+            if (ingredient) {
+              ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
             }
           }
         }
       }
     }
+    canteenState.items = currentItems;
+    canteenState.ingredients = currentIngredients;
   }
-  canteenState.items = currentItems;
-  canteenState.ingredients = currentIngredients;
 
   const containsChefItems = targetOrder.items.some(it => {
     const itemMenu = currentItems.find(m => m.id === it.itemId);
@@ -4703,6 +4757,569 @@ app.get('/api/chefs/leaves', async (req, res) => {
   } catch (err: any) {
     console.error('[Chefs] Leave list error:', err?.message || err);
     res.status(500).json({ success: false, error: 'Failed to load leaves' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════════
+// KITCHEN TASKS API
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/kitchen/tasks - list kitchen tasks for a canteen
+app.get('/api/kitchen/tasks', async (req, res) => {
+  try {
+    const { canteenId, chefId, status } = req.query;
+    if (!canteenId) {
+      return res.status(400).json({ success: false, error: 'canteenId required' });
+    }
+    let tasks: KitchenTask[] = [];
+    if (pgReady) {
+      const filter: any = { canteen_id: canteenId };
+      if (chefId) filter.chef_id = chefId;
+      if (status) filter.status = status;
+      tasks = await pgGetWhere('kitchen_tasks', filter);
+    } else {
+      tasks = ((canteenState as any).kitchenTasks || []).filter((t: any) => 
+        t.canteenId === canteenId && (!chefId || t.chefId === chefId) && (!status || t.status === status)
+      );
+    }
+    res.json({ success: true, tasks });
+  } catch (err: any) {
+    console.error('[Kitchen Tasks] List error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to load kitchen tasks' });
+  }
+});
+
+// GET /api/kitchen/tasks/:id - get single kitchen task
+app.get('/api/kitchen/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    let task: KitchenTask | null = null;
+    if (pgReady) {
+      task = await pgGetById('kitchen_tasks', id);
+    } else {
+      task = ((canteenState as any).kitchenTasks || []).find((t: any) => t.id === id) || null;
+    }
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    res.json({ success: true, task });
+  } catch (err: any) {
+    console.error('[Kitchen Tasks] Get error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to load task' });
+  }
+});
+
+// POST /api/kitchen/tasks/:id/status - update kitchen task status
+app.post('/api/kitchen/tasks/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const validStatuses = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'CANCELLED', 'COMPLETED'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status' });
+    }
+
+    let task: KitchenTask | null = null;
+    if (pgReady) {
+      task = await pgGetById('kitchen_tasks', id);
+    } else {
+      task = ((canteenState as any).kitchenTasks || []).find((t: any) => t.id === id) || null;
+    }
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+
+    const now = Date.now();
+    const updatedTask: KitchenTask = {
+      ...task,
+      status,
+      updatedAt: now,
+      ...(status === 'PREPARING' && !task.startedAt ? { startedAt: now } : {}),
+      ...(status === 'READY' || status === 'COMPLETED' ? { completedAt: now } : {})
+    };
+
+    if (pgReady) {
+      await pgSet('kitchen_tasks', id, updatedTask);
+    } else {
+      (canteenState as any).kitchenTasks = (canteenState as any).kitchenTasks.map((t: any) => 
+        t.id === id ? updatedTask : t
+      );
+    }
+
+    // Check if all tasks for this order are complete
+    await maybeMarkOrderReadyFromTasks(task.orderId, task.canteenId);
+
+    res.json({ success: true, task: updatedTask });
+  } catch (err: any) {
+    console.error('[Kitchen Tasks] Status update error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to update task status' });
+  }
+});
+
+// POST /api/items/:id/assign-chef - assign primary/backup chef to item
+app.post('/api/items/:id/assign-chef', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { primaryChefId, backupChefId, preparationType } = req.body;
+    const validPrepTypes = ['COOKABLE', 'READY_TO_SERVE'];
+    if (preparationType && !validPrepTypes.includes(preparationType)) {
+      return res.status(400).json({ success: false, error: 'Invalid preparationType' });
+    }
+
+    let item: any = null;
+    if (pgReady) {
+      item = await pgGetById('items', id);
+    } else {
+      item = (canteenState as any).items?.find((i: any) => i.id === id) || null;
+    }
+    if (!item) {
+      return res.status(404).json({ success: false, error: 'Item not found' });
+    }
+
+    // Validate chef IDs if provided
+    if (primaryChefId) {
+      const chef = pgReady 
+        ? await pgGetById('chefs', primaryChefId) 
+        : (canteenState as any).chefs?.find((c: any) => c.id === primaryChefId);
+      if (!chef || chef.canteenId !== item.canteenId) {
+        return res.status(400).json({ success: false, error: 'Primary chef not found in same canteen' });
+      }
+    }
+    if (backupChefId) {
+      const chef = pgReady 
+        ? await pgGetById('chefs', backupChefId) 
+        : (canteenState as any).chefs?.find((c: any) => c.id === backupChefId);
+      if (!chef || chef.canteenId !== item.canteenId) {
+        return res.status(400).json({ success: false, error: 'Backup chef not found in same canteen' });
+      }
+    }
+
+    const updatedItem = {
+      ...item,
+      primaryChefId: primaryChefId || null,
+      backupChefId: backupChefId || null,
+      preparationType: preparationType || item.preparationType || 'COOKABLE',
+      updatedAt: Date.now()
+    };
+
+    if (pgReady) {
+      await pgSet('items', id, updatedItem);
+    } else {
+      (canteenState as any).items = (canteenState as any).items.map((i: any) => 
+        i.id === id ? updatedItem : i
+      );
+    }
+
+    res.json({ success: true, item: updatedItem });
+  } catch (err: any) {
+    console.error('[Item Chef Assignment] Error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to assign chef' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════════
+// WALLET API
+// ════════════════════════════════════════════════════════════════════════════════
+
+interface Wallet {
+  id: string;
+  userId: string;
+  balance: number; // in paise
+  currency: string;
+  status: 'active' | 'frozen' | 'suspended' | 'closed';
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface WalletTransaction {
+  id: string;
+  walletId: string;
+  type: 'TOPUP' | 'PURCHASE' | 'REFUND' | 'REVERSAL' | 'ADJUSTMENT';
+  amount: number; // in paise
+  direction: 'CREDIT' | 'DEBIT';
+  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'REFUNDED';
+  description?: string;
+  metadata?: Record<string, any>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface WalletTopup {
+  id: string;
+  walletId: string;
+  amount: number; // in paise
+  provider: 'RAZORPAY' | 'VYAPAR' | 'STRIPE' | 'MOCK';
+  providerOrderId?: string;
+  providerPaymentId?: string;
+  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'REFUNDED';
+  createdAt: number;
+  updatedAt: number;
+}
+
+// GET /api/wallet/balance - get user's wallet balance
+app.get('/api/wallet/balance', async (req, res) => {
+  try {
+    const userId = (req as any).authUser?.id || req.query.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    
+    let wallet: any = null;
+    if (pgReady) {
+      wallet = await pgGetById('wallets', userId);
+    } else {
+      wallet = (canteenState as any).wallets?.find((w: any) => w.userId === userId) || null;
+    }
+    
+    if (!wallet) {
+      // Create wallet if not exists
+      const newWallet: any = {
+        id: userId,
+        userId,
+        balance: 0,
+        currency: 'INR',
+        status: 'active',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      if (pgReady) {
+        await pgSet('wallets', userId, newWallet);
+      } else {
+        (canteenState as any).wallets = (canteenState as any).wallets || [];
+        (canteenState as any).wallets.push(newWallet);
+      }
+      wallet = newWallet;
+    }
+    
+    res.json({ success: true, wallet });
+  } catch (err: any) {
+    console.error('[Wallet] Balance error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to get wallet balance' });
+  }
+});
+
+// GET /api/wallet/transactions - get wallet transaction history
+app.get('/api/wallet/transactions', async (req, res) => {
+  try {
+    const userId = (req as any).authUser?.id || req.query.userId;
+    const { page = 1, limit = 20 } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    
+let transactions: any[] = [];
+    let walletId = userId;
+    
+if (pgReady) {
+      const wallet = await pgGetById('wallets', userId);
+      if (wallet) walletId = wallet.id;
+      const transactionsRaw = await pgGetWhere('wallet_transactions', { wallet_id: walletId });
+      const sortedTxs = sortByCreatedAtDesc(transactionsRaw as any[]);
+      const transactions = (sortedTxs as any[]).slice((pageNum - 1) * limitNum, pageNum * limitNum);
+    } else {
+      const txs2 = (((canteenState as any).walletTransactions || []) as any[])
+        .filter((t: any) => t.walletId === walletId);
+      const sortedTxs = sortByCreatedAtDesc(txs2);
+      const transactions = (sortedTxs as any[]).slice((pageNum - 1) * limitNum, pageNum * limitNum);
+    }
+    
+    res.json({ success: true, transactions });
+  } catch (err: any) {
+    console.error('[Wallet] Transactions error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to get transactions' });
+  }
+});
+
+// POST /api/wallet/topup - initiate wallet topup
+app.post('/api/wallet/topup', async (req, res) => {
+  try {
+    const userId = (req as any).authUser?.id || req.body.userId;
+    const { amount, provider } = req.body;
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid amount required' });
+    }
+    if (!['RAZORPAY', 'VYAPAR', 'STRIPE', 'MOCK'].includes(provider)) {
+      return res.status(400).json({ success: false, error: 'Invalid provider' });
+    }
+    
+    let wallet: any = null;
+    if (pgReady) {
+      wallet = await pgGetById('wallets', (req as any).authUser?.id || req.body.userId);
+    } else {
+      wallet = (canteenState as any).wallets?.find((w: any) => w.userId === userId) || null;
+    }
+    
+    if (!wallet) {
+      return res.status(404).json({ success: false, error: 'Wallet not found' });
+    }
+    
+    const topupId = `topup_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const newTopup = {
+      id: topupId,
+      walletId: wallet.id,
+      amount,
+      provider,
+      status: 'PENDING',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    
+    if (pgReady) {
+      await pgSet('wallet_topups', topupId, newTopup);
+    } else {
+      (canteenState as any).walletTopups = (canteenState as any).walletTopups || [];
+      (canteenState as any).walletTopups.push(newTopup);
+    }
+    
+    // For Razorpay, create order
+    if (provider === 'RAZORPAY' && razorpayConfigured && razorpay) {
+      try {
+        const order = await razorpay.orders.create({
+          amount: amount * 100, // amount in paise
+          currency: 'INR',
+          receipt: `topup_${topupId}`,
+          notes: { topupId, walletId: wallet.id }
+        });
+        
+        if (pgReady) {
+          await pgSet('wallet_topups', topupId, { ...newTopup, providerOrderId: order.id });
+        } else {
+          (canteenState as any).walletTopups = (canteenState as any).walletTopups.map((t: any) => 
+            t.id === topupId ? { ...t, providerOrderId: order.id } : t
+          );
+        }
+        
+        return res.json({
+          success: true,
+          useRazorpay: true,
+          topupId,
+          razorpayOrderId: order.id,
+          razorpayKeyId: razorpayKeyId,
+          amount: amount / 100,
+          currency: 'INR'
+        });
+      } catch (err: any) {
+        console.error('[Wallet Topup] Razorpay error:', err);
+        return res.status(500).json({ success: false, error: 'Failed to create Razorpay order' });
+      }
+    }
+    
+    // For other providers, return topup info
+    res.json({ 
+      success: true, 
+      useRazorpay: false, 
+      topupId, 
+      message: 'Topup initiated. Complete payment via provider.' 
+    });
+  } catch (err: any) {
+    console.error('[Wallet Topup] Error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to initiate topup' });
+  }
+});
+
+// POST /api/wallet/topup/confirm - confirm wallet topup
+app.post('/api/wallet/topup/confirm', async (req, res) => {
+  try {
+    const { topupId, provider, providerOrderId, providerPaymentId } = req.body;
+    if (!topupId || !provider) {
+      return res.status(400).json({ success: false, error: 'topupId and provider required' });
+    }
+    
+    let topup: any = null;
+    if (pgReady) {
+      topup = await pgGetById('wallet_topups', topupId);
+    } else {
+      topup = (canteenState as any).walletTopups?.find((t: any) => t.id === topupId) || null;
+    }
+    
+    if (!topup) {
+      return res.status(404).json({ success: false, error: 'Topup not found' });
+    }
+    if (topup.status === 'SUCCESS') {
+      return res.status(400).json({ success: false, error: 'Topup already confirmed' });
+    }
+    
+    // Verify with provider
+    if (provider === 'RAZORPAY') {
+      if (!providerOrderId || !providerPaymentId) {
+        return res.status(400).json({ success: false, error: 'Razorpay payment details required' });
+      }
+      
+      try {
+        const auth = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
+        const resp = await fetch(`https://api.razorpay.com/v1/payments/${providerPaymentId}`, {
+          headers: { Authorization: `Basic ${auth}` }
+        });
+        if (!resp.ok) {
+          return res.status(400).json({ success: false, error: 'Invalid payment' });
+        }
+        const pay = await resp.json() as any;
+        if (pay.order_id !== topup.providerOrderId || !['captured', 'authorized'].includes(pay.status)) {
+          return res.status(400).json({ success: false, error: 'Payment not captured' });
+        }
+      } catch (e) {
+        return res.status(400).json({ success: false, error: 'Payment verification failed' });
+      }
+    }
+    
+    // Update topup status
+    const updatedTopup = {
+      ...topup,
+      status: 'SUCCESS',
+      providerOrderId: providerOrderId || topup.providerOrderId,
+      providerPaymentId: providerPaymentId,
+      updatedAt: Date.now()
+    };
+    
+    if (pgReady) {
+      await pgSet('wallet_topups', topupId, updatedTopup);
+    } else {
+      (canteenState as any).walletTopups = (canteenState as any).walletTopups.map((t: any) => 
+        t.id === topupId ? updatedTopup : t
+      );
+    }
+    
+    // Credit wallet
+    const walletId = topup.walletId;
+    let wallet: any = null;
+    if (pgReady) {
+      wallet = await pgGetById('wallets', walletId);
+      if (wallet) {
+        wallet.balance += topup.amount;
+        wallet.updatedAt = Date.now();
+        await pgSet('wallets', walletId, wallet);
+      }
+    } else {
+      wallet = (canteenState as any).wallets?.find((w: any) => w.id === walletId);
+      if (wallet) {
+        wallet.balance += topup.amount;
+        wallet.updatedAt = Date.now();
+      }
+    }
+    
+    // Create transaction record
+    const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const transaction = {
+      id: txnId,
+      walletId,
+      type: 'TOPUP',
+      amount: topup.amount,
+      direction: 'CREDIT',
+      status: 'SUCCESS',
+      description: `Wallet topup via ${provider}`,
+      metadata: { topupId, provider, providerOrderId, providerPaymentId },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    
+    if (pgReady) {
+      await pgSet('wallet_transactions', txnId, transaction);
+    } else {
+      (canteenState as any).walletTransactions = (canteenState as any).walletTransactions || [];
+      (canteenState as any).walletTransactions.push(transaction);
+    }
+    
+    res.json({ success: true, topup: updatedTopup, wallet });
+  } catch (err: any) {
+    console.error('[Wallet Topup Confirm] Error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to confirm topup' });
+  }
+});
+
+// POST /api/wallet/refund - process wallet refund
+app.post('/api/wallet/refund', async (req, res) => {
+  try {
+    const userId = (req as any).authUser?.id || req.body.userId;
+    const { amount, idempotencyKey, reason } = req.body;
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid amount required' });
+    }
+    if (!idempotencyKey) {
+      return res.status(400).json({ success: false, error: 'Idempotency key required' });
+    }
+    
+    // Check idempotency
+    let existing: any = null;
+    if (pgReady) {
+      existing = await pgGetWhere('wallet_transactions', { 'metadata.idempotencyKey': idempotencyKey });
+    } else {
+      existing = (canteenState as any).walletTransactions?.find((t: any) => t.metadata?.idempotencyKey === idempotencyKey) || null;
+    }
+    if (existing) {
+      return res.json({ success: true, transaction: existing, message: 'Already processed' });
+    }
+    
+    // Get wallet
+    let wallet: any = null;
+    if (pgReady) {
+      wallet = await pgGetById('wallets', userId);
+    } else {
+      wallet = (canteenState as any).wallets?.find((w: any) => w.userId === userId) || null;
+    }
+    
+    if (!wallet) {
+      return res.status(404).json({ success: false, error: 'Wallet not found' });
+    }
+    if ((wallet.balance as number) < amount) {
+      return res.status(400).json({ success: false, error: 'Insufficient balance' });
+    }
+    
+    // Deduct from wallet
+    wallet.balance = (wallet.balance as number) - amount;
+    wallet.updatedAt = Date.now();
+    
+    if (pgReady) {
+      await pgSet('wallets', wallet.id, wallet);
+    } else {
+      (canteenState as any).wallets = (canteenState as any).wallets.map((w: any) => 
+        w.id === wallet.id ? wallet : w
+      );
+    }
+    
+    // Create refund transaction
+    const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const transaction = {
+      id: txnId,
+      walletId: wallet.id,
+      type: 'REFUND',
+      amount,
+      direction: 'DEBIT',
+      status: 'SUCCESS',
+      description: reason || 'Wallet refund',
+      metadata: { idempotencyKey },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    
+    if (pgReady) {
+      await pgSet('wallet_transactions', txnId, transaction);
+    } else {
+      (canteenState as any).walletTransactions = (canteenState as any).walletTransactions || [];
+      (canteenState as any).walletTransactions.push(transaction);
+    }
+    
+    if (pgReady) {
+      await pgSet('wallets', wallet.id, wallet);
+    } else {
+      (canteenState as any).wallets = (canteenState as any).wallets.map((w: any) => 
+        w.id === wallet.id ? wallet : w
+      );
+    }
+    
+    res.json({ success: true, transaction });
+  } catch (err: any) {
+    console.error('[Wallet Refund] Error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to process refund' });
   }
 });
 

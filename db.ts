@@ -272,6 +272,32 @@ export async function isPgAvailable(): Promise<boolean> {
   }
 }
 
+/**
+ * Execute multiple operations within a single database transaction.
+ * Usage:
+ *   await pgTransaction(async (client) => {
+ *     await client.query('UPDATE items SET stock = stock - $1 WHERE id = $2', [qty, itemId]);
+ *     await client.query('UPDATE ingredients SET stock_grams = stock_grams - $1 WHERE id = $2', [grams, ingId]);
+ *   });
+ */
+export async function pgTransaction<T>(
+  callback: (client: any) => Promise<T>
+): Promise<T> {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await callback(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 /** Initialize schema from SQL file */
 export async function initSchema(schemaSql: string): Promise<void> {
   const client = await getPool().connect();
