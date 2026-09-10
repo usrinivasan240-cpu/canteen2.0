@@ -356,7 +356,6 @@ app.use('/api/canteen/menu', (req, res, next) => {
 });
 app.use('/api/canteen/order', (req, res, next) => {
   if (req.method === 'GET') return next();
-  if (!req.headers['authorization']) return next();
   authMiddleware(req, res, next);
 });
 app.use('/api/canteen/ingredients', (req, res, next) => {
@@ -2657,32 +2656,13 @@ app.post('/api/canteen/order', async (req, res) => {
         } catch (vyaparErr: any) {
           console.error('[VyaparGateway] API call failed:', vyaparErr?.message || vyaparErr);
           // Fall through to sandbox QR
+}
         }
-      }
 
-      // Sandbox / fallback: generate a static UPI QR for the order
-      const callbackUrl = `${APP_UPDATE_URL}/api/vyapar/callback?orderId=${orderId}`;
-      const upiString = `upi://pay?pa=canteen@upi&pn=Esc(Q) Canteen&am=${(totalPrice).toFixed(2)}&tn=Order%20${orderId}&cu=INR&tr=${orderId}&url=${encodeURIComponent(callbackUrl)}`;
-      const sandboxTxnId = `VYG_${orderId}_${Date.now()}`;
-
-      newOrder.vyaparTxnId = sandboxTxnId;
-      newOrder.upiString = upiString;
-      if (pgReady) {
-        await pgSet('orders', orderId, newOrder);
-      }
-      canteenState.orders = canteenState.orders.map(o => o.id === orderId ? newOrder : o);
-
-      return res.json({
-        success: true,
-        useVyapar: true,
-        vyaparTxnId: sandboxTxnId,
-        qrUrl: '',
-        upiString,
-        amount: totalAmountPaise,
-        currency: 'INR',
-        order: newOrder,
-        qrPayload: generateSignedQR(orderId),
-        sandbox: true
+      // Vyapar not configured - return error instead of falling back to sandbox
+      return res.status(500).json({ 
+        success: false, 
+        error: 'VyaparGateway not configured. Please configure VyaparGateway credentials or use Razorpay.' 
       });
     } catch (err: any) {
       const errDetail = typeof err === 'string'
@@ -2692,77 +2672,7 @@ app.post('/api/canteen/order', async (req, res) => {
       return res.status(500).json({ success: false, error: `Payment gateway error: ${errDetail}` });
     }
   }
-
-  // Fallback to Instant Mock Checkout when Razorpay credentials are not configured
-  // Deduct ingredient stock, decrement item stock, increment bookedToday
-  for (const clientItem of items) {
-    const itemInMenu = currentItems.find(item => item.id === clientItem.itemId);
-    if (itemInMenu) {
-      itemInMenu.stock -= clientItem.quantity;
-      itemInMenu.bookedToday += clientItem.quantity;
-      if (itemInMenu.stock <= 0) {
-        itemInMenu.available = false;
-      }
-      if (pgReady) {
-        await pgSet('items', itemInMenu.id, itemInMenu);
-      }
-    }
-  }
-  canteenState.items = currentItems;
-
-  for (const [ingId, reqAmount] of Object.entries(requiredIngredients)) {
-    const ingredient = currentIngredients.find(i => i.id === ingId);
-    if (ingredient) {
-      ingredient.stockGrams = Math.max(0, ingredient.stockGrams - reqAmount);
-      if (pgReady) {
-        await pgSet('ingredients', ingredient.id, ingredient);
-      }
-    }
-  }
-  canteenState.ingredients = currentIngredients;
-
-  const totalPrice = Number((subtotal / 0.9764).toFixed(2));
-  const containsChefItems = validatedItems.some(it => {
-    const itemMenu = currentItems.find(m => m.id === it.itemId);
-    return itemMenu ? itemMenu.requiresChef !== false : true;
-  });
-
-  const signedQrPayload = generateSignedQR(orderId);
-  const newOrder: Order = {
-    id: orderId,
-    userId: userId || 'user_guest',
-    userName: userName || 'Raju Watson',
-    items: validatedItems,
-    totalPrice: totalPrice,
-    paymentStatus: 'paid', 
-    paymentMethod: paymentMethod || 'Mock UPI Checkout',
-    qrCode: `QR_${orderId}_${Math.floor(Math.random() * 1000)}`,
-    qrPayload: signedQrPayload,
-    status: containsChefItems ? 'scheduled' : 'ready',
-    timestamp: new Date().toISOString(),
-    createdAt: Date.now(),
-    pickupTimeText: containsChefItems ? `Scheduled for pickup at ${selectedSlot}` : 'Ready for collection at counter',
-    pickupSlot: selectedSlot,
-    prepStartTime,
-    expiryTime,
-    canteenId: canteenId || 'canteen_001',
-    subCanteenId: subCanteenId || 'sub_001'
-  };
-
-  if (pgReady) {
-    try {
-      await pgSet('orders', orderId, newOrder);
-    } catch (err) {
-      console.error('PostgreSQL save order error:', err);
-    }
-  }
-
-  canteenState.orders.unshift(newOrder);
-
-  await sendPushNotification(userId || 'user_guest', '🛒 Order Placed', `Your order ${orderId} has been placed successfully!`, { orderId, status: 'pending' });
-
-  res.json({ success: true, useRazorpay: false, order: newOrder, qrPayload: generateSignedQR(orderId), message: 'Order placed & payment verified!' });
-  } catch (topErr: any) {
+} catch (topErr: any) {
     console.error('Order endpoint unhandled error:', typeof topErr === 'string' ? topErr : topErr?.message || JSON.stringify(topErr));
     if (!res.headersSent) {
       return res.status(500).json({ success: false, error: `Order processing error: ${typeof topErr === 'string' ? topErr : topErr?.message || 'Unexpected server error'}` });
@@ -2843,6 +2753,226 @@ async function fulfillRazorpayOrder(targetOrder: Order, razorpay_payment_id: str
   canteenState.orders = canteenState.orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
   console.log(`[Razorpay Verify] ✅ Order ${targetOrder.id} marked as paid — QR generated`);
   return updatedOrder;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// SMART CHEF ROUTING & KITCHEN TASKS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface KitchenTask {
+  id: string;
+  orderId: string;
+  canteenId: string;
+  chefId: string | null;
+  items: { itemId: string; itemName: string; quantity: number; price?: number }[];
+  status: 'PENDING' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'CANCELLED' | 'COMPLETED';
+  priority: number;
+  assignedAt: number;
+  startedAt: number;
+  completedAt: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Check if a chef is currently on leave
+ */
+function isChefOnLeave(chef: Chef, leaves: ChefLeave[], now: number): boolean {
+  return leaves.some(leave => 
+    leave.chefId === chef.id && leave.startDate <= now && leave.endDate >= now
+  );
+}
+
+/**
+ * Resolve the best chef for an item based on:
+ * 1. Primary chef assigned to item (if available)
+ * 2. Backup chef assigned to item (if available)
+ * 3. Oldest available chef in same canteen with matching specialization
+ * 4. Oldest available chef in same canteen (fallback)
+ * Skips chefs who are on leave, inactive, or unavailable
+ */
+async function resolveChefForItem(
+  itemId: string,
+  canteenId: string,
+  now: number = Date.now()
+): Promise<Chef | null> {
+  let allChefs: Chef[] = [];
+  let leaves: ChefLeave[] = [];
+  
+  if (pgReady) {
+    allChefs = await pgGetWhere('chefs', { canteen_id: canteenId });
+    leaves = await pgGetWhere('chef_leave', {}) as ChefLeave[];
+  } else {
+    allChefs = (canteenState as any).chefs?.filter((c: any) => c.canteenId === canteenId) || [];
+    leaves = (canteenState as any).chefLeave || [];
+  }
+
+  const availableChefs = allChefs.filter(c => 
+    c.status === 'AVAILABLE' && c.isAvailable && !isChefOnLeave(c, leaves, now)
+  );
+
+  if (availableChefs.length === 0) return null;
+
+  // Try to find item-specific chef assignments
+  const item = pgReady 
+    ? await pgGetById('items', itemId) as any
+    : canteenState.items?.find((i: any) => i.id === itemId);
+
+  // 1. Try primary chef
+  if (item?.primaryChefId) {
+    const primary = availableChefs.find(c => c.id === item.primaryChefId);
+    if (primary) return primary;
+  }
+
+  // 2. Try backup chef
+  if (item?.backupChefId) {
+    const backup = availableChefs.find(c => c.id === item.backupChefId);
+    if (backup) return backup;
+  }
+
+  // 3. Try chefs with matching specialization (if item has preparationType COOKABLE)
+  if (item?.preparationType === 'COOKABLE' && item?.specialization) {
+    const specialized = availableChefs.filter(c => 
+      c.specialization?.some(s => item.specialization?.includes(s))
+    );
+    if (specialized.length > 0) {
+      // Return oldest (by createdAt)
+      return specialized.sort((a, b) => a.createdAt - b.createdAt)[0];
+    }
+  }
+
+  // 4. Fallback: oldest available chef in canteen
+  return availableChefs.sort((a, b) => a.createdAt - b.createdAt)[0];
+}
+
+/**
+ * Route kitchen tasks for a paid order.
+ * Groups COOKABLE items by assigned chef, creates one task per chef per order.
+ * Skips READY_TO_SERVE items (they don't need kitchen tasks).
+ * Uses pgSet with ON CONFLICT to avoid duplicates.
+ */
+async function routeKitchenTasks(
+  orderId: string,
+  orderItems: any[],
+  canteenId: string,
+  now: number = Date.now()
+): Promise<void> {
+  // Get all chefs for this canteen
+  let allChefs: Chef[] = [];
+  if (pgReady) {
+    allChefs = await pgGetWhere('chefs', { canteen_id: canteenId });
+  } else {
+    allChefs = (canteenState as any).chefs?.filter((c: any) => c.canteenId === canteenId) || [];
+  }
+
+  const availableChefs = allChefs.filter(c => c.status === 'AVAILABLE' && c.isAvailable);
+  if (availableChefs.length === 0) {
+    console.warn(`[Kitchen Tasks] No available chefs for canteen ${canteenId}, order ${orderId}`);
+    return;
+  }
+
+  // Group COOKABLE items by chef
+  const chefTaskMap = new Map<string, { itemId: string; itemName: string; quantity: number; price?: number }[]>();
+
+  for (const item of orderItems) {
+    // Skip READY_TO_SERVE items - they don't go to kitchen
+    const menuItem = pgReady 
+      ? await pgGetById('items', item.itemId) as any
+      : (canteenState as any).items?.find((i: any) => i.id === item.itemId);
+    
+    if (!menuItem || menuItem.preparationType === 'READY_TO_SERVE') continue;
+
+    const chef = await resolveChefForItem(item.itemId, canteenId, Date.now());
+    if (!chef) {
+      console.warn(`[Kitchen Tasks] No chef resolved for item ${item.itemId} in order ${orderId}`);
+      continue;
+    }
+
+    const existing = chefTaskMap.get(chef.id) || [];
+    existing.push({
+      itemId: item.itemId,
+      itemName: item.name,
+      quantity: item.quantity,
+      price: item.price
+    });
+    chefTaskMap.set(chef.id, existing);
+  }
+
+  // Create one kitchen task per chef
+  for (const [chefId, items] of chefTaskMap.entries()) {
+    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const task: KitchenTask = {
+      id: taskId,
+      orderId,
+      canteenId,
+      chefId,
+      items,
+      status: 'PENDING',
+      priority: 0,
+      assignedAt: Date.now(),
+      startedAt: 0,
+      completedAt: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    if (pgReady) {
+      try {
+        // Use pgSet with upsert logic (ON CONFLICT on order_id + chef_id)
+        await pgSet('kitchen_tasks', taskId, task);
+      } catch (e) {
+        console.error('[Kitchen Tasks] Failed to create task:', e);
+      }
+    } else {
+      (canteenState as any).kitchenTasks = (canteenState as any).kitchenTasks || [];
+      (canteenState as any).kitchenTasks.push(task);
+    }
+
+    // Send push notification to chef
+    const chef = allChefs.find(c => c.id === chefId);
+    if (chef?.userId) {
+      await sendPushNotification(chef.userId, '🍳 New Kitchen Task', 
+        `Order has ${items.length} item(s) to prepare`, { taskId, orderId });
+    }
+  }
+}
+
+/**
+ * Check if all kitchen tasks for an order are complete (READY/COMPLETED).
+ * If yes, mark order as READY.
+ */
+async function maybeMarkOrderReadyFromTasks(orderId: string, canteenId: string): Promise<void> {
+  let tasks: KitchenTask[] = [];
+  if (pgReady) {
+    tasks = await pgGetWhere('kitchen_tasks', { order_id: orderId, canteen_id: canteenId });
+  } else {
+    tasks = ((canteenState as any).kitchenTasks || []).filter(
+      (t: any) => t.orderId === orderId && t.canteenId === canteenId
+    );
+  }
+
+  if (tasks.length === 0) return;
+
+  const allComplete = tasks.every(t => 
+    t.status === 'READY' || t.status === 'COMPLETED' || t.status === 'CANCELLED'
+  );
+
+  if (allComplete) {
+    if (pgReady) {
+      const order = await pgGetById('orders', orderId);
+      if (order && order.paymentStatus === 'paid') {
+        const updated = { ...order, status: 'ready' };
+        await pgSet('orders', orderId, updated);
+        console.log(`[Kitchen Tasks] Order ${orderId} marked READY — all tasks complete`);
+      }
+    } else {
+      const orderIdx = canteenState.orders.findIndex((o: any) => o.id === orderId);
+      if (orderIdx >= 0 && canteenState.orders[orderIdx].paymentStatus === 'paid') {
+        canteenState.orders[orderIdx].status = 'ready';
+        console.log(`[Kitchen Tasks] Order ${orderId} marked READY — all tasks complete`);
+      }
+    }
+  }
 }
 
 // Server-side auto-reconciliation: when clients poll for orders, any PENDING
@@ -3303,12 +3433,7 @@ app.get('/api/vyapar/callback', async (req, res) => {
     }
   }
 
-  // Sandbox fallback: auto-verify
-  if (status === 'success' || status === 'completed') {
-    await autoVerifyVyaparOrder(targetOrder);
-    return res.redirect(`${APP_UPDATE_URL}?payment=success&orderId=${orderId}`);
-  }
-
+  // No sandbox fallback - require real payment verification
   return res.redirect(`${APP_UPDATE_URL}?payment=pending&orderId=${orderId}`);
 });
 
@@ -5366,7 +5491,10 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Sentry error handler (must be before other error handlers)
 if (process.env.SENTRY_DSN) {
-  app.use(expressErrorHandler());
+  const sentryErrorHandler = expressErrorHandler();
+  app.use((err: any, req: any, res: any, next: any) => {
+    sentryErrorHandler(err, req, res, next);
+  });
 }
 
 export default app;
