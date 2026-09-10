@@ -243,3 +243,27 @@ CREATE TRIGGER update_chefs_updated_at BEFORE UPDATE ON chefs
 
 CREATE TRIGGER update_kitchen_tasks_updated_at BEFORE UPDATE ON kitchen_tasks
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================
+-- 7 MISSING COMPOSITE INDEXES (from performance audit)
+-- ============================================================
+-- 1. orders: canteen_id + status + created_at (for order listing by canteen)
+CREATE INDEX IF NOT EXISTS idx_orders_canteen_status_created ON orders(canteen_id, status, created_at);
+
+-- 2. kitchen_tasks: canteen_id + status + assigned_at (for kitchen task queries)
+CREATE INDEX IF NOT EXISTS idx_kitchen_tasks_canteen_status_assigned ON kitchen_tasks(canteen_id, status, assigned_at);
+
+-- 3. items: canteen_id + available + is_paused (for menu loading)
+CREATE INDEX IF NOT EXISTS idx_items_canteen_avail_paused ON items(canteen_id, available, is_paused);
+
+-- 4. wallet_transactions: wallet_id + created_at (for transaction history)
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_wallet_created ON wallet_transactions(wallet_id, created_at);
+
+-- 5. kitchen_tasks: chef_id + status (for chef task queries)
+CREATE INDEX IF NOT EXISTS idx_kitchen_tasks_chef_status ON kitchen_tasks(chef_id, status);
+
+-- 6. orders: user_id + status + created_at (for user order history)
+CREATE INDEX IF NOT EXISTS idx_orders_user_status_created ON orders(user_id, status, created_at);
+
+-- 7. wallet_transactions: wallet_id + status + created_at (for transaction filtering)
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_wallet_status_created ON wallet_transactions(wallet_id, status, created_at);

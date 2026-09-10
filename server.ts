@@ -15,6 +15,7 @@ import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSetting
 import { pgGetById, pgGetAll, pgGetWhere, pgGetWhereOrdered, pgSet, pgUpdate, pgDelete, pgDeleteWhere, pgIncrement, pgGetByEmail, isPgAvailable, query, queryOne, execute, pgTransaction, toSnakeCase } from './db';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import Redis from 'ioredis';
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
 import { expressErrorHandler } from '@sentry/core';
@@ -104,13 +105,68 @@ app.use(helmet({
   xssFilter: true,
 }));
 
-// Rate limiting
+// Rate limiting with Redis
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const redis = new Redis(redisUrl, {
+  maxRetriesPerRequest: 3,
+  retryStrategy: (times) => Math.min(times * 50, 2000),
+  enableReadyCheck: true,
+  lazyConnect: true,
+});
+
+redis.on('error', (err) => {
+  console.error('[Redis] Connection error:', err.message);
+});
+
+async function connectRedis() {
+  try {
+    await redis.connect();
+    console.log('[Redis] Connected');
+  } catch (e) {
+    console.error('[Redis] Connection failed:', e.message);
+  }
+}
+connectRedis();
+
+// Redis-backed rate limiter using express-rate-limit v7+ store interface
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 200, // limit each IP to 200 requests per windowMs
   message: { success: false, error: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
+  handler: (req, res) => {
+    res.status(429).json({ success: false, error: 'Too many requests, please try again later' });
+  },
+  store: {
+    async increment(key: string, options: any): Promise<{ totalHits: number; resetTime: number }> {
+      const windowMs = options.windowMs;
+      const keyWithPrefix = `ratelimit:${key}`;
+      const multi = redis.multi();
+      multi.incr(keyWithPrefix);
+      multi.pexpire(keyWithPrefix, windowMs);
+      const results = await multi.exec();
+      const current = results[0][1];
+      return {
+        totalHits: current as number,
+        resetTime: Date.now() + windowMs,
+      };
+    },
+    async decrement(key: string): Promise<void> {
+      const keyWithPrefix = `ratelimit:${key}`;
+      await redis.decr(keyWithPrefix);
+    },
+    async resetKey(key: string): Promise<void> {
+      await redis.del(`ratelimit:${key}`);
+    },
+    async resetAll(): Promise<void> {
+      const keys = await redis.keys('ratelimit:*');
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+    },
+  } as any,
 });
 app.use('/api/', apiLimiter);
 
@@ -1336,20 +1392,30 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 
 // --- Colleges CRUD ---
 app.get('/api/colleges', async (req, res) => {
+  const { page = 1, limit = 50 } = req.query;
+  const pageNum = Number(page);
+  const limitNum = Math.min(Number(limit), 100);
+  const offset = (pageNum - 1) * limitNum;
+
   const cached = getCached('colleges');
-  if (cached) return res.json({ success: true, colleges: cached });
+  if (cached) {
+    const paginated = cached.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+    return res.json({ success: true, colleges: paginated, page: pageNum, limit: limitNum, total: cached.length });
+  }
   if (pgReady) {
     try {
-      const list = await pgGetAll('colleges');
+      const list = await pgGetWhere('colleges', {});
       if (list.length > 0) {
         setCache('colleges', list);
-        return res.json({ success: true, colleges: list });
+        const paginated = list.slice(offset, offset + limitNum);
+        return res.json({ success: true, colleges: paginated, page: pageNum, limit: limitNum, total: list.length });
       }
     } catch (e) {
       console.error(e);
     }
   }
-  res.json({ success: true, colleges: collegesState });
+  const paginated = collegesState.slice(offset, offset + limitNum);
+  res.json({ success: true, colleges: paginated, page: pageNum, limit: limitNum, total: collegesState.length });
 });
 
 app.post('/api/colleges', async (req, res) => {
@@ -1519,14 +1585,19 @@ app.delete('/api/colleges/:id', async (req, res) => {
 
 // --- Canteens CRUD ---
 app.get('/api/canteens', async (req, res) => {
-  const { ownerId } = req.query;
+  const { page = 1, limit = 50, ownerId } = req.query;
+  const pageNum = Number(page);
+  const limitNum = Math.min(Number(limit), 100);
+  const offset = (pageNum - 1) * limitNum;
+
   if (pgReady) {
     try {
       let list = await pgGetAll('canteens');
       if (ownerId) {
         list = list.filter((c: any) => c.ownerId === ownerId);
       }
-      return res.json({ success: true, canteens: list });
+      const paginated = list.slice(offset, offset + limitNum);
+      return res.json({ success: true, canteens: paginated, page: pageNum, limit: limitNum, total: list.length });
     } catch (e) {
       console.error(e);
       return res.status(500).json({ success: false, error: 'Failed to fetch canteens' });
@@ -1536,7 +1607,8 @@ app.get('/api/canteens', async (req, res) => {
   if (ownerId) {
     list = list.filter((c: any) => c.ownerId === ownerId);
   }
-  res.json({ success: true, canteens: list });
+  const paginated = list.slice(offset, offset + limitNum);
+  res.json({ success: true, canteens: paginated, page: pageNum, limit: limitNum, total: list.length });
 });
 
 app.post('/api/canteens', async (req, res) => {
@@ -1659,18 +1731,30 @@ app.delete('/api/canteens/:id', async (req, res) => {
 
 // --- Sub-Canteens CRUD ---
 app.get('/api/subcanteens', async (req, res) => {
-  const cached = getCached('subcanteens');
-  if (cached) return res.json({ success: true, subCanteens: cached });
+  const { page = 1, limit = 50, canteenId } = req.query;
+  const pageNum = Number(page);
+  const limitNum = Math.min(Number(limit), 100);
+  const offset = (pageNum - 1) * limitNum;
+
   if (pgReady) {
     try {
-      const list = await pgGetAll('subcanteens');
-      setCache('subcanteens', list);
-      return res.json({ success: true, subCanteens: list });
+      let list = await pgGetAll('subcanteens');
+      if (canteenId) {
+        list = list.filter((s: any) => s.canteenId === canteenId);
+      }
+      const paginated = list.slice(offset, offset + limitNum);
+      return res.json({ success: true, subCanteens: paginated, page: pageNum, limit: limitNum, total: list.length });
     } catch (e) {
       console.error(e);
+      return res.status(500).json({ success: false, error: 'Failed to fetch subcanteens' });
     }
   }
-  res.json({ success: true, subCanteens: subCanteensState });
+  let list = subCanteensState;
+  if (canteenId) {
+    list = list.filter((s: any) => s.canteenId === canteenId);
+  }
+  const paginated = list.slice(offset, offset + limitNum);
+  res.json({ success: true, subCanteens: paginated, page: pageNum, limit: limitNum, total: list.length });
 });
 
 app.post('/api/subcanteens', async (req, res) => {
@@ -1745,17 +1829,25 @@ app.delete('/api/subcanteens/:id', async (req, res) => {
 });
 
 app.get('/api/users', async (req, res) => {
-  const cached = getCached('users');
-  if (cached) return res.json({ success: true, users: cached });
+  const { page = 1, limit = 50, role, collegeId, canteenId } = req.query;
+  const pageNum = Number(page);
+  const limitNum = Math.min(Number(limit), 100);
+  const offset = (pageNum - 1) * limitNum;
+
   if (pgReady) {
     try {
-      const allUsers = await pgGetAll('users');
+      let allUsers = await pgGetAll('users');
+      if (role) allUsers = allUsers.filter((u: any) => u.role === role);
+      if (collegeId) allUsers = allUsers.filter((u: any) => u.collegeId === collegeId);
+      if (canteenId) allUsers = allUsers.filter((u: any) => u.canteenId === canteenId);
       const list = allUsers.map((u: any) => {
         return { id: u.id, name: u.name, email: u.email, role: u.role, collegeId: u.collegeId, canteenId: u.canteenId, subCanteenId: u.subCanteenId, status: u.status, posting: u.posting };
       });
-      return res.json({ success: true, users: list });
+      const paginated = list.slice(offset, offset + limitNum);
+      return res.json({ success: true, users: paginated, page: pageNum, limit: limitNum, total: list.length });
     } catch (e) {
       console.error(e);
+      return res.status(500).json({ success: false, error: 'Failed to fetch users' });
     }
   }
   // Fallback default users — strip passwords
@@ -4335,14 +4427,20 @@ app.post('/api/canteen/order/batch-status', async (req, res) => {
 // GET /api/offers — list offers for a canteen
 app.get('/api/offers', async (req, res) => {
   try {
-    const canteenId = (req.query.canteenId as string) || 'canteen_001';
+    const { page = 1, limit = 50, canteenId } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Math.min(Number(limit), 100);
+    const offset = (pageNum - 1) * limitNum;
+    const targetCanteenId = (canteenId as string) || 'canteen_001';
+
     let offers: any[] = [];
     if (pgReady) {
-      offers = await pgGetWhere('offers', { canteenId });
+      offers = await pgGetWhere('offers', { canteenId: targetCanteenId });
     } else {
       offers = (canteenState as any).offers || [];
     }
-    res.json({ success: true, offers });
+    const paginated = offers.slice(offset, offset + limitNum);
+    res.json({ success: true, offers: paginated, page: pageNum, limit: limitNum, total: offers.length });
   } catch (err: any) {
     console.error('[Offers] List error:', err?.message || err);
     res.status(500).json({ success: false, error: 'Failed to load offers' });
@@ -4352,11 +4450,16 @@ app.get('/api/offers', async (req, res) => {
 // GET /api/offers/active — customer-facing: only active, non-expired offers
 app.get('/api/offers/active', async (req, res) => {
   try {
-    const canteenId = (req.query.canteenId as string) || 'canteen_001';
+    const { page = 1, limit = 50, canteenId } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Math.min(Number(limit), 100);
+    const offset = (pageNum - 1) * limitNum;
+    const targetCanteenId = (canteenId as string) || 'canteen_001';
     const now = Date.now();
+
     let offers: any[] = [];
     if (pgReady) {
-      offers = await pgGetWhere('offers', { canteenId });
+      offers = await pgGetWhere('offers', { canteenId: targetCanteenId });
     } else {
       offers = (canteenState as any).offers || [];
     }
@@ -4366,7 +4469,8 @@ app.get('/api/offers/active', async (req, res) => {
       (o.validUntil === 0 || now <= o.validUntil) &&
       (o.maxUses === 0 || o.usedCount < o.maxUses)
     );
-    res.json({ success: true, offers: active });
+    const paginated = active.slice(offset, offset + limitNum);
+    res.json({ success: true, offers: paginated, page: pageNum, limit: limitNum, total: active.length });
   } catch (err: any) {
     console.error('[Offers] Active list error:', err?.message || err);
     res.status(500).json({ success: false, error: 'Failed to load offers' });
@@ -4594,7 +4698,10 @@ app.post('/api/canteen/review', async (req, res) => {
 // GET /api/chefs — list chefs for a canteen
 app.get('/api/chefs', async (req, res) => {
   try {
-    const { canteenId } = req.query;
+    const { page = 1, limit = 50, canteenId } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Math.min(Number(limit), 100);
+    const offset = (pageNum - 1) * limitNum;
     if (!canteenId) {
       return res.status(400).json({ success: false, error: 'canteenId required' });
     }
@@ -4604,7 +4711,8 @@ app.get('/api/chefs', async (req, res) => {
     } else {
       chefs = ((canteenState as any).chefs || []).filter((c: any) => c.canteenId === canteenId);
     }
-    res.json({ success: true, chefs });
+    const paginated = chefs.slice(offset, offset + limitNum);
+    res.json({ success: true, chefs: paginated, page: pageNum, limit: limitNum, total: chefs.length });
   } catch (err: any) {
     console.error('[Chefs] List error:', err?.message || err);
     res.status(500).json({ success: false, error: 'Failed to load chefs' });
@@ -4767,7 +4875,10 @@ app.get('/api/chefs/leaves', async (req, res) => {
 // GET /api/kitchen/tasks - list kitchen tasks for a canteen
 app.get('/api/kitchen/tasks', async (req, res) => {
   try {
-    const { canteenId, chefId, status } = req.query;
+    const { page = 1, limit = 50, canteenId, chefId, status } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Math.min(Number(limit), 100);
+    const offset = (pageNum - 1) * limitNum;
     if (!canteenId) {
       return res.status(400).json({ success: false, error: 'canteenId required' });
     }
@@ -4782,7 +4893,8 @@ app.get('/api/kitchen/tasks', async (req, res) => {
         t.canteenId === canteenId && (!chefId || t.chefId === chefId) && (!status || t.status === status)
       );
     }
-    res.json({ success: true, tasks });
+    const paginated = tasks.slice(offset, offset + limitNum);
+    res.json({ success: true, tasks: paginated, page: pageNum, limit: limitNum, total: tasks.length });
   } catch (err: any) {
     console.error('[Kitchen Tasks] List error:', err?.message || err);
     res.status(500).json({ success: false, error: 'Failed to load kitchen tasks' });
