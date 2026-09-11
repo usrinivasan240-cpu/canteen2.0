@@ -128,10 +128,11 @@ async function connectRedis() {
 }
 connectRedis();
 
-// Redis-backed rate limiter using express-rate-limit v7+ store interface
+// Redis-backed rate limiter using the express-rate-limit v8 store interface.
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // limit each IP to 200 requests per windowMs
+  windowMs: RATE_LIMIT_WINDOW_MS, // limit each IP to 200 requests per windowMs
+  max: 200,
   message: { success: false, error: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -140,17 +141,16 @@ const apiLimiter = rateLimit({
     res.status(429).json({ success: false, error: 'Too many requests, please try again later' });
   },
   store: {
-    async increment(key: string, options: any): Promise<{ totalHits: number; resetTime: number }> {
-      const windowMs = options.windowMs;
+    async increment(key: string): Promise<{ totalHits: number; resetTime: Date }> {
       const keyWithPrefix = `ratelimit:${key}`;
-      const multi = redis.multi();
-      multi.incr(keyWithPrefix);
-      multi.pexpire(keyWithPrefix, windowMs);
-      const results = await multi.exec();
-      const current = results[0][1];
+      const current = await redis.incr(keyWithPrefix);
+      if (current === 1) {
+        await redis.pexpire(keyWithPrefix, RATE_LIMIT_WINDOW_MS);
+      }
+      const ttl = await redis.pttl(keyWithPrefix);
       return {
-        totalHits: current as number,
-        resetTime: Date.now() + windowMs,
+        totalHits: current,
+        resetTime: new Date(Date.now() + (ttl > 0 ? ttl : RATE_LIMIT_WINDOW_MS)),
       };
     },
     async decrement(key: string): Promise<void> {
