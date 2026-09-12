@@ -123,12 +123,12 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
                   Android 5.0+
                 </span>
                 <span>•</span>
-                <span>~71 MB</span>
+                <span>~70 MB</span>
                 <span>•</span>
                 <span>Free</span>
               </div>
               <div className="text-[10px] text-gray-600 mt-2">
-                Last updated: 08 Sep 2026
+                Last updated: 12 Sep 2026
               </div>
             </div>
           </div>
@@ -140,7 +140,7 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
         <div className="text-center mb-10">
           <span className="text-[10px] font-bold text-amber-500 uppercase tracking-[0.2em]">What's New</span>
           <h2 className="font-display font-bold text-xl sm:text-2xl text-white mt-2">v2.5.2 — Latest Update</h2>
-          <p className="text-xs text-gray-500 mt-2">Updated: 08 Sep 2026</p>
+          <p className="text-xs text-gray-500 mt-2">Updated: 12 Sep 2026</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-gray-900/60 border border-amber-500/30 rounded-2xl p-5">
