@@ -15,7 +15,6 @@ import { MenuItem, Order, Review, Canteen, OrderItem, Ingredient, CanteenSetting
 import { pgGetById, pgGetAll, pgGetWhere, pgGetWhereOrdered, pgSet, pgUpdate, pgDelete, pgDeleteWhere, pgIncrement, pgGetByEmail, isPgAvailable, query, queryOne, execute, pgTransaction, toSnakeCase } from './db';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import Redis from 'ioredis';
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
 import { expressErrorHandler } from '@sentry/core';
@@ -95,6 +94,9 @@ function sortByCreatedAtDesc<T extends { createdAt?: number | string }>(arr: T[]
 const app = express();
 const PORT = 3000;
 
+// Trust first proxy (required for req.ip to reflect real client IP behind Vercel/Cloudflare)
+app.set('trust-proxy', 1);
+
 // Security: Helmet for security headers
 app.use(helmet({
   contentSecurityPolicy: false, // Disable CSP for now to avoid breaking inline scripts
@@ -105,33 +107,10 @@ app.use(helmet({
   xssFilter: true,
 }));
 
-// Rate limiting with Redis
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-const redis = new Redis(redisUrl, {
-  maxRetriesPerRequest: 3,
-  retryStrategy: (times) => Math.min(times * 50, 2000),
-  enableReadyCheck: true,
-  lazyConnect: true,
-});
-
-redis.on('error', (err) => {
-  console.error('[Redis] Connection error:', err.message);
-});
-
-async function connectRedis() {
-  try {
-    await redis.connect();
-    console.log('[Redis] Connected');
-  } catch (e) {
-    console.error('[Redis] Connection failed:', e.message);
-  }
-}
-connectRedis();
-
-// Redis-backed rate limiter using the express-rate-limit v8 store interface.
+// Rate limiting (in-memory)
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const apiLimiter = rateLimit({
-  windowMs: RATE_LIMIT_WINDOW_MS, // limit each IP to 200 requests per windowMs
+  windowMs: RATE_LIMIT_WINDOW_MS,
   max: 200,
   message: { success: false, error: 'Too many requests, please try again later' },
   standardHeaders: true,
@@ -140,33 +119,6 @@ const apiLimiter = rateLimit({
   handler: (req, res) => {
     res.status(429).json({ success: false, error: 'Too many requests, please try again later' });
   },
-  store: {
-    async increment(key: string): Promise<{ totalHits: number; resetTime: Date }> {
-      const keyWithPrefix = `ratelimit:${key}`;
-      const current = await redis.incr(keyWithPrefix);
-      if (current === 1) {
-        await redis.pexpire(keyWithPrefix, RATE_LIMIT_WINDOW_MS);
-      }
-      const ttl = await redis.pttl(keyWithPrefix);
-      return {
-        totalHits: current,
-        resetTime: new Date(Date.now() + (ttl > 0 ? ttl : RATE_LIMIT_WINDOW_MS)),
-      };
-    },
-    async decrement(key: string): Promise<void> {
-      const keyWithPrefix = `ratelimit:${key}`;
-      await redis.decr(keyWithPrefix);
-    },
-    async resetKey(key: string): Promise<void> {
-      await redis.del(`ratelimit:${key}`);
-    },
-    async resetAll(): Promise<void> {
-      const keys = await redis.keys('ratelimit:*');
-      if (keys.length > 0) {
-        await redis.del(...keys);
-      }
-    },
-  } as any,
 });
 app.use('/api/', apiLimiter);
 
@@ -200,9 +152,6 @@ app.get('/api/ready', async (req, res) => {
     if (pgReady) {
       await query('SELECT 1');
     }
-    // Check Redis (if configured)
-    // await redis.ping();
-    
     res.json({ status: 'ready', checks: { database: pgReady ? 'ok' : 'unavailable' } });
   } catch (e) {
     res.status(503).json({ status: 'not ready', error: String(e) });
@@ -353,48 +302,8 @@ app.use((req, res, next) => {
 });
 
 // ============================================================================
-// SECURITY: Rate limiting (in-memory, per IP)
+// SECURITY: Rate limiting + Security headers applied via middleware above
 // ============================================================================
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 30;
-const RATE_LIMIT_WINDOW = 60 * 1000;
-
-function rateLimiter(req: any, res: any, next: any) {
-  const ip = req.headers['x-forwarded-for']?.toString()?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
-    return next();
-  }
-  entry.count++;
-  if (entry.count > RATE_LIMIT_MAX) {
-    return res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' });
-  }
-  next();
-}
-
-// Cleanup stale entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, val] of rateLimitMap) {
-    if (now > val.resetAt) rateLimitMap.delete(key);
-  }
-}, 5 * 60 * 1000);
-
-app.use(rateLimiter);
-
-// ============================================================================
-// SECURITY: Security headers
-// ============================================================================
-app.use((_req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  next();
-});
 
 // Apply auth + role checks to protected write endpoints (after CORS so OPTIONS preflight works)
 // User directory writes: superadmin OR admin (admins manage their college's accounts)
@@ -1195,21 +1104,16 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    // For non-superadmin, create full session and return tokens
-    const { data: sessionData, error: sessionError } = await supabaseClient.auth.signInWithPassword({
-      email: normalizedEmail,
-      password
-    });
-
-    if (sessionError || !sessionData.session) {
+    // For non-superadmin, reuse the session already created by the initial signInWithPassword above
+    if (!verifyData.session) {
       return res.status(400).json({ success: false, error: 'Failed to create session.' });
     }
 
     console.log('--- LOGIN SUCCESS ---', { email: publicUser.email, role: publicUser.role });
     return res.json({ 
       success: true, 
-      token: sessionData.session.access_token,
-      refreshToken: sessionData.session.refresh_token,
+      token: verifyData.session.access_token,
+      refreshToken: verifyData.session.refresh_token,
       user: { 
         id: publicUser.id, 
         name: publicUser.name, 
@@ -5129,12 +5033,12 @@ if (pgReady) {
       if (wallet) walletId = wallet.id;
       const transactionsRaw = await pgGetWhere('wallet_transactions', { wallet_id: walletId });
       const sortedTxs = sortByCreatedAtDesc(transactionsRaw as any[]);
-      const transactions = (sortedTxs as any[]).slice((pageNum - 1) * limitNum, pageNum * limitNum);
+      transactions = (sortedTxs as any[]).slice((pageNum - 1) * limitNum, pageNum * limitNum);
     } else {
       const txs2 = (((canteenState as any).walletTransactions || []) as any[])
         .filter((t: any) => t.walletId === walletId);
       const sortedTxs = sortByCreatedAtDesc(txs2);
-      const transactions = (sortedTxs as any[]).slice((pageNum - 1) * limitNum, pageNum * limitNum);
+      transactions = (sortedTxs as any[]).slice((pageNum - 1) * limitNum, pageNum * limitNum);
     }
     
     res.json({ success: true, transactions });
@@ -6212,12 +6116,6 @@ if (!process.env.VERCEL) {
   startServer();
 }
 
-// Global error handling middleware for better production diagnostics
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('GLOBAL SERVER ERROR:', err);
-  res.status(500).json({ success: false, error: err?.message || String(err) });
-});
-
 // Sentry error handler (must be before other error handlers)
 if (process.env.SENTRY_DSN) {
   const sentryErrorHandler = expressErrorHandler();
@@ -6225,5 +6123,11 @@ if (process.env.SENTRY_DSN) {
     sentryErrorHandler(err, req, res, next);
   });
 }
+
+// Global error handling middleware for better production diagnostics
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('GLOBAL SERVER ERROR:', err);
+  res.status(500).json({ success: false, error: err?.message || String(err) });
+});
 
 export default app;
