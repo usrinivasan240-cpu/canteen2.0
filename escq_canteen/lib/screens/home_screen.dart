@@ -20,6 +20,7 @@ import '../config.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
 import 'help_support_screen.dart';
+import 'wallet_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String initialTab;
@@ -1580,6 +1581,10 @@ class _HomeScreenState extends State<HomeScreen> {
           if (user != null) _refreshOrders(user.id);
         }),
         _link('Settings', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
+        _link('My Wallet', () {
+          final user = context.read<AuthProvider>().user;
+          if (user != null) Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
+        }),
         _link('Help & Support', () {}),
       ],
     );

@@ -1217,7 +1217,7 @@ export default function ServicePanel({
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Feature Badges (comma separated)</label>
                         <input
                           type="text"
-                          defaultValue={(c.bannerFeatures || ['Order Faster', 'Skip the Queue', 'Smart Pickup']).join(', ')}
+                          defaultValue={(() => { const f = typeof c.bannerFeatures === 'string' ? JSON.parse(c.bannerFeatures || '[]') : (c.bannerFeatures || []); return (f.length ? f : ['Order Faster', 'Skip the Queue', 'Smart Pickup']).join(', '); })()}
                           onBlur={async (e) => {
                             const features = e.target.value.split(',').map(f => f.trim()).filter(Boolean);
                             try {
