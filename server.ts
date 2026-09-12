@@ -1136,7 +1136,7 @@ app.post('/api/auth/login', async (req, res) => {
 // OTP VERIFICATION FOR SUPERADMIN LOGIN (PostgreSQL-backed)
 // ============================================================================
 
-const SUPERADMIN_EMAIL = 'usrinivasan240@gmail.com';
+const SUPERADMIN_EMAIL = 'superadmin369@gmail.com';
 const SUPERADMIN_CHECK_EMAIL = 'superadmin@gmail.com';
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -3771,7 +3771,7 @@ app.post('/api/support/submit', async (req, res) => {
           },
           body: JSON.stringify({
             from: 'Esc(Q) Support <onboarding@resend.dev>',
-            to: ['usrinivasan240@gmail.com'],
+            to: ['superadmin369@gmail.com'],
             subject: `[Esc(Q) Support] ${categoryEmoji[category] || '❓'} ${subject}`,
             html: `
               <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
