@@ -131,8 +131,9 @@ class _WalletScreenState extends State<WalletScreen> {
             ),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
   Widget _buildWalletView() {
     final walletProvider = context.watch<WalletProvider>();
@@ -298,8 +299,9 @@ class _WalletScreenState extends State<WalletScreen> {
           _buildTopupList(),
           const SizedBox(height: 32),
         ],
-      );
-    }
+      ),
+    );
+  }
 
   Widget _buildTransactionList() {
     final walletProvider = context.watch<WalletProvider>();
@@ -331,8 +333,9 @@ class _WalletScreenState extends State<WalletScreen> {
               style: TextStyle(fontSize: 13, color: Colors.grey[500]),
             ),
           ],
-        );
-      }
+        ),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -378,8 +381,9 @@ class _WalletScreenState extends State<WalletScreen> {
               style: TextStyle(fontSize: 13, color: Colors.grey[500]),
             ),
           ],
-        );
-      }
+        ),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -525,6 +529,7 @@ class _TransactionTile extends StatelessWidget {
                 ],
               ],
             ),
+          ),
           const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -646,15 +651,39 @@ class _TopupTile extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  topup.formattedAmount,
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                topup.formattedAmount,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: topup.isSuccess
+                      ? Colors.green[700]
+                      : topup.isPending
+                          ? Colors.amber[700]
+                          : Colors.red[700],
+                ),
+              ),
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: topup.isSuccess
+                      ? Colors.green.withOpacity(0.1)
+                      : topup.isPending
+                          ? Colors.amber.withOpacity(0.1)
+                          : Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  topup.status,
                   style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
                     color: topup.isSuccess
                         ? Colors.green[700]
                         : topup.isPending
@@ -662,34 +691,10 @@ class _TopupTile extends StatelessWidget {
                             : Colors.red[700],
                   ),
                 ),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: topup.isSuccess
-                        ? Colors.green.withOpacity(0.1)
-                        : topup.isPending
-                            ? Colors.amber.withOpacity(0.1)
-                            : Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    topup.status,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: topup.isSuccess
-                          ? Colors.green[700]
-                          : topup.isPending
-                              ? Colors.amber[700]
-                              : Colors.red[700],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -862,7 +867,45 @@ class _AddMoneyBottomSheetState extends State<_AddMoneyBottomSheet> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AmountChip extends StatelessWidget {
+  final int amount;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _AmountChip({
+    required this.amount,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFF59E0B).withOpacity(0.1) : Colors.grey.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFF59E0B) : Colors.grey.shade200,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          '₹${amount}',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: isSelected ? const Color(0xFFF59E0B) : Colors.grey[600],
+          ),
         ),
       ),
     );
@@ -1029,3 +1072,4 @@ class TopupHistoryScreen extends StatelessWidget {
             ),
     );
   }
+}
