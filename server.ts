@@ -1137,7 +1137,7 @@ app.post('/api/auth/login', async (req, res) => {
 // ============================================================================
 
 const SUPERADMIN_EMAIL = 'superadmin369@gmail.com';
-const SUPERADMIN_CHECK_EMAIL = 'superadmin@gmail.com';
+const SUPERADMIN_CHECK_EMAIL = 'superadmin369@gmail.com';
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 app.post('/api/auth/generate-otp', async (req, res) => {
