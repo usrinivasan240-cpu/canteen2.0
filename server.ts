@@ -453,7 +453,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.5.3';
 const APP_UPDATE_URL = 'https://canteen20.vercel.app';
 
 app.get('/api/app-version', (req, res) => {
@@ -983,14 +983,19 @@ app.post('/api/auth/register', async (req, res) => {
         return res.status(500).json({ success: false, error: 'Failed to create user account.' });
       }
 
-      // Get the public user profile (created by DB trigger)
+      // Explicitly insert into public.users (no DB trigger needed)
+      await pgSet('users', authUser.id, {
+        id: authUser.id,
+        name,
+        email: normalizedEmail,
+        role: 'customer',
+        phone: phone || '',
+        registerNumber: registerNumber || '',
+        collegeId: collegeId || ''
+      });
+
+      // Get the public user profile we just created
       let publicUser = await pgGetByEmail('users', normalizedEmail);
-      
-      // If trigger hasn't run yet, wait a bit and retry
-      if (!publicUser) {
-        await new Promise(r => setTimeout(r, 500));
-        publicUser = await pgGetByEmail('users', normalizedEmail);
-      }
 
       // Sign in to get session tokens
       const { data: sessionData, error: sessionError } = await supabaseClient.auth.signInWithPassword({

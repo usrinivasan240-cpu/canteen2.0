@@ -7,6 +7,7 @@ import 'providers/menu_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/order_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/wallet_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/staff_home_screen.dart';
@@ -34,6 +35,7 @@ class EscqCanteenApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => WalletProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (ctx, themeProv, _) => MaterialApp(
