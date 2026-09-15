@@ -10,3 +10,4 @@ canteen2-0-firebase-adminsdk-*.json
 ~$*
 vercel-env-value.txt
 .vercel
+*.apk
