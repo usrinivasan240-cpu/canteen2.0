@@ -102,7 +102,7 @@ class MenuProvider extends ChangeNotifier {
       if (userCanteenId != null) _selectedCanteenId = userCanteenId;
 
       final collegesFuture = _api.getColleges();
-      final canteensFuture = _api.getCanteens();
+      final canteensFuture = _api.getCanteens(collegeId: userCollegeId);
       final subCanteensFuture = _api.getSubCanteens();
 
       _colleges = await collegesFuture;

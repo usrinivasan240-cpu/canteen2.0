@@ -95,8 +95,10 @@ class ApiService {
   }
 
   // Canteens
-  Future<List<Canteen>> getCanteens() async {
-    final data = await _get('/api/canteens');
+  Future<List<Canteen>> getCanteens({String? collegeId}) async {
+    final params = <String, String>{};
+    if (collegeId != null) params['collegeId'] = collegeId;
+    final data = await _get('/api/canteens', params);
     if (data['success'] == true && data['canteens'] != null) {
       return (data['canteens'] as List).map((c) => Canteen.fromJson(c)).toList();
     }

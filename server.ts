@@ -988,6 +988,7 @@ app.post('/api/auth/register', async (req, res) => {
         id: authUser.id,
         name,
         email: normalizedEmail,
+        password: '',
         role: 'customer',
         phone: phone || '',
         registerNumber: registerNumber || '',
@@ -1494,7 +1495,7 @@ app.delete('/api/colleges/:id', async (req, res) => {
 
 // --- Canteens CRUD ---
 app.get('/api/canteens', async (req, res) => {
-  const { page = 1, limit = 50, ownerId } = req.query;
+  const { page = 1, limit = 50, ownerId, collegeId } = req.query;
   const pageNum = Number(page);
   const limitNum = Math.min(Number(limit), 100);
   const offset = (pageNum - 1) * limitNum;
@@ -1504,6 +1505,9 @@ app.get('/api/canteens', async (req, res) => {
       let list = await pgGetAll('canteens');
       if (ownerId) {
         list = list.filter((c: any) => c.ownerId === ownerId);
+      }
+      if (collegeId) {
+        list = list.filter((c: any) => c.collegeId === collegeId);
       }
       const paginated = list.slice(offset, offset + limitNum);
       return res.json({ success: true, canteens: paginated, page: pageNum, limit: limitNum, total: list.length });
@@ -1515,6 +1519,9 @@ app.get('/api/canteens', async (req, res) => {
   let list = canteensState;
   if (ownerId) {
     list = list.filter((c: any) => c.ownerId === ownerId);
+  }
+  if (collegeId) {
+    list = list.filter((c: any) => c.collegeId === collegeId);
   }
   const paginated = list.slice(offset, offset + limitNum);
   res.json({ success: true, canteens: paginated, page: pageNum, limit: limitNum, total: list.length });
@@ -4976,6 +4983,56 @@ interface WalletTopup {
   createdAt: number;
   updatedAt: number;
 }
+
+// GET /api/wallet - combined wallet data (wallet, transactions, topups)
+app.get('/api/wallet', async (req, res) => {
+  try {
+    const userId = (req as any).authUser?.id || req.query.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+
+    let wallet: any = null;
+    let transactions: any[] = [];
+    let topups: any[] = [];
+
+    if (pgReady) {
+      wallet = await pgGetById('wallets', userId);
+      if (!wallet) {
+        const newWallet: any = {
+          id: userId,
+          userId,
+          balance: 0,
+          currency: 'INR',
+          status: 'active',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        await pgSet('wallets', userId, newWallet);
+        wallet = newWallet;
+      }
+      const walletId = wallet.id || userId;
+      const transactionsRaw = await pgGetWhere('wallet_transactions', { wallet_id: walletId });
+      transactions = sortByCreatedAtDesc(transactionsRaw as any[]);
+      const topupsRaw = await pgGetWhere('wallet_topups', { wallet_id: walletId });
+      topups = sortByCreatedAtDesc(topupsRaw as any[]);
+    } else {
+      wallet = (canteenState as any).wallets?.find((w: any) => w.userId === userId) || null;
+      if (!wallet) {
+        wallet = { id: userId, userId, balance: 0, currency: 'INR', status: 'active', createdAt: Date.now(), updatedAt: Date.now() };
+        (canteenState as any).wallets = (canteenState as any).wallets || [];
+        (canteenState as any).wallets.push(wallet);
+      }
+      transactions = sortByCreatedAtDesc(((canteenState as any).walletTransactions || []).filter((t: any) => t.walletId === wallet.id));
+      topups = sortByCreatedAtDesc(((canteenState as any).walletTopups || []).filter((t: any) => t.walletId === wallet.id));
+    }
+
+    res.json({ success: true, wallet, transactions, topups });
+  } catch (err: any) {
+    console.error('[Wallet] Get wallet error:', err?.message || err);
+    res.status(500).json({ success: false, error: 'Failed to get wallet' });
+  }
+});
 
 // GET /api/wallet/balance - get user's wallet balance
 app.get('/api/wallet/balance', async (req, res) => {

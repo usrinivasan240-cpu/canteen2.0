@@ -84,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final user = auth.user;
 
       final colleges = await api.getColleges().catchError((_) => <College>[]);
-      final canteens = await api.getCanteens().catchError((_) => <Canteen>[]);
+      final canteens = await api.getCanteens(collegeId: user?.collegeId).catchError((_) => <Canteen>[]);
       final subCanteens = await api.getSubCanteens().catchError((_) => <SubCanteen>[]);
 
       _colleges = colleges;
