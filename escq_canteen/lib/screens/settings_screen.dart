@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/menu_provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/wallet_provider.dart';
 import '../services/api_service.dart';
 import 'help_support_screen.dart';
 import 'login_screen.dart';
@@ -38,6 +39,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    // Wallet — load live balance so the Settings wallet tile (profile-adjacent)
+    // always shows the current balance, not a static label.
+    Future.microtask(() {
+      if (!mounted) return;
+      context.read<WalletProvider>().loadWallet();
+    });
     final user = context.read<AuthProvider>().user;
     _nameCtrl = TextEditingController(text: user?.name ?? '');
     _phoneCtrl = TextEditingController(text: user?.phone ?? '');
@@ -236,6 +243,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _walletTile(ThemeProvider themeProv) {
+    // Live balance: header icon (home) + this Settings tile + footer link all
+    // open WalletScreen; this tile additionally surfaces the current balance.
+    final walletProv = context.watch<WalletProvider>();
+    final balanceText = walletProv.loading && !walletProv.hasWallet
+        ? 'Loading balance…'
+        : walletProv.hasWallet
+            ? 'Balance: ${walletProv.formattedBalance} · top-ups & transactions'
+            : 'Balance, top-ups & transactions';
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen())),
       child: Container(
@@ -245,18 +260,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.32)),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.account_balance_wallet, size: 20, color: Color(0xFFF59E0B)),
-            SizedBox(width: 12),
+            const Icon(Icons.account_balance_wallet, size: 20, color: Color(0xFFF59E0B)),
+            const SizedBox(width: 12),
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('My Wallet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFF59E0B))),
-                Text('Balance, top-ups & transactions', style: TextStyle(fontSize: 10, color: Color(0xFFB45309))),
+                const Text('My Wallet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFF59E0B))),
+                Text(balanceText, style: const TextStyle(fontSize: 10, color: Color(0xFFB45309))),
               ],
             )),
-            Icon(Icons.chevron_right, size: 18, color: Color(0xFFF59E0B)),
+            const Icon(Icons.chevron_right, size: 18, color: Color(0xFFF59E0B)),
           ],
         ),
       ),

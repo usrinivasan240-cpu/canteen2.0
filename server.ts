@@ -357,6 +357,11 @@ app.use('/api/items', (req, res, next) => {
   if (req.method === 'GET') return next();
   authMiddleware(req, res, () => requireManagementAccess(req, res, next));
 });
+// Superadmin dynamic CRUD (Database panel): EVERY method requires superadmin,
+// including reads — table contents are platform-sensitive.
+app.use('/api/admin', (req, res, next) => {
+  authMiddleware(req, res, () => requireSuperadmin(req, res, next));
+});
 
 // Razorpay configuration
 const razorpayKeyId = (process.env.RAZORPAY_KEY_ID || '').trim();
@@ -453,7 +458,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.6';
+const APP_VERSION = '2.5.7';
 const APP_UPDATE_URL = 'https://canteen20.vercel.app';
 
 app.get('/api/app-version', (req, res) => {
@@ -6177,6 +6182,144 @@ app.delete('/api/fcm-token/:userId', async (req, res) => {
     try { await pgDelete('fcm_tokens', req.params.userId); } catch (_) {}
   }
   res.json({ success: true });
+});
+
+// ============================================================================
+// SUPERADMIN DYNAMIC CRUD — generic full-table editor backing SuperAdminDbPanel
+// (`src/components/SuperAdminDbPanel.tsx`). Auth: Supabase JWT + superadmin
+// role enforced by the app.use('/api/admin') guard above (reads AND writes).
+// Tables are allowlisted and identifiers validated; values always go through
+// parameterized helpers (pgSet/pgUpdate/pgDelete) with unknown-column filtering.
+// ============================================================================
+const ADMIN_TABLES = new Set([
+  'users', 'colleges', 'canteens', 'subcanteens', 'items', 'ingredients',
+  'orders', 'offers', 'reviews', 'settings', 'support_tickets', 'walkin_bills',
+  'wallets', 'wallet_transactions', 'wallet_topups', 'chefs', 'chef_leave',
+  'chef_availability', 'kitchen_tasks', 'fcm_tokens',
+]);
+
+function adminTableOr400(req: any, res: any): string | null {
+  const t = String(req.params.table || '');
+  if (!/^[a-z][a-z0-9_]*$/.test(t) || !ADMIN_TABLES.has(t)) {
+    res.status(400).json({ success: false, error: `Unknown or forbidden table: ${t}` });
+    return null;
+  }
+  if (!pgReady) {
+    res.status(503).json({ success: false, error: 'Postgres not ready' });
+    return null;
+  }
+  return t;
+}
+
+// GET /api/admin/tables — live table list (information_schema ∩ allowlist)
+app.get('/api/admin/tables', async (_req: any, res: any) => {
+  try {
+    if (!pgReady) return res.json({ success: true, tables: [...ADMIN_TABLES], pgReady: false });
+    const rows = await query(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name`
+    );
+    const live = rows.map((r: any) => r.table_name).filter((t: string) => ADMIN_TABLES.has(t));
+    const missing = [...ADMIN_TABLES].filter((t) => !live.includes(t));
+    res.json({ success: true, tables: [...live, ...missing], pgReady: true });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e?.message || 'Failed to list tables' });
+  }
+});
+
+// GET /api/admin/schema/:table — column metadata for the editor
+app.get('/api/admin/schema/:table', async (req: any, res: any) => {
+  const t = adminTableOr400(req, res);
+  if (!t) return;
+  try {
+    const rows = await query(
+      `SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position`,
+      [t]
+    );
+    res.json({ success: true, schema: rows });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e?.message || 'Schema lookup failed' });
+  }
+});
+
+// GET /api/admin/:table?limit=&q= — list rows, optional ILIKE search over text columns
+app.get('/api/admin/:table', async (req: any, res: any) => {
+  const t = adminTableOr400(req, res);
+  if (!t) return;
+  try {
+    const rawLimit = parseInt(String(req.query.limit || '25'), 10);
+    const limit = Math.min(Math.max(isNaN(rawLimit) ? 25 : rawLimit, 1), 200);
+    const q = String(req.query.q || '').trim();
+    if (!q) {
+      const rows = await query(`SELECT * FROM ${t} LIMIT $1`, [limit]);
+      return res.json({ success: true, rows, count: rows.length });
+    }
+    const cols = await query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND data_type IN ('text', 'character varying', 'character', 'uuid')`,
+      [t]
+    );
+    if (cols.length === 0) {
+      const rows = await query(`SELECT * FROM ${t} LIMIT $1`, [limit]);
+      return res.json({ success: true, rows, count: rows.length });
+    }
+    const where = cols.map((c: any, i: number) => `${c.column_name}::text ILIKE $${i + 1}`).join(' OR ');
+    const rows = await query(`SELECT * FROM ${t} WHERE ${where} LIMIT $${cols.length + 1}`, [
+      ...cols.map(() => `%${q}%`),
+      limit,
+    ]);
+    res.json({ success: true, rows, count: rows.length });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e?.message || 'List failed' });
+  }
+});
+
+// POST /api/admin/:table — create row (upsert by id; id auto-generated if absent)
+app.post('/api/admin/:table', async (req: any, res: any) => {
+  const t = adminTableOr400(req, res);
+  if (!t) return;
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ success: false, error: 'JSON object body required' });
+  }
+  try {
+    const id = String(body.id ?? body.ID ?? `${t.slice(0, 4)}_${Date.now()}`);
+    await pgSet(t, id, body);
+    const row = await pgGetById(t, id);
+    res.json({ success: true, row });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e?.message || 'Create failed' });
+  }
+});
+
+// PUT /api/admin/:table/:id — partial update (unknown columns ignored, pk never overwritten)
+app.put('/api/admin/:table/:id', async (req: any, res: any) => {
+  const t = adminTableOr400(req, res);
+  if (!t) return;
+  const id = String(req.params.id);
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ success: false, error: 'JSON object body required' });
+  }
+  try {
+    await pgUpdate(t, id, body);
+    const row = await pgGetById(t, id);
+    if (!row) return res.status(404).json({ success: false, error: 'Row not found' });
+    res.json({ success: true, row });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e?.message || 'Update failed' });
+  }
+});
+
+// DELETE /api/admin/:table/:id — delete row
+app.delete('/api/admin/:table/:id', async (req: any, res: any) => {
+  const t = adminTableOr400(req, res);
+  if (!t) return;
+  const id = String(req.params.id);
+  try {
+    await pgDelete(t, id);
+    res.json({ success: true, deleted: id });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e?.message || 'Delete failed' });
+  }
 });
 
 // Load FCM tokens from Postgres on startup
