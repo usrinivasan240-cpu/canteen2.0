@@ -6,13 +6,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Trash2, LogOut, CheckCircle, AlertTriangle, UserPlus, Sparkles, X, Globe, MapPin, Plus, TrendingUp, LifeBuoy,
-  Tag, CreditCard
+  Tag, CreditCard, Database
 } from 'lucide-react';
 import { SupportTicket } from '../types';
 import { Order, MenuItem } from '../types';
 import { API_BASE } from '../config';
 import CanteenAdmin from './CanteenAdmin';
 import ImageEditor from './ImageEditor';
+import SuperAdminDbPanel from './SuperAdminDbPanel';
 
 interface ServicePanelProps {
   orders: Order[];
@@ -72,7 +73,7 @@ export default function ServicePanel({
   };
 
   const isSuperAdmin = currentUser?.role === 'superadmin';
-  const [activeTab, setActiveTab] = useState<'users' | 'colleges' | 'canteens' | 'tickets'>(isSuperAdmin ? 'canteens' : 'users');
+  const [activeTab, setActiveTab] = useState<'users' | 'colleges' | 'canteens' | 'tickets' | 'dashboards' | 'database'>(isSuperAdmin ? 'canteens' : 'users');
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
   const [ticketFilter, setTicketFilter] = useState<string>('all');
@@ -760,6 +761,15 @@ export default function ServicePanel({
             >
               <LifeBuoy className="h-4 w-4" />
               <span>Support Tickets {supportTickets.filter(t => t.status === 'open').length > 0 && `(${supportTickets.filter(t => t.status === 'open').length})`}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('database')}
+              className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'database' ? 'border-amber-600 text-amber-600 font-black' : 'border-transparent text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <Database className="h-4 w-4" />
+              <span>Database</span>
             </button>
           </div>
         </div>
@@ -2411,6 +2421,11 @@ export default function ServicePanel({
                   })}
               </div>
             )}
+          </div>
+        )}
+        {activeTab === 'database' && (
+          <div className="max-w-6xl mx-auto px-4 mt-6">
+            <SuperAdminDbPanel />
           </div>
         )}
 

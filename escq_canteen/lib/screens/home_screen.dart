@@ -235,6 +235,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 8),
+              // Wallet — perfectly visible (header, amber accent)
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen())),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.32)),
+                  ),
+                  child: const Icon(Icons.account_balance_wallet, size: 14, color: Color(0xFFF59E0B)),
+                ),
+              ),
+              const SizedBox(width: 6),
               // Settings
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),

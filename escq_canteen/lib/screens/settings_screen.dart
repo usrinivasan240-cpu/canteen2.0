@@ -6,6 +6,7 @@ import '../providers/theme_provider.dart';
 import '../services/api_service.dart';
 import 'help_support_screen.dart';
 import 'login_screen.dart';
+import 'wallet_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -83,6 +84,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _sectionTitle('PROFILE', themeProv),
             const SizedBox(height: 8),
             _profileCard(user, themeProv),
+            const SizedBox(height: 12),
+            _walletTile(themeProv),
             const SizedBox(height: 24),
             _sectionTitle('PREFERENCES', themeProv),
             const SizedBox(height: 8),
@@ -228,6 +231,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _infoRow('Phone', user?.phone ?? 'Not set', themeProv),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _walletTile(ThemeProvider themeProv) {
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen())),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF59E0B).withOpacity(0.10),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.32)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.account_balance_wallet, size: 20, color: Color(0xFFF59E0B)),
+            SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('My Wallet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFF59E0B))),
+                Text('Balance, top-ups & transactions', style: TextStyle(fontSize: 10, color: Color(0xFFB45309))),
+              ],
+            )),
+            Icon(Icons.chevron_right, size: 18, color: Color(0xFFF59E0B)),
+          ],
+        ),
       ),
     );
   }

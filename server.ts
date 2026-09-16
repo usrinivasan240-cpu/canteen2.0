@@ -358,6 +358,122 @@ app.use('/api/items', (req, res, next) => {
   authMiddleware(req, res, () => requireManagementAccess(req, res, next));
 });
 
+// ── SUPERADMIN DYNAMIC CRUD — full DB, live, every table ──
+app.use('/api/admin', (req, res, next) => authMiddleware(req as any, res, () => requireSuperadmin(req as any, res, next)));
+
+// List every user table in public schema (so admin UI is auto-dynamic)
+app.get('/api/admin/tables', async (_req: any, res: any) => {
+  try {
+    await ensurePgReady();
+    if (!pgReady) return res.status(503).json({ success: false, error: 'Database unavailable' });
+    const rows = await query(`SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name`);
+    res.json({ success: true, tables: rows.map((r: any) => r.table_name) });
+  } catch (e: any) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+});
+
+// Describe columns for a table (for dynamic form generation)
+app.get('/api/admin/:table/schema', async (req: any, res: any) => {
+  const table = String(req.params.table || '').trim().toLowerCase();
+  if (!/^[a-z_]+$/.test(table)) return res.status(400).json({ success: false, error: 'Invalid table name' });
+  try {
+    await ensurePgReady();
+    if (!pgReady) return res.status(503).json({ success: false, error: 'Database unavailable' });
+    const cols = await query(`SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`, [table]);
+    if (cols.length === 0) return res.status(404).json({ success: false, error: 'Table not found' });
+    res.json({ success: true, table, columns: cols });
+  } catch (e: any) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+});
+
+// List rows (supports ?limit=&offset=&orderBy=&order=&q= free-text)
+app.get('/api/admin/:table', async (req: any, res: any) => {
+  const table = String(req.params.table || '').trim().toLowerCase();
+  if (!/^[a-z_]+$/.test(table)) return res.status(400).json({ success: false, error: 'Invalid table name' });
+  try {
+    await ensurePgReady();
+    if (!pgReady) return res.status(503).json({ success: false, error: 'Database unavailable' });
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '100'), 10) || 100, 1), 500);
+    const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0);
+    // optional free-text search across all text columns would be expensive; use simple WHERE from query params (excluding reserved)
+    const reserved = new Set(['limit','offset','orderBy','order','q']);
+    const filters: Record<string, any> = {};
+    for (const [k, v] of Object.entries(req.query)) if (!reserved.has(k) && v !== '' && v !== undefined) (filters as any)[k] = v;
+    let rows: any[];
+    if (Object.keys(filters).length > 0) {
+      rows = await pgGetWhere(table as any, filters);
+      rows = rows.slice(offset, offset + limit);
+    } else {
+      rows = await query(`SELECT * FROM ${table} ORDER BY 1 LIMIT $1 OFFSET $2`, [limit, offset]).then((r: any[]) => r.map((x: any) => { try { const { toCamelCase } = require('./db'); return toCamelCase(x); } catch { return x; } }));
+      // fallback mapping above already camelCases via query helper — use pgGetAll path if q not needed
+      if (rows.length === 0) rows = await pgGetAll(table as any).then(a => a.slice(offset, offset+limit));
+    }
+    // optional q filter client-side over stringified row
+    const q = String(req.query.q || '').trim().toLowerCase();
+    if (q) rows = rows.filter((r: any) => JSON.stringify(r).toLowerCase().includes(q));
+    res.json({ success: true, table, count: rows.length, rows });
+  } catch (e: any) {
+    const msg = e?.message || String(e);
+    if (/does not exist/i.test(msg)) return res.status(404).json({ success: false, error: 'Table not found' });
+    res.status(500).json({ success: false, error: msg });
+  }
+});
+
+app.get('/api/admin/:table/:id', async (req: any, res: any) => {
+  const table = String(req.params.table || '').trim().toLowerCase();
+  const id = String(req.params.id || '').trim();
+  if (!/^[a-z_]+$/.test(table) || !id) return res.status(400).json({ success: false, error: 'Invalid table/id' });
+  try {
+    await ensurePgReady();
+    if (!pgReady) return res.status(503).json({ success: false, error: 'Database unavailable' });
+    const row = await pgGetById(table as any, id);
+    if (!row) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, row });
+  } catch (e: any) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+});
+
+app.post('/api/admin/:table', async (req: any, res: any) => {
+  const table = String(req.params.table || '').trim().toLowerCase();
+  if (!/^[a-z_]+$/.test(table)) return res.status(400).json({ success: false, error: 'Invalid table name' });
+  try {
+    await ensurePgReady();
+    if (!pgReady) return res.status(503).json({ success: false, error: 'Database unavailable' });
+    const body = req.body || {};
+    const pk = (table === 'settings' ? 'canteen_id' : table === 'otp_store' ? 'email' : 'id');
+    let id = String(body[pk] || body.id || '').trim();
+    if (!id) id = `${table}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const data = { ...body, [pk]: id };
+    await pgSet(table as any, id, data);
+    const row = await pgGetById(table as any, id);
+    res.json({ success: true, row });
+  } catch (e: any) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+});
+
+app.put('/api/admin/:table/:id', async (req: any, res: any) => {
+  const table = String(req.params.table || '').trim().toLowerCase();
+  const id = String(req.params.id || '').trim();
+  if (!/^[a-z_]+$/.test(table) || !id) return res.status(400).json({ success: false, error: 'Invalid table/id' });
+  try {
+    await ensurePgReady();
+    if (!pgReady) return res.status(503).json({ success: false, error: 'Database unavailable' });
+    const existing = await pgGetById(table as any, id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Not found' });
+    await pgUpdate(table as any, id, req.body || {});
+    const row = await pgGetById(table as any, id);
+    res.json({ success: true, row });
+  } catch (e: any) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+});
+
+app.delete('/api/admin/:table/:id', async (req: any, res: any) => {
+  const table = String(req.params.table || '').trim().toLowerCase();
+  const id = String(req.params.id || '').trim();
+  if (!/^[a-z_]+$/.test(table) || !id) return res.status(400).json({ success: false, error: 'Invalid table/id' });
+  try {
+    await ensurePgReady();
+    if (!pgReady) return res.status(503).json({ success: false, error: 'Database unavailable' });
+    await pgDelete(table as any, id);
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+});
+
 // Razorpay configuration
 const razorpayKeyId = (process.env.RAZORPAY_KEY_ID || '').trim();
 const razorpayKeySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
@@ -453,7 +569,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.4';
+const APP_VERSION = '2.5.5';
 const APP_UPDATE_URL = 'https://canteen20.vercel.app';
 
 app.get('/api/app-version', (req, res) => {
