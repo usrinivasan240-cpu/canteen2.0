@@ -115,11 +115,34 @@ class WalletProvider extends ChangeNotifier {
         provider: provider,
       );
 
-      if (response['success'] == true && response['topup'] != null) {
-        final topup = WalletTopup.fromJson(response['topup']);
-        _topups.insert(0, topup);
-        notifyListeners();
-        return topup;
+      if (response['success'] == true) {
+        // Server returns { topupId, useRazorpay, razorpayOrderId, ... }
+        // for Razorpay, not a full `topup` object. Handle both shapes so
+        // the caller can branch (launch PSP vs no-op) without an error.
+        if (response['topup'] != null) {
+          final topup = WalletTopup.fromJson(response['topup']);
+          _topups.insert(0, topup);
+          notifyListeners();
+          return topup;
+        }
+        // Razorpay path — synthesize minimal topup so UI can confirm later.
+        if (response['topupId'] != null) {
+          final synth = WalletTopup(
+            id: response['topupId'] as String,
+            walletId: _wallet?.id ?? '',
+            amount: amount,
+            provider: provider,
+            status: 'PENDING',
+            providerOrderId: response['razorpayOrderId'] as String?,
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+            updatedAt: DateTime.now().millisecondsSinceEpoch,
+          );
+          _topups.insert(0, synth);
+          notifyListeners();
+          return synth;
+        }
+        _setError('Topup initiated but no topupId returned');
+        return null;
       } else {
         _setError(response['error'] ?? 'Failed to initiate topup');
         return null;
@@ -244,6 +267,18 @@ class WalletProvider extends ChangeNotifier {
   void stopAutoRefresh() {
     _balanceRefreshTimer?.cancel();
     _balanceRefreshTimer = null;
+  }
+
+  /// Drop all session state (logout / user switch) so the next account
+  /// never sees the previous user's balance, and the refresh timer stops.
+  void clear() {
+    stopAutoRefresh();
+    _wallet = null;
+    _transactions = [];
+    _topups = [];
+    _loading = false;
+    _error = null;
+    notifyListeners();
   }
 
   @override

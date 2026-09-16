@@ -36,12 +36,20 @@ class Cart {
   bool get isEmpty => _items.isEmpty;
 
   void addItem(MenuItem item, {int qty = 1}) {
-    if (_canteenId != null && _canteenId != item.canteenId) {
+    // Fail closed: an item without canteen attribution must never silently
+    // mix into the cart (previously null ids bypassed the guard entirely).
+    final incoming = item.canteenId?.trim() ?? '';
+    if (incoming.isEmpty) {
+      throw CartCanteenMismatchException(
+        'This item is missing canteen info and can\'t be ordered. Please reload the menu.',
+      );
+    }
+    if (_canteenId != null && _canteenId != incoming) {
       throw CartCanteenMismatchException(
         'Your cart has items from a different canteen. Please complete or clear that order first.',
       );
     }
-    _canteenId = item.canteenId;
+    _canteenId = incoming;
     if (_items.containsKey(item.id)) {
       _items[item.id]!.quantity += qty;
     } else {

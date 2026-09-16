@@ -23,6 +23,16 @@ class OrderProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Drop all session state (logout / user switch) so the next account
+  /// never sees the previous user's orders.
+  void clear() {
+    _orders = [];
+    _reviews = [];
+    _lastOrder = null;
+    _loading = false;
+    notifyListeners();
+  }
+
   void setReviews(List<Review> reviews) {
     _reviews = reviews;
     notifyListeners();
@@ -41,8 +51,10 @@ class OrderProvider extends ChangeNotifier {
     required String userId,
     required String userName,
     required List<Map<String, dynamic>> items,
+    required String canteenId,
+    String? collegeId,
+    String? offerId,
     String pickupSlot = 'ASAP (Instant)',
-    String canteenId = 'canteen_001',
     String? subCanteenId,
   }) async {
     try {
@@ -52,6 +64,8 @@ class OrderProvider extends ChangeNotifier {
         items: items,
         pickupSlot: pickupSlot,
         canteenId: canteenId,
+        collegeId: collegeId,
+        offerId: offerId,
         subCanteenId: subCanteenId,
       );
       if (result['success'] == true) {

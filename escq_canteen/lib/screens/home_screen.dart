@@ -31,7 +31,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String selectedCategory = 'Meals';
+  // 'All' default: every category (Meals, Snacks & Beverages, …) is visible
+  // on first load instead of hiding non-Meals items with no way to see them.
+  String selectedCategory = 'All';
   late String customerTab = widget.initialTab;
   Order? successOrder;
   bool _isLoading = false;
@@ -49,13 +51,16 @@ class _HomeScreenState extends State<HomeScreen> {
   List<SubCanteen> _subCanteens = [];
   List<MenuItem> _menuItems = [];
 
-  String _selectedCanteenId = 'canteen_001';
+  // No magic default: must be set from the college-filtered list in
+  // _loadAll, otherwise the server serves canteen_001 (wrong college).
+  String _selectedCanteenId = '';
   String _selectedSubCanteenId = '';
   String _searchQuery = '';
 
   // Logo cache to prevent blinking on rebuilds
   final Map<String, Uint8List> _logoCache = {};
   Timer? _orderRefreshTimer;
+  bool _refreshingOrders = false;
 
   @override
   void initState() {
@@ -64,6 +69,15 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadAll();
     _orderRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (!mounted) return;
+      // Poll only when it matters: history tab visible or an order is still
+      // in a non-terminal state. Never overlap in-flight requests.
+      final hasActive = _userOrders.any((o) =>
+          o.status != 'delivered' &&
+          o.status != 'collected' &&
+          o.status != 'cancelled' &&
+          o.status != 'expired');
+      if (customerTab != 'history' && !hasActive) return;
+      if (_refreshingOrders) return;
       final auth = context.read<AuthProvider>();
       final userId = auth.user?.id ?? '';
       if (userId.isNotEmpty) _refreshOrders(userId);
@@ -83,30 +97,44 @@ class _HomeScreenState extends State<HomeScreen> {
       final auth = context.read<AuthProvider>();
       final user = auth.user;
 
+      // Normalize: empty-string collegeId means "no college" (old accounts).
+      // Never send '' to the server — it disables server-side filtering.
+      final rawCollegeId = user?.collegeId?.trim() ?? '';
+      final effectiveCollegeId = rawCollegeId.isNotEmpty ? rawCollegeId : null;
+      final rawUserCanteenId = user?.canteenId?.trim() ?? '';
+
       final colleges = await api.getColleges().catchError((_) => <College>[]);
-      final canteens = await api.getCanteens(collegeId: user?.collegeId).catchError((_) => <Canteen>[]);
+      final canteens = await api.getCanteens(collegeId: effectiveCollegeId).catchError((_) => <Canteen>[]);
       final subCanteens = await api.getSubCanteens().catchError((_) => <SubCanteen>[]);
 
       _colleges = colleges;
-      _canteens = canteens;
+      // Client-side safety net: server should already filter, but enforce
+      // strict college isolation here too so a customer never sees another
+      // college's canteens even if the server filter is bypassed.
+      _canteens = effectiveCollegeId == null
+          ? canteens
+          : canteens.where((c) => c.collegeId.trim() == effectiveCollegeId).toList();
       _subCanteens = subCanteens;
 
-      String canteenId = user?.canteenId ?? (canteens.isNotEmpty ? canteens.first.id : 'canteen_001');
-
-      if (user?.collegeId != null) {
-        final collegeCanteens = canteens.where((c) => c.collegeId == user!.collegeId).toList();
-        if (collegeCanteens.isNotEmpty && !collegeCanteens.any((c) => c.id == canteenId)) {
-          canteenId = collegeCanteens.first.id;
-        }
+      // Default canteen must come from the college-filtered list, never from
+      // the unfiltered global list — and never fall back to canteen_001
+      // (fail closed: empty selection shows no menu, not another college's).
+      String canteenId = _canteens.isNotEmpty ? _canteens.first.id : '';
+      if (rawUserCanteenId.isNotEmpty && _canteens.any((c) => c.id == rawUserCanteenId)) {
+        canteenId = rawUserCanteenId;
       }
 
       _selectedCanteenId = canteenId;
 
-      final canteenData = await api.getCanteenData(_selectedCanteenId).catchError((_) => <String, dynamic>{});
+      if (_selectedCanteenId.isEmpty) {
+        _menuItems = [];
+        _reviews = [];
+      } else {
+        final canteenData = await api.getCanteenData(_selectedCanteenId).catchError((_) => <String, dynamic>{});
+        _menuItems = api.parseMenuItems(canteenData);
+        _reviews = api.parseReviews(canteenData);
+      }
       final userOrders = await api.getUserOrders(user?.id ?? '').catchError((_) => <Order>[]);
-
-      _menuItems = api.parseMenuItems(canteenData);
-      _reviews = api.parseReviews(canteenData);
       _userOrders = userOrders;
 
       if (_subCanteens.isNotEmpty) {
@@ -125,39 +153,51 @@ class _HomeScreenState extends State<HomeScreen> {
 
   College? get _userCollege {
     final user = context.read<AuthProvider>().user;
-    if (user?.collegeId != null) {
-      try { return _colleges.firstWhere((c) => c.id == user!.collegeId); } catch (_) {}
+    final uid = user?.collegeId?.trim() ?? '';
+    // 1) Logged-in user's own college — the source of truth for the logo.
+    if (uid.isNotEmpty) {
+      try { return _colleges.firstWhere((c) => c.id == uid); } catch (_) {}
     }
+    // 2) Selected canteen's college (canteen -> college link).
     if (_canteens.isNotEmpty) {
-      final cantId = _canteens.firstWhere(
-        (c) => c.id == _selectedCanteenId,
-        orElse: () => _canteens.first,
-      );
-      try { return _colleges.firstWhere((c) => c.id == cantId.collegeId); } catch (_) {}
+      try {
+        final cant = _canteens.firstWhere((c) => c.id == _selectedCanteenId);
+        try { return _colleges.firstWhere((c) => c.id == cant.collegeId); } catch (_) {}
+      } catch (_) {}
     }
-    return _colleges.isNotEmpty ? _colleges.first : null;
+    // 3) No guessing: returning the first college here would show another
+    // college's logo. Return null so the Esc(Q) default branding shows.
+    return null;
   }
 
   CollegeBranding get _branding => _userCollege?.branding ?? CollegeBranding();
 
   List<MenuItem> get _filteredItems {
     return _menuItems.where((item) {
+      final catLower = selectedCategory.trim().toLowerCase();
       final catMatch = selectedCategory == 'All' ||
+          item.category.trim().toLowerCase() == catLower ||
           item.category.toLowerCase().contains(selectedCategory.split(' ')[0].toLowerCase());
       final subMatch = _selectedSubCanteenId.isEmpty ||
           item.subCanteenId == null ||
           item.subCanteenId == _selectedSubCanteenId;
       final searchMatch = _searchQuery.isEmpty ||
           item.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          item.category.toLowerCase().contains(_searchQuery.toLowerCase());
+          item.category.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          item.description.toLowerCase().contains(_searchQuery.toLowerCase());
       return catMatch && subMatch && searchMatch;
     }).toList();
   }
 
-  List<Canteen> get _collegeCanteens => _canteens.where((c) {
+  List<Canteen> get _collegeCanteens {
     final user = context.read<AuthProvider>().user;
-    return c.collegeId == (user?.collegeId ?? _userCollege?.id);
-  }).toList();
+    final uid = user?.collegeId?.trim() ?? '';
+    final effective = uid.isNotEmpty ? uid : _userCollege?.id;
+    // No college resolved (e.g. legacy account): show what was loaded
+    // (server already scoped it) instead of an empty screen.
+    if (effective == null || effective.isEmpty) return List.of(_canteens);
+    return _canteens.where((c) => c.collegeId.trim() == effective).toList();
+  }
 
   // ─── HEADER ──────────────────────────────────────────────
   Widget _buildHeader(AuthProvider auth, user) {
@@ -207,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 6),
               GestureDetector(
                 onTap: () async {
-                  await auth.logout();
+                  await auth.logoutEverywhere(context);
                   if (mounted) Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => LoginScreen(
   onNavigateLegal: (page) {
@@ -429,6 +469,31 @@ class _HomeScreenState extends State<HomeScreen> {
               return GestureDetector(
                 onTap: () async {
                   if (isSelected) return;
+                  // Switching canteens with a non-empty cart would strand the
+                  // old items (addItem rejects other-canteen items). Confirm.
+                  final cart = context.read<CartProvider>();
+                  if (!cart.isEmpty && cart.canteenId != c.id) {
+                    final clear = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Start a new cart?'),
+                        content: Text(
+                            'Your cart has items from another canteen. Switching to ${c.name} will clear it.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(true),
+                            child: const Text('Clear cart'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (clear != true || !context.mounted) return;
+                    cart.clear();
+                  }
                   setState(() => _selectedCanteenId = c.id);
                   await _reloadMenuForCanteen(c.id);
                 },
@@ -681,7 +746,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _categoryTabs() {
     final themeProv = context.watch<ThemeProvider>();
-    return Container(
+    // Tabs derived from the loaded menu so no category is unreachable.
+    // 'All' is always first and is the default selection.
+    final cats = <String>['All'];
+    for (final c in _menuItems.map((e) => e.category.trim())) {
+      if (c.isNotEmpty &&
+          !cats.any((x) => x.toLowerCase() == c.toLowerCase())) {
+        cats.add(c);
+      }
+    }
+    if (!cats.any((x) => x.toLowerCase() == selectedCategory.toLowerCase())) {
+      selectedCategory = 'All';
+    }    return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
@@ -690,7 +766,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: ['Meals', 'Snacks & Beverages'].map((cat) {
+        children: cats.map((cat) {
           final isActive = selectedCategory == cat;
           return GestureDetector(
             onTap: () => setState(() => selectedCategory = cat),
@@ -945,6 +1021,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refreshOrders(String userId) async {
+    if (_refreshingOrders) return;
+    _refreshingOrders = true;
     try {
       final api = ApiService();
       final orders = await api.getUserOrders(userId);
@@ -957,6 +1035,8 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       debugPrint('[Home] _refreshOrders error: $e');
+    } finally {
+      _refreshingOrders = false;
     }
   }
 
@@ -1660,6 +1740,35 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           _buildHeader(auth, user),
+          // Non-blocking error banner with Retry — load failures previously
+          // set _error but nothing ever rendered it.
+          if (_error != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline,
+                      size: 18, color: Color(0xFFB91C1C)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(_error!,
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFFB91C1C))),
+                  ),
+                  TextButton(
+                    onPressed: _loadAll,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: SingleChildScrollView(
               child: Column(

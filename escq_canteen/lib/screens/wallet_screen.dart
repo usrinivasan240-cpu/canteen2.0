@@ -772,7 +772,10 @@ class _AddMoneyBottomSheetState extends State<_AddMoneyBottomSheet> {
               return _AmountChip(
                 amount: amount,
                 isSelected: _selectedAmount == amount * 100,
-                onTap: () => setState(() => _selectedAmount = amount * 100),
+                onTap: () => setState(() {
+                  _selectedAmount = amount * 100;
+                  _amountController.text = amount.toStringAsFixed(2);
+                }),
               );
             }).toList(),
           ),

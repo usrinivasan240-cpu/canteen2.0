@@ -6,6 +6,7 @@ import '../providers/order_provider.dart';
 import 'home_screen.dart';
 import 'staff_home_screen.dart';
 import 'kitchen_dashboard_screen.dart';
+import 'owner_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.onNavigateLegal});
@@ -25,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final nameCtrl = TextEditingController();
   final phoneCtrl = TextEditingController();
   String selectedCollegeId = '';
+  bool _collegesLoading = true;
 
   bool agreePrivacy = false;
   bool agreeTerms = false;
@@ -37,10 +39,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _loadColleges() async {
-    final menuProv = context.read<MenuProvider>();
-    await menuProv.loadData();
-    if (menuProv.colleges.isNotEmpty && selectedCollegeId.isEmpty) {
-      setState(() => selectedCollegeId = menuProv.colleges.first.id);
+    setState(() => _collegesLoading = true);
+    try {
+      final menuProv = context.read<MenuProvider>();
+      await menuProv.loadData();
+      // Never auto-select: the user must explicitly choose their college,
+      // otherwise registrations silently get the wrong collegeId.
+    } catch (_) {
+      // Error UI is driven by the empty colleges list below.
+    } finally {
+      if (mounted) setState(() => _collegesLoading = false);
     }
   }
 
@@ -49,8 +57,8 @@ class _LoginScreenState extends State<LoginScreen> {
     emailCtrl.clear();
     passwordCtrl.clear();
     phoneCtrl.clear();
+    // Keep the chosen college across Sign in / Sign up tab switches.
     setState(() {
-      selectedCollegeId = '';
       agreePrivacy = false;
       agreeTerms = false;
       agreeRefund = false;
@@ -62,6 +70,15 @@ class _LoginScreenState extends State<LoginScreen> {
     bool success;
 
     if (isSignUp) {
+      final colleges = context.read<MenuProvider>().colleges;
+      if (colleges.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'Could not load colleges. Check your connection and retry.')),
+        );
+        return;
+      }
       if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty || passwordCtrl.text.isEmpty ||
           phoneCtrl.text.isEmpty || selectedCollegeId.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -476,6 +493,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildCollegeDropdown(List colleges) {
+    // Guard against a stale selection (college removed/renamed server-side)
+    // — DropdownButton throws when value has no matching item.
+    final validSelection =
+        colleges.any((c) => c.id == selectedCollegeId) ? selectedCollegeId : null;
+    if (validSelection == null && selectedCollegeId.isNotEmpty) {
+      selectedCollegeId = '';
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -484,6 +508,51 @@ class _LoginScreenState extends State<LoginScreen> {
           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF374151)),
         ),
         const SizedBox(height: 6),
+        if (_collegesLoading)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: const Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 10),
+                Text('Loading colleges…',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+              ],
+            ),
+          )
+        else if (colleges.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFECACA)),
+            ),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text('Could not load colleges. Check your connection.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFFB91C1C))),
+                ),
+                TextButton(
+                  onPressed: _loadColleges,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          )
+        else
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
@@ -651,6 +720,9 @@ class _AfterLoginState extends State<_AfterLogin> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    if (auth.isOwner) {
+      return const OwnerScreen();
+    }
     if (auth.isChef) {
       return const KitchenDashboardScreen();
     }

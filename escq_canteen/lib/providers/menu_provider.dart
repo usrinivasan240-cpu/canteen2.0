@@ -21,13 +21,16 @@ class MenuProvider extends ChangeNotifier {
   bool _loading = false;
   bool get loading => _loading;
 
-  String _selectedCategory = 'Meals';
+  // 'All' default so no category is hidden on first load.
+  String _selectedCategory = 'All';
   String get selectedCategory => _selectedCategory;
 
   String _searchQuery = '';
   String get searchQuery => _searchQuery;
 
-  String _selectedCanteenId = 'canteen_001';
+  // No magic default: the server re-homes a missing/empty canteenId to
+  // canteen_001, so selection must always be explicit (fail closed).
+  String _selectedCanteenId = '';
   String get selectedCanteenId => _selectedCanteenId;
 
   String _selectedSubCanteenId = '';
@@ -45,6 +48,9 @@ class MenuProvider extends ChangeNotifier {
 
   void setCanteen(String id) {
     _selectedCanteenId = id;
+    // A stale sub-counter from the previous canteen would filter the new
+    // canteen down to generic items only — always reset on canteen change.
+    _selectedSubCanteenId = '';
     notifyListeners();
   }
 
@@ -66,7 +72,25 @@ class MenuProvider extends ChangeNotifier {
   }
 
   List<Canteen> get collegeCanteens {
-    return _canteens.where((c) => c.collegeId == userCollegeId).toList();
+    // Fail closed: an empty college id must never expose every canteen.
+    final uid = _userCollegeId?.trim() ?? '';
+    if (uid.isEmpty) return <Canteen>[];
+    return _canteens.where((c) => c.collegeId.trim() == uid).toList();
+  }
+
+  /// Drop all user-scoped state (logout / user switch) so the next account
+  /// never inherits the previous user's college/canteen filter or menu.
+  /// The public colleges list is kept (needed by the registration screen).
+  void resetUserScope() {
+    _userCollegeId = null;
+    _selectedCanteenId = '';
+    _selectedSubCanteenId = '';
+    _items = [];
+    _canteens = [];
+    _subCanteens = [];
+    _selectedCategory = 'All';
+    _searchQuery = '';
+    notifyListeners();
   }
 
   String? _userCollegeId;
@@ -81,11 +105,12 @@ class MenuProvider extends ChangeNotifier {
   }
 
   College? get userCollege {
-    if (_userCollegeId == null) return null;
+    final uid = _userCollegeId?.trim() ?? '';
+    if (uid.isEmpty) return null;
     try {
-      return _colleges.firstWhere((c) => c.id == _userCollegeId);
+      return _colleges.firstWhere((c) => c.id == uid);
     } catch (_) {
-      return _colleges.isNotEmpty ? _colleges.first : null;
+      return null;
     }
   }
 
@@ -98,29 +123,40 @@ class MenuProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      if (userCollegeId != null) _userCollegeId = userCollegeId;
-      if (userCanteenId != null) _selectedCanteenId = userCanteenId;
+      final normCollege = userCollegeId?.trim() ?? '';
+      if (normCollege.isNotEmpty) _userCollegeId = normCollege;
+      final normCanteen = userCanteenId?.trim() ?? '';
+      if (normCanteen.isNotEmpty) _selectedCanteenId = normCanteen;
 
       final collegesFuture = _api.getColleges();
-      final canteensFuture = _api.getCanteens(collegeId: userCollegeId);
+      final canteensFuture = _api.getCanteens(
+        collegeId: normCollege.isNotEmpty ? normCollege : null,
+      );
       final subCanteensFuture = _api.getSubCanteens();
 
       _colleges = await collegesFuture;
-      _canteens = await canteensFuture;
+      final fetched = await canteensFuture;
+      // Strict client-side isolation as safety net.
+      final uid = _userCollegeId?.trim() ?? '';
+      _canteens = uid.isEmpty
+          ? fetched
+          : fetched.where((c) => c.collegeId.trim() == uid).toList();
       _subCanteens = await subCanteensFuture;
 
-      // Auto-select college from canteen
-      if (_userCollegeId == null && _canteens.isNotEmpty) {
+      // Auto-select college ONLY from an explicitly selected canteen.
+      // Guessing from the first loaded canteen leaks another college's
+      // identity when the list is unfiltered (no user / legacy account).
+      if (_userCollegeId == null && _selectedCanteenId.isNotEmpty) {
         try {
           final cant = _canteens.firstWhere((c) => c.id == _selectedCanteenId);
           _userCollegeId = cant.collegeId;
-        } catch (_) {
-          if (_canteens.isNotEmpty) _userCollegeId = _canteens.first.collegeId;
-        }
+        } catch (_) {}
       }
 
-      // Auto-select sub-canteen
-      if (_selectedSubCanteenId.isEmpty && _subCanteens.isNotEmpty) {
+      // Auto-select sub-canteen (only when a canteen is selected)
+      if (_selectedCanteenId.isNotEmpty &&
+          _selectedSubCanteenId.isEmpty &&
+          _subCanteens.isNotEmpty) {
         try {
           final sub = _subCanteens.firstWhere((s) => s.canteenId == _selectedCanteenId);
           _selectedSubCanteenId = sub.id;
@@ -137,6 +173,13 @@ class MenuProvider extends ChangeNotifier {
   }
 
   Future<void> loadMenu() async {
+    // Fail closed: never call /api/canteen with an empty id — the server
+    // would silently serve canteen_001's menu (cross-college leak).
+    if (_selectedCanteenId.trim().isEmpty) {
+      _items = [];
+      notifyListeners();
+      return;
+    }
     try {
       final data = await _api.getCanteenData(_selectedCanteenId);
       _items = _api.parseMenuItems(data);

@@ -44,7 +44,12 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
     if (user == null) return;
 
     try {
-      final canteenId = user.canteenId ?? 'canteen_001';
+      final rawCanteenId = user.canteenId?.trim() ?? '';
+      if (rawCanteenId.isEmpty) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+      final canteenId = rawCanteenId;
       await chefProv.loadChefs(canteenId: canteenId);
       await chefProv.loadKitchenTasks(canteenId: canteenId, chefId: user.id);
       if (mounted) setState(() => _isLoading = false);
@@ -158,7 +163,7 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
               ),
               IconButton(icon: Icon(Icons.refresh, color: isDark ? Colors.white : Colors.grey[700]), onPressed: _loadTasks),
               GestureDetector(
-                onTap: () => auth.logout(),
+                onTap: () => auth.logoutEverywhere(context),
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(8)),
@@ -271,21 +276,30 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
                   icon: const Icon(Icons.play_arrow, size: 14),
                   label: const Text('Start', style: TextStyle(fontSize: 11)),
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEA580C), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  onPressed: () => chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'PREPARING'),
+                  onPressed: () {
+                    final uid = context.read<AuthProvider>().user;
+                    chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'PREPARING', canteenId: uid?.canteenId, chefId: uid?.id);
+                  },
                 )),
               if (status == 'PREPARING') ...[
                 Expanded(child: ElevatedButton.icon(
                   icon: const Icon(Icons.check, size: 14),
                   label: const Text('Mark Ready', style: TextStyle(fontSize: 11)),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  onPressed: () => chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'READY'),
+                  onPressed: () {
+                    final uid = context.read<AuthProvider>().user;
+                    chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'READY', canteenId: uid?.canteenId, chefId: uid?.id);
+                  },
                 )),
                 const SizedBox(width: 8),
                 Expanded(child: OutlinedButton.icon(
                   icon: const Icon(Icons.cancel, size: 14),
                   label: const Text('Cancel', style: TextStyle(fontSize: 11)),
                   style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: BorderSide(color: Colors.red), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  onPressed: () => chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'CANCELLED'),
+                  onPressed: () {
+                    final uid = context.read<AuthProvider>().user;
+                    chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'CANCELLED', canteenId: uid?.canteenId, chefId: uid?.id);
+                  },
                 )),
               ],
             ]),

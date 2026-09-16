@@ -161,15 +161,21 @@ class WalletTopup {
   factory WalletTopup.fromJson(Map<String, dynamic> json) {
     return WalletTopup(
       id: json['id']?.toString() ?? '',
-      walletId: json['wallet_id']?.toString() ?? '',
+      walletId: (json['wallet_id'] ?? json['walletId'])?.toString() ?? '',
       amount: (json['amount'] as num?)?.toInt() ?? 0,
       provider: json['provider']?.toString() ?? '',
-      providerOrderId: json['provider_order_id']?.toString(),
-      providerPaymentId: json['provider_payment_id']?.toString(),
+      providerOrderId: (json['provider_order_id'] ?? json['providerOrderId'])
+          ?.toString(),
+      providerPaymentId:
+          (json['provider_payment_id'] ?? json['providerPaymentId'])
+              ?.toString(),
       status: json['status']?.toString() ?? 'PENDING',
-      idempotencyKey: json['idempotency_key']?.toString(),
-      createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
-      updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
+      idempotencyKey:
+          (json['idempotency_key'] ?? json['idempotencyKey'])?.toString(),
+      createdAt:
+          (json['created_at'] ?? json['createdAt'] as num?)?.toInt() ?? 0,
+      updatedAt:
+          (json['updated_at'] ?? json['updatedAt'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -228,12 +234,12 @@ class Wallet {
   factory Wallet.fromJson(Map<String, dynamic> json) {
     return Wallet(
       id: json['id']?.toString() ?? '',
-      userId: json['user_id']?.toString() ?? '',
+      userId: (json['user_id'] ?? json['userId'])?.toString() ?? '',
       currency: json['currency']?.toString() ?? 'INR',
       status: json['status']?.toString() ?? 'ACTIVE',
       balance: (json['balance'] as num?)?.toInt() ?? 0,
-      createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
-      updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
+      createdAt: (json['created_at'] ?? json['createdAt'] as num?)?.toInt() ?? 0,
+      updatedAt: (json['updated_at'] ?? json['updatedAt'] as num?)?.toInt() ?? 0,
       transactions: (json['transactions'] as List<dynamic>?)
           ?.map((e) => WalletTransaction.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -264,8 +270,8 @@ class Wallet {
     return '₹${rupees.toStringAsFixed(0)}';
   }
 
-  bool get isActive => status == 'ACTIVE';
-  bool get isFrozen => status == 'FROZEN';
-  bool get isSuspended => status == 'SUSPENDED';
-  bool get isClosed => status == 'CLOSED';
+  bool get isActive => status.toUpperCase() == 'ACTIVE';
+  bool get isFrozen => status.toUpperCase() == 'FROZEN';
+  bool get isSuspended => status.toUpperCase() == 'SUSPENDED';
+  bool get isClosed => status.toUpperCase() == 'CLOSED';
 }

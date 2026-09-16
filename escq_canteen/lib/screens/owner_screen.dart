@@ -43,7 +43,12 @@ class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStat
     if (user == null) return;
 
     try {
-      final canteenId = user.canteenId ?? 'canteen_001';
+      final rawCanteenId = user.canteenId?.trim() ?? '';
+      if (rawCanteenId.isEmpty) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+      final canteenId = rawCanteenId;
       await Future.wait([
         chefProv.loadChefs(canteenId: canteenId),
         chefProv.loadKitchenTasks(canteenId: canteenId),
@@ -119,7 +124,7 @@ class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStat
               ),
               IconButton(icon: Icon(Icons.refresh, color: isDark ? Colors.white : Colors.grey[700]), onPressed: _loadData),
               GestureDetector(
-                onTap: () => auth.logout(),
+                onTap: () => auth.logoutEverywhere(context),
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(8)),
@@ -213,7 +218,14 @@ class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStat
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: chefProv.loading ? null : () async {
-                  final canteenId = auth.user?.canteenId ?? 'canteen_001';
+                  final raw = auth.user?.canteenId?.trim() ?? '';
+                  if (raw.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No canteen assigned — contact support.'), backgroundColor: Colors.red),
+                    );
+                    return;
+                  }
+                  final canteenId = raw;
                   final chef = await chefProv.createChef(
                     canteenId: canteenId,
                     name: nameCtrl.text.trim(),
@@ -532,21 +544,30 @@ class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStat
                   icon: const Icon(Icons.play_arrow, size: 14),
                   label: const Text('Start', style: TextStyle(fontSize: 11)),
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEA580C), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  onPressed: () => chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'PREPARING'),
+                  onPressed: () {
+                    final canteenId = context.read<AuthProvider>().user?.canteenId;
+                    chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'PREPARING', canteenId: canteenId);
+                  },
                 )),
               if (status == 'PREPARING') ...[
                 Expanded(child: ElevatedButton.icon(
                   icon: const Icon(Icons.check, size: 14),
                   label: const Text('Ready', style: TextStyle(fontSize: 11)),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  onPressed: () => chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'READY'),
+                  onPressed: () {
+                    final canteenId = context.read<AuthProvider>().user?.canteenId;
+                    chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'READY', canteenId: canteenId);
+                  },
                 )),
                 const SizedBox(width: 8),
                 Expanded(child: OutlinedButton.icon(
                   icon: const Icon(Icons.cancel, size: 14),
                   label: const Text('Cancel', style: TextStyle(fontSize: 11)),
                   style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: BorderSide(color: Colors.red), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  onPressed: () => chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'CANCELLED'),
+                  onPressed: () {
+                    final canteenId = context.read<AuthProvider>().user?.canteenId;
+                    chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'CANCELLED', canteenId: canteenId);
+                  },
                 )),
               ],
             ]),

@@ -117,6 +117,8 @@ export interface Order {
   subCanteenId?: string;
   collegeId?: string;
   platformFee?: number;
+  offerId?: string;
+  discount?: number;
 }
 
 export interface Ingredient {

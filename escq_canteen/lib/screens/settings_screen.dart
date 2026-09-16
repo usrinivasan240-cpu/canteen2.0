@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/menu_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/api_service.dart';
 import 'help_support_screen.dart';
@@ -18,6 +19,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _nameCtrl;
   late TextEditingController _phoneCtrl;
   late TextEditingController _regNoCtrl;
+  // Owner canteen-settings controllers live in State (not in build) so
+  // typed input survives rebuilds (e.g. theme toggle) and is disposed.
+  final TextEditingController _slotDurationCtrl =
+      TextEditingController(text: '15');
+  final TextEditingController _prepBufferCtrl =
+      TextEditingController(text: '5');
+  final TextEditingController _orderCutoffCtrl =
+      TextEditingController(text: '10');
+  final TextEditingController _advanceBookingCtrl =
+      TextEditingController(text: '7');
+  final TextEditingController _noShowCtrl =
+      TextEditingController(text: '30');
+  final TextEditingController _slotCapacityCtrl =
+      TextEditingController(text: '30');
 
   @override
   void initState() {
@@ -33,6 +48,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _regNoCtrl.dispose();
+    _slotDurationCtrl.dispose();
+    _prepBufferCtrl.dispose();
+    _orderCutoffCtrl.dispose();
+    _advanceBookingCtrl.dispose();
+    _noShowCtrl.dispose();
+    _slotCapacityCtrl.dispose();
     super.dispose();
   }
 
@@ -113,8 +134,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: themeProv.isDark ? Colors.grey[400] : Colors.grey[500], letterSpacing: 1.2));
   }
 
-  Widget _profileCard(dynamic user, ThemeProvider themeProv) {
-    return Container(
+  /// Resolve the raw college id to its display name (fallback: raw id).
+  String _collegeName(String? collegeId) {
+    final id = collegeId?.trim() ?? '';
+    if (id.isEmpty) return 'N/A';
+    try {
+      final colleges = context.read<MenuProvider>().colleges;
+      for (final c in colleges) {
+        if (c.id == id) return c.name;
+      }
+    } catch (_) {}
+    return id;
+  }
+
+  Widget _profileCard(dynamic user, ThemeProvider themeProv) {    return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
@@ -169,10 +202,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               width: double.infinity,
               height: 38,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                  await context.read<AuthProvider>().updateLocalProfile(
+                        name: _nameCtrl.text,
+                        phone: _phoneCtrl.text,
+                        registerNumber: _regNoCtrl.text,
+                      );
+                  if (!mounted) return;
                   setState(() => _editingProfile = false);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile updated locally. Server sync pending.'), backgroundColor: Color(0xFFF59E0B)),
+                    const SnackBar(
+                        content: Text('Profile saved on this device.'),
+                        backgroundColor: Color(0xFFF59E0B)),
                   );
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
@@ -183,7 +224,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (!_editingProfile) ...[
             const SizedBox(height: 12),
             _infoRow('Role', user?.role?.toUpperCase() ?? 'CUSTOMER', themeProv),
-            _infoRow('College ID', user?.collegeId ?? 'N/A', themeProv),
+            _infoRow('College', _collegeName(user?.collegeId), themeProv),
             _infoRow('Phone', user?.phone ?? 'Not set', themeProv),
           ],
         ],
@@ -278,7 +319,7 @@ Widget _logoutBtn(AuthProvider auth) {
       height: 44,
       child: ElevatedButton(
         onPressed: () async {
-          await auth.logout();
+          await auth.logoutEverywhere(context);
           if (mounted) Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => LoginScreen(
       onNavigateLegal: (page) {
@@ -294,40 +335,51 @@ Widget _logoutBtn(AuthProvider auth) {
     );
   }
 
-  Widget _ownerSettingsSection(ThemeProvider themeProv, String canteenId) {
-    final TextEditingController slotDurationCtrl = TextEditingController(text: '15');
-    final TextEditingController prepBufferCtrl = TextEditingController(text: '5');
-    final TextEditingController orderCutoffCtrl = TextEditingController(text: '10');
-    final TextEditingController advanceBookingCtrl = TextEditingController(text: '7');
-    final TextEditingController noShowCtrl = TextEditingController(text: '30');
-    final TextEditingController slotCapacityCtrl = TextEditingController(text: '30');
-
-    Future<void> _saveOwnerSettings() async {
-      try {
-        final api = ApiService();
-        await api.saveCanteenSettings(
-          canteenId: canteenId,
-          noShowMinutes: int.tryParse(noShowCtrl.text) ?? 30,
-          defaultSlotCapacity: int.tryParse(slotCapacityCtrl.text) ?? 30,
-          slotDuration: int.tryParse(slotDurationCtrl.text) ?? 15,
-          prepBufferMinutes: int.tryParse(prepBufferCtrl.text) ?? 5,
-          orderCutoffMinutes: int.tryParse(orderCutoffCtrl.text) ?? 10,
-          advanceBookingDays: int.tryParse(advanceBookingCtrl.text) ?? 7,
+  Future<void> _saveOwnerSettings(String canteenId) async {
+    // Numeric validation: reject non-numeric / non-positive input.
+    final slotDuration = int.tryParse(_slotDurationCtrl.text.trim());
+    final prepBuffer = int.tryParse(_prepBufferCtrl.text.trim());
+    final orderCutoff = int.tryParse(_orderCutoffCtrl.text.trim());
+    final advanceBooking = int.tryParse(_advanceBookingCtrl.text.trim());
+    final noShow = int.tryParse(_noShowCtrl.text.trim());
+    final slotCapacity = int.tryParse(_slotCapacityCtrl.text.trim());
+    if ([slotDuration, prepBuffer, orderCutoff, advanceBooking, noShow, slotCapacity]
+        .any((v) => v == null || v <= 0)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Enter valid positive numbers for all settings.'),
+              backgroundColor: Colors.red),
         );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Settings saved successfully!'), backgroundColor: Colors.green),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
-          );
-        }
+      }
+      return;
+    }
+    try {
+      final api = ApiService();
+      await api.saveCanteenSettings(
+        canteenId: canteenId,
+        noShowMinutes: noShow!,
+        defaultSlotCapacity: slotCapacity!,
+        slotDuration: slotDuration!,
+        prepBufferMinutes: prepBuffer!,
+        orderCutoffMinutes: orderCutoff!,
+        advanceBookingDays: advanceBooking!,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Settings saved successfully!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+        );
       }
     }
+  }
 
+  Widget _ownerSettingsSection(ThemeProvider themeProv, String canteenId) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -342,23 +394,23 @@ Widget _logoutBtn(AuthProvider auth) {
           const SizedBox(height: 4),
           Text('Configure order pickup time slots and preparation windows', style: TextStyle(fontSize: 11, color: themeProv.isDark ? Colors.grey[400] : Colors.grey)),
           const SizedBox(height: 16),
-          _ownerSettingField('Slot Duration (min)', slotDurationCtrl, '15 or 30', themeProv),
+          _ownerSettingField('Slot Duration (min)', _slotDurationCtrl, '15 or 30', themeProv),
           const SizedBox(height: 12),
-          _ownerSettingField('Prep Buffer (min before slot)', prepBufferCtrl, 'e.g. 5', themeProv),
+          _ownerSettingField('Prep Buffer (min before slot)', _prepBufferCtrl, 'e.g. 5', themeProv),
           const SizedBox(height: 12),
-          _ownerSettingField('Order Cutoff (min before slot)', orderCutoffCtrl, 'e.g. 10', themeProv),
+          _ownerSettingField('Order Cutoff (min before slot)', _orderCutoffCtrl, 'e.g. 10', themeProv),
           const SizedBox(height: 12),
-          _ownerSettingField('Advance Booking (days)', advanceBookingCtrl, 'e.g. 7', themeProv),
+          _ownerSettingField('Advance Booking (days)', _advanceBookingCtrl, 'e.g. 7', themeProv),
           const SizedBox(height: 12),
-          _ownerSettingField('No-Show Window (min)', noShowCtrl, 'e.g. 30', themeProv),
+          _ownerSettingField('No-Show Window (min)', _noShowCtrl, 'e.g. 30', themeProv),
           const SizedBox(height: 12),
-          _ownerSettingField('Max Bookings/Slot', slotCapacityCtrl, 'e.g. 30', themeProv),
+          _ownerSettingField('Max Bookings/Slot', _slotCapacityCtrl, 'e.g. 30', themeProv),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             height: 44,
             child: ElevatedButton(
-              onPressed: _saveOwnerSettings,
+              onPressed: () => _saveOwnerSettings(canteenId),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFF59E0B),
                 foregroundColor: Colors.white,

@@ -44,9 +44,13 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     final auth = context.read<AuthProvider>();
     final user = auth.user;
     if (user == null) return;
-
+    final rawCanteenId = user.canteenId?.trim() ?? '';
+    if (rawCanteenId.isEmpty) {
+      if (mounted) setState(() { _error = 'No canteen assigned to this account — contact support.'; _isLoading = false; });
+      return;
+    }
     try {
-      final canteenId = user.canteenId ?? 'canteen_001';
+      final canteenId = rawCanteenId;
       final data = await _api.getCanteenData(canteenId);
       final orders = _api.parseOrders(data);
       if (mounted) {
@@ -115,7 +119,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap: () => auth.logout(),
+                onTap: () => auth.logoutEverywhere(context),
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(8)),
@@ -356,19 +360,33 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
             ],
           ),
 
-          // Status buttons
+          // Status buttons — pending treated same as scheduled (unpaid legacy)
+          // Gate: only scheduled/pending→preparing, preparing→ready, ready→collected.
           if (isActive) ...[
             const SizedBox(height: 10),
-            Row(
-              children: [
-                if (order.status == 'scheduled')
-                  _actionBtn('Start Preparing', const Color(0xFFD97706), () => _updateStatus(order.id, 'preparing')),
-                if (order.status == 'preparing')
-                  _actionBtn('Mark Ready', Colors.green, () => _updateStatus(order.id, 'ready')),
-                if (order.status == 'ready')
-                  _actionBtn('Mark Collected', Colors.blue, () => _updateStatus(order.id, 'collected')),
-              ],
-            ),
+            Builder(builder: (_) {
+              // Hide buttons for terminal-pending that slipped into active (shouldn't happen
+              // after filter, but safe).
+              if (order.status == 'pending' || order.status == 'scheduled') {
+                return Row(children: [
+                  _actionBtn('Start Preparing', const Color(0xFFD97706),
+                      () => _updateStatus(order.id, 'preparing')),
+                ]);
+              }
+              if (order.status == 'preparing') {
+                return Row(children: [
+                  _actionBtn('Mark Ready', Colors.green,
+                      () => _updateStatus(order.id, 'ready')),
+                ]);
+              }
+              if (order.status == 'ready') {
+                return Row(children: [
+                  _actionBtn('Mark Collected', Colors.blue,
+                      () => _updateStatus(order.id, 'collected')),
+                ]);
+              }
+              return const SizedBox.shrink();
+            }),
           ],
         ],
       ),
@@ -392,13 +410,19 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
 
   Future<void> _updateStatus(String orderId, String status) async {
     final result = await _api.updateOrderStatus(orderId, status);
-    if (result['success'] == true && mounted) {
+    if (!mounted) return;
+    if (result['success'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Order $status'),
         backgroundColor: status == 'ready' ? Colors.green : Colors.amber,
         duration: const Duration(seconds: 2),
       ));
       await _loadAllOrders();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result['error']?.toString() ?? 'Failed to update order'),
+        backgroundColor: Colors.red,
+      ));
     }
   }
 
@@ -617,7 +641,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                 // Action buttons
                 Row(
                   children: [
-                    if (!alreadyCollected && order.status != 'collected' && order.status != 'cancelled' && order.status != 'expired')
+                    // Mark Served only when ready (otherwise kitchen hasn't finished).
+                    if (!alreadyCollected && order.status == 'ready')
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () async {

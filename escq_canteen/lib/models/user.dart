@@ -29,7 +29,9 @@ class User {
   bool get isOwner => role == 'owner';
   bool get isAdmin => role == 'admin';
   bool get isSuperAdmin => role == 'superadmin';
-  bool get isBlockedRole => isAdmin || isSuperAdmin || isOwner;
+  // Admins/superadmins are web-portal only. Owners manage their canteen
+  // in-app (OwnerScreen), chefs/staff have their own home screens.
+  bool get isBlockedRole => isAdmin || isSuperAdmin;
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(

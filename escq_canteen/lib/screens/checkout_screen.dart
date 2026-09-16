@@ -21,6 +21,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Offer? _selectedOffer;
   double _discount = 0;
   bool _loadingOffers = true;
+  bool _validatingOffer = false;
 
   @override
   void initState() {
@@ -31,7 +32,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _fetchOffers() async {
     try {
       final cart = context.read<CartProvider>();
-      final canteenId = cart.canteenId ?? 'canteen_001';
+      // Fail closed: never query offers with a missing canteen id — the
+      // server would silently serve canteen_001's offers.
+      final canteenId = (cart.canteenId ?? '').trim();
+      if (canteenId.isEmpty) {
+        if (mounted) setState(() => _loadingOffers = false);
+        return;
+      }
       final api = ApiService();
       final offerMaps = await api.getActiveOffers(canteenId);
       if (mounted) {
@@ -45,29 +52,70 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  void _applyOffer(Offer? offer) {
+  /// Offer selection is validated against the SERVER (/api/offers/apply),
+  /// which enforces active-window, min-order and usage limits. The validated
+  /// offer id is sent with placeOrder so the server charges the discounted
+  /// total — the discount shown here is never trusted on its own.
+  Future<void> _applyOffer(Offer? offer) async {
     final cart = context.read<CartProvider>();
-    setState(() {
-      if (offer == null || _selectedOffer?.id == offer.id) {
+    if (offer == null || _selectedOffer?.id == offer.id) {
+      setState(() {
         _selectedOffer = null;
         _discount = 0;
-      } else {
-        final cartItems = cart.items.entries.map((e) => {
-          'itemId': e.value.menuItem.id,
-          'name': e.value.menuItem.name,
-          'price': e.value.menuItem.price,
-          'quantity': e.value.quantity,
-        }).toList();
-        final disc = offer.calculateDiscount(cart.subtotal, cartItems);
-        if (disc > 0 && cart.subtotal - disc >= 0) {
+      });
+      return;
+    }
+    final cartItems = cart.items.entries.map((e) => {
+      'itemId': e.value.menuItem.id,
+      'name': e.value.menuItem.name,
+      'price': e.value.menuItem.price,
+      'quantity': e.value.quantity,
+    }).toList();
+    // Instant local pre-check; server has the final word below.
+    final localDisc = offer.calculateDiscount(cart.subtotal, cartItems);
+    if (localDisc <= 0 || cart.subtotal - localDisc < 0) {
+      setState(() {
+        _selectedOffer = null;
+        _discount = 0;
+      });
+      return;
+    }
+    setState(() => _validatingOffer = true);
+    try {
+      final res = await ApiService().applyOffer(
+        offer.id,
+        cartItems,
+        (cart.canteenId ?? '').trim(),
+      );
+      if (!mounted) return;
+      final serverDisc = (res['discount'] as num?)?.toDouble() ?? 0;
+      if (res['success'] == true && serverDisc > 0) {
+        setState(() {
           _selectedOffer = offer;
-          _discount = disc;
-        } else {
+          _discount = serverDisc;
+          _validatingOffer = false;
+        });
+      } else {
+        setState(() {
           _selectedOffer = null;
           _discount = 0;
-        }
+          _validatingOffer = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['error'] ?? 'Offer not applicable to this cart.')),
+        );
       }
-    });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _selectedOffer = null;
+        _discount = 0;
+        _validatingOffer = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not validate offer. Please try again.')),
+      );
+    }
   }
 
   List<String> _generateTimeSlots() {
@@ -76,7 +124,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     int minutes = now.minute;
     int hours = now.hour;
     final remainder = minutes % 15;
-    minutes += (15 - remainder);
+    // At an exact quarter-hour boundary the current slot is still bookable.
+    if (remainder != 0) minutes += (15 - remainder);
     if (minutes >= 60) { minutes = 0; hours++; }
     for (int i = 0; i < 16; i++) {
       final slotMin = minutes.toString().padLeft(2, '0');
@@ -272,10 +321,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             const Icon(Icons.local_offer, size: 16, color: Color(0xFF059669)),
                             const SizedBox(width: 6),
                             Text('AVAILABLE OFFERS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF059669), letterSpacing: 0.5)),
+                            if (_validatingOffer) ...[
+                              const SizedBox(width: 8),
+                              const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF059669))),
+                            ],
                           ]),
                           const SizedBox(height: 10),
                           ...(_activeOffers.map((offer) => GestureDetector(
-                            onTap: () => _applyOffer(offer),
+                            onTap: _validatingOffer ? null : () => _applyOffer(offer),
                             child: Container(
                               margin: const EdgeInsets.only(bottom: 8),
                               padding: const EdgeInsets.all(12),
@@ -351,6 +404,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             builder: (_) => PaymentScreen(
                               totalAmount: cart.totalAmount - _discount,
                               pickupSlot: selectedSlot,
+                              offerId: _selectedOffer?.id,
                             ),
                           ),
                         );

@@ -46,9 +46,13 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     final auth = context.read<AuthProvider>();
     final user = auth.user;
     if (user == null) return;
-
+    final rawCanteenId = user.canteenId?.trim() ?? '';
+    if (rawCanteenId.isEmpty) {
+      if (mounted) setState(() { _error = 'No canteen assigned — contact support.'; _isLoading = false; });
+      return;
+    }
     try {
-      final canteenId = user.canteenId ?? 'canteen_001';
+      final canteenId = rawCanteenId;
       final data = await _api.getCanteenData(canteenId);
       final orders = _api.parseOrders(data);
       final menuItems = _api.parseMenuItems(data);
@@ -245,7 +249,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
                         ElevatedButton(
                           onPressed: () {
                             Navigator.pop(ctx);
-                            context.read<AuthProvider>().logout();
+                            context.read<AuthProvider>().logoutEverywhere(context);
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(builder: (_) => LoginScreen(onNavigateLegal: (page) => Navigator.pushNamed(context, '/legal/$page'))),
                               (route) => false,

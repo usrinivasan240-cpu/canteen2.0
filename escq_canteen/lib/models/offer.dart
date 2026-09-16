@@ -33,7 +33,7 @@ class Offer {
     this.validFrom = 0,
     this.validUntil = 0,
     this.isActive = true,
-    this.canteenId = 'canteen_001',
+    this.canteenId = '',
     this.createdAt = 0,
   });
 
@@ -54,7 +54,7 @@ class Offer {
       validFrom: json['validFrom'] ?? json['valid_from'] ?? 0,
       validUntil: json['validUntil'] ?? json['valid_until'] ?? 0,
       isActive: json['isActive'] ?? true,
-      canteenId: json['canteenId'] ?? json['canteen_id'] ?? 'canteen_001',
+      canteenId: json['canteenId'] ?? json['canteen_id'] ?? '',
       createdAt: json['createdAt'] ?? json['created_at'] ?? 0,
     );
   }

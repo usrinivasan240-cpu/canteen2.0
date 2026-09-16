@@ -81,6 +81,8 @@ class ChefProvider extends ChangeNotifier {
   Future<bool> updateKitchenTaskStatus({
     required String taskId,
     required String status,
+    String? canteenId,
+    String? chefId,
   }) async {
     _setLoading(true);
     _clearError();
@@ -92,7 +94,9 @@ class ChefProvider extends ChangeNotifier {
       );
 
       if (response['success'] == true) {
-        await loadKitchenTasks(); // Reload to get updated status
+        // Preserve filter — server 400s without canteenId, and caller
+        // typically filters by the current user's canteen/chef.
+        await loadKitchenTasks(canteenId: canteenId, chefId: chefId);
         return true;
       } else {
         _setError(response['error'] ?? 'Failed to update task status');

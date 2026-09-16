@@ -13,7 +13,6 @@ import 'screens/home_screen.dart';
 import 'screens/staff_home_screen.dart';
 import 'screens/kitchen_dashboard_screen.dart';
 import 'screens/owner_screen.dart';
-import 'screens/my_tasks_screen.dart';
 import 'screens/legal_pages_screen.dart';
 import 'services/notification_service.dart';
 
@@ -187,7 +186,7 @@ class _AppEntryPointState extends State<AppEntryPoint> {
     }
 
     if (auth.isChef) {
-      return const MyTasksScreen();
+      return const KitchenDashboardScreen();
     }
 
     if (auth.isStaff) {

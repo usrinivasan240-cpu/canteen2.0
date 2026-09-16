@@ -14,8 +14,9 @@ import 'home_screen.dart';
 class PaymentScreen extends StatefulWidget {
   final double totalAmount;
   final String pickupSlot;
+  final String? offerId;
 
-  const PaymentScreen({super.key, required this.totalAmount, required this.pickupSlot});
+  const PaymentScreen({super.key, required this.totalAmount, required this.pickupSlot, this.offerId});
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -25,9 +26,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool isProcessing = true;
   bool isComplete = false;
   bool isFailed = false;
+  bool isUncertain = false;
   bool waitingForPayment = false;
   String? errorMessage;
   String? orderId;
+  // Retained gateway state so "Try Again" reuses the already-created order
+  // instead of minting a duplicate (one tap must never create 2 charges).
+  String? _razorpayOrderId;
+  int? _amountPaise;
+  String? _gatewayKey;
+  String? _upiQrUrl;
+  String? _upiString;
   Timer? _pollTimer;
   int _pollCount = 0;
   late Razorpay _razorpay;
@@ -81,6 +90,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             if (!mounted) return;
             _successOrder = order;
             orderProv.setLastOrder(order);
+            context.read<CartProvider>().clear();
             debugPrint('[Razorpay] Order loaded from verify: ${order.id}');
             orderProv.loadOrders(userId);
             setState(() { isComplete = true; });
@@ -111,6 +121,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             if (!mounted) return;
             _successOrder = order;
             orderProv.setLastOrder(order);
+            context.read<CartProvider>().clear();
             orderProv.loadOrders(userId);
             setState(() { isComplete = true; });
             debugPrint('[Razorpay] Order found via poll: ${order.id} status=${order.status}');
@@ -123,7 +134,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       await Future.delayed(const Duration(seconds: 2));
     }
     debugPrint('[Razorpay] All recovery attempts exhausted — lastOrder still null');
-    if (mounted) setState(() { isComplete = true; });
+    // Never claim success without an order: the payment may still settle via
+    // server reconciliation, so this is UNCERTAIN, not complete.
+    if (mounted) setState(() { waitingForPayment = false; isUncertain = true; errorMessage = 'Payment status is uncertain. Please check My Orders before retrying — you may already have been charged.'; });
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
@@ -143,6 +156,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
       setState(() { isProcessing = false; isFailed = true; errorMessage = 'Cart is empty'; });
       return;
     }
+    final canteenId = (cart.canteenId ?? '').trim();
+    if (canteenId.isEmpty) {
+      // Never send '' — the server would silently re-home the order to canteen_001.
+      setState(() { isProcessing = false; isFailed = true; errorMessage = 'Canteen not selected. Please go back and choose your canteen.'; });
+      return;
+    }
 
     try {
       final api = ApiService();
@@ -151,7 +170,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
         userName: user.name,
         items: cart.toOrderPayload(),
         pickupSlot: widget.pickupSlot,
-        canteenId: cart.canteenId ?? '',
+        canteenId: canteenId,
+        collegeId: user.collegeId,
+        offerId: widget.offerId,
       );
 
       if (result['success'] != true) {
@@ -160,37 +181,65 @@ class _PaymentScreenState extends State<PaymentScreen> {
       }
 
       orderId = result['order']?['id'];
-      cart.clear();
+      // NOTE: the cart is cleared only after VERIFIED payment success, so a
+      // failed/cancelled payment keeps the cart and reuses this same order.
 
       // Handle VyaparGateway UPI payment
       if (result['useVyapar'] == true && result['upiQrUrl'] != null) {
-        final upiQrUrl = result['upiQrUrl'] as String;
-        final upiString = result['upiString'] as String? ?? '';
+        _upiQrUrl = result['upiQrUrl'] as String;
+        _upiString = result['upiString'] as String? ?? '';
 
         setState(() { isProcessing = false; waitingForPayment = true; });
 
         // Show UPI QR modal and start polling
-        _showUpiPaymentModal(upiQrUrl, upiString);
+        _showUpiPaymentModal(_upiQrUrl!, _upiString!);
         _startPolling();
       }
       // Handle Razorpay payment
       else if (result['useRazorpay'] == true && result['razorpayOrderId'] != null) {
-        final razorpayOrderId = result['razorpayOrderId'] as String;
-        final amount = result['amount'] as num? ?? widget.totalAmount;
+        _razorpayOrderId = result['razorpayOrderId'] as String;
+        // Canonical key comes from the server; bundled key is only a fallback.
+        _gatewayKey = result['razorpayKeyId'] as String? ?? AppConfig.razorpayKeyId;
+        // Server is the source of truth for paise (Math.round); never truncate.
+        final paise = result['amountPaise'] as num?;
+        _amountPaise = paise != null
+            ? paise.round()
+            : ((result['amount'] as num? ?? widget.totalAmount) * 100).round();
 
         setState(() { isProcessing = false; waitingForPayment = true; });
 
         // Show Razorpay payment info and start polling
-        _showRazorpayModal(razorpayOrderId, amount);
+        _showRazorpayModal(_razorpayOrderId!, _amountPaise!);
         _startPolling();
       }
       // Direct order success (free items or already paid)
       else {
         context.read<OrderProvider>().setLastOrder(Order.fromJson(result['order']));
+        context.read<CartProvider>().clear();
         setState(() { isProcessing = false; isComplete = true; });
       }
     } catch (e) {
       setState(() { isProcessing = false; isFailed = true; errorMessage = e.toString(); });
+    }
+  }
+
+  /// "Try Again" reuses the already-created order/gateway session so one tap
+  /// can never mint a duplicate order or charge. Only when no order exists
+  /// yet (order creation itself failed) is a fresh order placed.
+  void _retryPayment() {
+    _pollTimer?.cancel();
+    setState(() { isFailed = false; isUncertain = false; isProcessing = true; _pollCount = 0; });
+    if (orderId != null && _razorpayOrderId != null && _amountPaise != null) {
+      setState(() { isProcessing = false; waitingForPayment = true; });
+      _showRazorpayModal(_razorpayOrderId!, _amountPaise!);
+      _startPolling();
+    } else if (orderId != null && _upiQrUrl != null) {
+      setState(() { isProcessing = false; waitingForPayment = true; });
+      _showUpiPaymentModal(_upiQrUrl!, _upiString ?? '');
+      _startPolling();
+    } else {
+      orderId = null;
+      _initiatePayment();
     }
   }
 
@@ -201,7 +250,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (_pollCount > 60) {
         _pollTimer?.cancel();
         if (!mounted) return;
-        setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment timed out. Please check your orders.'; });
+        // The server may still fulfill the order via reconciliation after
+        // this timeout — report UNCERTAIN, never a hard failure.
+        setState(() { waitingForPayment = false; isUncertain = true; errorMessage = 'Payment is taking longer than expected. It may still confirm — please check My Orders before retrying.'; });
         return;
       }
       if (!mounted) return;
@@ -281,7 +332,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: () { Navigator.pop(ctx); setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment cancelled'; }); },
+                onPressed: () { Navigator.pop(ctx); setState(() { waitingForPayment = false; isFailed = true; errorMessage = 'Payment cancelled. If money was debited, it will appear in My Orders.'; }); },
                 style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                 child: const Text('Cancel Payment', style: TextStyle(fontSize: 12)),
               ),
@@ -292,14 +343,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  void _showRazorpayModal(String razorpayOrderId, num amount) {
+  void _showRazorpayModal(String razorpayOrderId, int amountPaise) {
     try {
       final auth = context.read<AuthProvider>();
       final user = auth.user;
 
       var options = {
-        'key': AppConfig.razorpayKeyId,
-        'amount': (amount * 100).toInt(),
+        'key': _gatewayKey ?? AppConfig.razorpayKeyId,
+        'amount': amountPaise,
         'currency': 'INR',
         'name': 'Esc(Q) Canteen',
         'description': 'Food Order Payment',
@@ -326,19 +377,32 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // System back is blocked while a payment is in flight: popping would
+    // abandon a pending order with no recovery. Back is allowed once the
+    // outcome is known (success / failed / uncertain).
+    return PopScope(
+      canPop: !waitingForPayment && !isProcessing,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please wait — your payment is in progress.')),
+          );
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFFBFCFF),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, size: 18, color: Color(0xFF111827)),
-          onPressed: waitingForPayment ? null : () => Navigator.pop(context),
+          onPressed: (waitingForPayment || isProcessing) ? null : () => Navigator.pop(context),
         ),
         title: const Text('Secure Payment', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
         centerTitle: true,
       ),
-      body: isComplete ? _buildSuccess() : (isFailed ? _buildFailed() : _buildBody()),
+      body: isComplete ? _buildSuccess() : (isFailed ? _buildFailed() : (isUncertain ? _buildUncertain() : _buildBody())),
+      ),
     );
   }
 
@@ -667,6 +731,59 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+  /// Indeterminate outcome: verification and polling both exhausted without
+  /// recovering the order. The charge may still settle server-side, so we
+  /// must NOT show success — and must NOT let the user pay again blindly.
+  Widget _buildUncertain() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80, height: 80,
+              decoration: BoxDecoration(color: const Color(0xFFFEF9E7), borderRadius: BorderRadius.circular(20)),
+              child: const Icon(Icons.hourglass_top, color: Color(0xFFD97706), size: 44),
+            ),
+            const SizedBox(height: 24),
+            const Text('Payment Status Uncertain', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF111827))),
+            const SizedBox(height: 8),
+            Text(
+              errorMessage ?? 'We could not confirm your payment. It may still go through.',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
+            ),
+            if (orderId != null) ...[
+              const SizedBox(height: 8),
+              Text('Order ID: $orderId', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+            ],
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity, height: 52,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 'history')), (_) => false);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF59E0B),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Check My Orders', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _retryPayment,
+              child: const Text('Try Again', style: TextStyle(fontSize: 13, color: Color(0xFFD97706))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFailed() {
     return Center(
       child: Padding(
@@ -687,9 +804,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             SizedBox(
               width: double.infinity, height: 52,
               child: ElevatedButton(
-                onPressed: () {
-                  setState(() { isFailed = false; isProcessing = true; _pollCount = 0; _initiatePayment(); });
-                },
+                onPressed: _retryPayment,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFF59E0B),
                   foregroundColor: Colors.white,

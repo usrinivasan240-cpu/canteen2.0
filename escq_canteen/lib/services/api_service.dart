@@ -7,6 +7,7 @@ import '../models/order.dart';
 import '../models/college.dart';
 import '../models/review.dart';
 import '../models/chef.dart';
+import 'auth_service.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._();
@@ -31,19 +32,50 @@ class ApiService {
     return {'success': false, 'error': 'Server unavailable. Please try again.'};
   }
 
-  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
-    return _retryRequest(() async {
+  /// Authenticated headers. Protected server routes 401 without
+  /// `Authorization: Bearer <supabase-jwt>` (see server authMiddleware).
+  Map<String, String> _headers() {
+    final token = AuthService().accessToken;
+    return {
+      'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  /// Decodes a response body defensively. Error pages (502/HTML from the
+  /// host) must not surface as a raw FormatException to the UI.
+  Map<String, dynamic> _decode(http.Response resp) {
+    dynamic data;
+    try {
+      data = jsonDecode(resp.body);
+    } catch (_) {
+      return {
+        'success': false,
+        'error': 'Server error (${resp.statusCode}). Please try again.',
+      };
+    }
+    if (data is Map<String, dynamic>) return data;
+    return {'success': false, 'error': 'Unexpected server response.'};
+  }
+
+  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body,
+      {bool allowRetry = true}) async {
+    Future<Map<String, dynamic>> once() async {
       final resp = await http.post(
         Uri.parse('$_baseUrl$path'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: jsonEncode(body),
       ).timeout(_timeout);
-      final data = jsonDecode(resp.body);
+      final data = _decode(resp);
       if (resp.statusCode >= 500 && data['error'] != null) {
         return {'success': false, 'error': data['error'], 'retryable': true};
       }
       return data;
-    });
+    }
+    // Non-idempotent writes (order creation) must never auto-retry: the
+    // server mints a fresh order per POST, so one tap could create 3 orders.
+    if (!allowRetry) return once();
+    return _retryRequest(once);
   }
 
   Future<Map<String, dynamic>> _get(String path, [Map<String, String>? params]) async {
@@ -52,8 +84,8 @@ class ApiService {
       if (params != null && params.isNotEmpty) {
         uri = uri.replace(queryParameters: params);
       }
-      final resp = await http.get(uri).timeout(_timeout);
-      final data = jsonDecode(resp.body);
+      final resp = await http.get(uri, headers: _headers()).timeout(_timeout);
+      final data = _decode(resp);
       if (resp.statusCode >= 500 && data['error'] != null) {
         return {'success': false, 'error': data['error'], 'retryable': true};
       }
@@ -94,10 +126,14 @@ class ApiService {
     return [];
   }
 
-  // Canteens
+  // Canteens — only send collegeId when it is a real non-empty value.
+  // An empty string must NOT be sent: Express treats `?collegeId=` as
+  // falsy and returns ALL canteens (cross-college leak).
   Future<List<Canteen>> getCanteens({String? collegeId}) async {
     final params = <String, String>{};
-    if (collegeId != null) params['collegeId'] = collegeId;
+    if (collegeId != null && collegeId.trim().isNotEmpty) {
+      params['collegeId'] = collegeId.trim();
+    }
     final data = await _get('/api/canteens', params);
     if (data['success'] == true && data['canteens'] != null) {
       return (data['canteens'] as List).map((c) => Canteen.fromJson(c)).toList();
@@ -140,8 +176,10 @@ class ApiService {
     required String userName,
     required List<Map<String, dynamic>> items,
     String pickupSlot = 'ASAP (Instant)',
-    String canteenId = 'canteen_001',
+    required String canteenId,
     String? subCanteenId,
+    String? collegeId,
+    String? offerId,
     String? paymentMethod,
   }) async {
     return _post('/api/canteen/order', {
@@ -153,13 +191,17 @@ class ApiService {
       'pickupSlot': pickupSlot,
       'canteenId': canteenId,
       if (subCanteenId != null) 'subCanteenId': subCanteenId,
-    });
+      if (collegeId != null && collegeId.trim().isNotEmpty) 'collegeId': collegeId.trim(),
+      if (offerId != null && offerId.isNotEmpty) 'offerId': offerId,
+    }, allowRetry: false);
   }
 
   // User orders
   Future<List<Order>> getUserOrders(String userId, {String? canteenId}) async {
     final params = <String, String>{'userId': userId};
-    if (canteenId != null) params['canteenId'] = canteenId;
+    // Never send `?canteenId=` — an empty value disables server-side scoping.
+    final c = canteenId?.trim() ?? '';
+    if (c.isNotEmpty) params['canteenId'] = c;
     final data = await _get('/api/user/orders', params);
     if (data['success'] == true && data['orders'] != null) {
       final List<Order> parsed = [];
@@ -198,7 +240,7 @@ class ApiService {
       'userEmail': userEmail,
       'category': category,
       'subject': subject,
-      'message': message,
+      'description': message,
     });
   }
 
@@ -244,14 +286,14 @@ class ApiService {
       try {
         final resp = await http.post(
           Uri.parse('$_baseUrl/api/razorpay/verify'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _headers(),
           body: jsonEncode({
             'razorpay_order_id': razorpayOrderId,
             'razorpay_payment_id': razorpayPaymentId,
             'razorpay_signature': razorpaySignature,
           }),
         ).timeout(const Duration(seconds: 30));
-        final data = jsonDecode(resp.body);
+        final data = _decode(resp);
         if (data['success'] == true || data['alreadyVerified'] == true) return data;
         // Server may not have order yet (cold start) — retry
         if (data['retryable'] == true && attempt < 2) {
@@ -330,7 +372,13 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getWalletTopups({int page = 1, int limit = 20}) async {
-    return _get('/api/wallet/topups', {'page': page.toString(), 'limit': limit.toString()});
+    // Server has no dedicated /api/wallet/topups route — topups are embedded
+    // in GET /api/wallet. Fetch wallet and reshape for WalletProvider.
+    final res = await _get('/api/wallet');
+    if (res['success'] == true && res['topups'] != null) {
+      return {'success': true, 'topups': res['topups']};
+    }
+    return res;
   }
 
   Future<Map<String, dynamic>> initiateWalletTopup({
@@ -362,11 +410,12 @@ class ApiService {
     required int amount,
     required String idempotencyKey,
   }) async {
-    return _post('/api/wallet/pay', {
-      'orderId': orderId,
-      'amount': amount,
-      'idempotencyKey': idempotencyKey,
-    });
+    // No server route POST /api/wallet/pay exists yet — caller should gate
+    // on this until backend adds it. Return explicit error instead of 404 HTML.
+    return {
+      'success': false,
+      'error': 'Wallet pay is not yet available — please use Razorpay.',
+    };
   }
 
 Future<Map<String, dynamic>> requestRefund({
@@ -384,7 +433,8 @@ Future<Map<String, dynamic>> requestRefund({
   // ── CHEFS ──
   Future<Map<String, dynamic>> getChefs({String? canteenId}) async {
     final params = <String, String>{};
-    if (canteenId != null) params['canteenId'] = canteenId;
+    final c = canteenId?.trim() ?? '';
+    if (c.isNotEmpty) params['canteenId'] = c;
     return _get('/api/chefs', params);
   }
 
@@ -422,15 +472,26 @@ Future<Map<String, dynamic>> requestRefund({
     if (specialization != null) body['specialization'] = specialization;
     if (status != null) body['status'] = status;
     if (isAvailable != null) body['isAvailable'] = isAvailable;
-    return _post('/api/chefs/$chefId', body);
+    final resp = await http
+        .put(
+          Uri.parse('$_baseUrl/api/chefs/$chefId'),
+          headers: _headers(),
+          body: jsonEncode(body),
+        )
+        .timeout(_timeout);
+    final data = _decode(resp);
+    if (resp.statusCode >= 500 && data['error'] != null) {
+      return {'success': false, 'error': data['error'], 'retryable': true};
+    }
+    return data;
   }
 
   Future<Map<String, dynamic>> deleteChef({required String chefId}) async {
     final resp = await http.delete(
       Uri.parse('$_baseUrl/api/chefs/$chefId'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(),
     ).timeout(_timeout);
-    final data = jsonDecode(resp.body);
+    final data = _decode(resp);
     if (resp.statusCode >= 500 && data['error'] != null) {
       return {'success': false, 'error': data['error'], 'retryable': true};
     }
@@ -452,15 +513,18 @@ Future<Map<String, dynamic>> requestRefund({
 
   Future<Map<String, dynamic>> getChefLeave({String? chefId}) async {
     final params = <String, String>{};
-    if (chefId != null) params['chefId'] = chefId;
-    return _get('/api/chefs/leave', params);
+    final ch = chefId?.trim() ?? '';
+    if (ch.isNotEmpty) params['chefId'] = ch;
+    return _get('/api/chefs/leaves', params);
   }
 
   // ── KITCHEN TASKS ──
   Future<Map<String, dynamic>> getKitchenTasks({String? canteenId, String? chefId}) async {
     final params = <String, String>{};
-    if (canteenId != null) params['canteenId'] = canteenId;
-    if (chefId != null) params['chefId'] = chefId;
+    final c = canteenId?.trim() ?? '';
+    if (c.isNotEmpty) params['canteenId'] = c;
+    final ch = chefId?.trim() ?? '';
+    if (ch.isNotEmpty) params['chefId'] = ch;
     return _get('/api/kitchen/tasks', params);
   }
 

@@ -23,6 +23,25 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   bool _submitted = false;
   bool _submitting = false;
 
+  // Map display categories to server-canonical values so priority/emoji logic works.
+  String _mapCategory(String display) {
+    switch (display) {
+      case 'Payment Issue':
+        return 'payment';
+      case 'Order Problem':
+        return 'order';
+      case 'Account Help':
+        return 'account';
+      case 'Bug Report':
+        return 'app';
+      case 'Feature Request':
+        return 'other';
+      case 'General Inquiry':
+      default:
+        return 'other';
+    }
+  }
+
   final _categories = [
     'General Inquiry',
     'Payment Issue',
@@ -82,7 +101,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
           'userId': userId,
           'userName': _nameCtrl.text.trim(),
           'userEmail': _emailCtrl.text.trim(),
-          'category': _selectedCategory.toLowerCase().replaceAll(' ', '_'),
+          'category': _mapCategory(_selectedCategory),
           'subject': _subjectCtrl.text.trim().isEmpty ? _selectedCategory : _subjectCtrl.text.trim(),
           'description': _messageCtrl.text.trim(),
         }),

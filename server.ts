@@ -453,7 +453,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.3';
+const APP_VERSION = '2.5.4';
 const APP_UPDATE_URL = 'https://canteen20.vercel.app';
 
 app.get('/api/app-version', (req, res) => {
@@ -1978,16 +1978,10 @@ app.get('/api/canteen', async (req, res) => {
       // Each query wrapped individually - one failure won't kill all
       let items: MenuItem[] = [];
       try {
+        // STRICT college/canteen isolation: only this canteen's items.
+        // No fallback to canteen_001 or ALL items — an empty canteen must
+        // show an empty menu, never another canteen's menu.
         items = await pgGetWhere('items', { canteenId }) as MenuItem[];
-        if (items.length === 0) {
-          items = await pgGetWhereOrdered('items', { canteenId: 'canteen_001' }, 'id', 'asc', 100) as MenuItem[];
-        }
-        if (items.length === 0) {
-          items = (await query('SELECT * FROM items LIMIT 200')).map((r: any) => {
-            const { created_at, updated_at, ...rest } = r;
-            return rest;
-          }) as MenuItem[];
-        }
       } catch (e) { console.warn('Items query failed:', e); }
 
       let orders: Order[] = [];
@@ -2141,7 +2135,7 @@ app.get('/api/canteen/all-orders', async (req, res) => {
 
 // 2. Add / Edit Menu Items (Owner)
 app.post('/api/canteen/menu', async (req, res) => {
-  const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe, requiresChef, canteenId } = req.body;
+  const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe, requiresChef, canteenId, collegeId, subCanteenId } = req.body;
   
   if (!name || isNaN(price) || isNaN(stock)) {
     return res.status(400).json({ success: false, error: 'Name, valid price and stock are required.' });
@@ -2175,9 +2169,21 @@ app.post('/api/canteen/menu', async (req, res) => {
     existingItem = canteenState.items.find(i => i.id === id);
   }
 
+  // DB flow correction: always stamp collegeId from the parent canteen so
+  // college -> canteen -> item chain stays intact even if client omits it.
+  let resolvedCollegeId: string = (collegeId as string) || (existingItem as any)?.collegeId || '';
+  if (!resolvedCollegeId && pgReady) {
+    try {
+      const parentCanteen: any = await pgGetById('canteens', resolvedCanteenId);
+      if (parentCanteen?.collegeId) resolvedCollegeId = parentCanteen.collegeId;
+    } catch { /* keep empty, column defaults to '' */ }
+  }
+
   const menuItem: MenuItem = {
     id: targetId,
     canteenId: resolvedCanteenId,
+    collegeId: resolvedCollegeId,
+    subCanteenId: (subCanteenId as string) || (existingItem as any)?.subCanteenId || '',
     name,
     price: Number(price),
     stock: Number(stock),
@@ -2317,7 +2323,7 @@ function parseSlotToTimestamp(slot: string): number {
 // 4. Place an Order (Customer)
 app.post('/api/canteen/order', async (req, res) => {
   try {
-  const { userId, userName, items, paymentMethod, pickupSlot, canteenId, subCanteenId, gateway } = req.body;
+  const { userId, userName, items, paymentMethod, pickupSlot, canteenId, subCanteenId, gateway, offerId } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ success: false, error: 'Cannot place empty order.' });
@@ -2436,6 +2442,57 @@ app.post('/api/canteen/order', async (req, res) => {
         success: false,
         error: `Insufficient raw inventory for: ${ingredient.name}. Needed: ${displayReq}, available: ${displayStock}.`
       });
+    }
+  }
+
+  // Validate offer server-side (same rules as POST /api/offers/apply).
+  // The discount is applied to the food amount BEFORE fees, so the gateway
+  // charges the discounted total — never trust a client-computed discount.
+  let offerDiscount = 0;
+  let appliedOfferId: string | undefined;
+  if (offerId) {
+    try {
+      const offer: any = pgReady
+        ? await pgGetById('offers', offerId)
+        : ((canteenState as any).offers || []).find((o: any) => o.id === offerId);
+      const now = Date.now();
+      const offerCanteenOk = !offer?.canteenId || offer.canteenId === (canteenId || 'canteen_001');
+      if (!offer || !offer.isActive) {
+        return res.status(400).json({ success: false, error: 'Offer not found or inactive.' });
+      }
+      if ((offer.validFrom > 0 && now < offer.validFrom) || (offer.validUntil > 0 && now > offer.validUntil)) {
+        return res.status(400).json({ success: false, error: 'Offer is not valid at this time.' });
+      }
+      if (offer.maxUses > 0 && offer.usedCount >= offer.maxUses) {
+        return res.status(400).json({ success: false, error: 'Offer usage limit reached.' });
+      }
+      if (!offerCanteenOk) {
+        return res.status(400).json({ success: false, error: 'Offer is not valid for this canteen.' });
+      }
+      if (foodAmount < (offer.minOrderAmount || 0)) {
+        return res.status(400).json({ success: false, error: `Minimum order ₹${offer.minOrderAmount} required for this offer.` });
+      }
+      if (offer.offerType === 'discount') {
+        if (offer.discountPercent > 0) {
+          offerDiscount = Math.round(foodAmount * offer.discountPercent / 100);
+        } else if (offer.discountAmount > 0) {
+          offerDiscount = Math.min(offer.discountAmount, foodAmount);
+        }
+      } else if (offer.offerType === 'combo') {
+        const comboItems = validatedItems.filter((it) => (offer.comboItemIds || []).includes(it.itemId));
+        if (comboItems.length > 0) {
+          const comboOriginal = comboItems.reduce((sum, it) => sum + it.price * it.quantity, 0);
+          offerDiscount = Math.max(0, comboOriginal - (offer.comboPrice || 0));
+        }
+      }
+      offerDiscount = Math.max(0, Math.min(offerDiscount, foodAmount));
+      if (offerDiscount > 0) {
+        appliedOfferId = offer.id;
+        foodAmount = Math.max(0, foodAmount - offerDiscount);
+      }
+    } catch (offerErr) {
+      console.error('Offer validation error:', offerErr);
+      return res.status(400).json({ success: false, error: 'Failed to validate offer.' });
     }
   }
 
@@ -2558,6 +2615,8 @@ app.post('/api/canteen/order', async (req, res) => {
         subCanteenId: subCanteenId || 'sub_001',
         collegeId: collegeId,
         platformFee: platformFee,
+        offerId: appliedOfferId,
+        discount: offerDiscount,
       };
 
       if (pgReady) {
@@ -2608,7 +2667,11 @@ app.post('/api/canteen/order', async (req, res) => {
         prepStartTime,
         expiryTime,
         canteenId: canteenId || 'canteen_001',
-        subCanteenId: subCanteenId || 'sub_001'
+        subCanteenId: subCanteenId || 'sub_001',
+        collegeId: collegeId,
+        platformFee: platformFee,
+        offerId: appliedOfferId,
+        discount: offerDiscount,
       };
 
       if (pgReady) {
@@ -2660,6 +2723,7 @@ app.post('/api/canteen/order', async (req, res) => {
               useVyapar: true,
               vyaparTxnId: txnId,
               qrUrl,
+              upiQrUrl: qrUrl,
               upiString,
               amount: totalAmountPaise,
               currency: 'INR',
@@ -5159,7 +5223,7 @@ app.post('/api/wallet/topup', async (req, res) => {
     if (provider === 'RAZORPAY' && razorpayConfigured && razorpay) {
       try {
         const order = await razorpay.orders.create({
-          amount: amount * 100, // amount in paise
+          amount: amount, // already in paise from client
           currency: 'INR',
           receipt: `topup_${topupId}`,
           notes: { topupId, walletId: wallet.id }
