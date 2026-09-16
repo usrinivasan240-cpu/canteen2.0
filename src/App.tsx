@@ -22,6 +22,7 @@ import { MenuItem, Order, Review, Canteen, College } from './types';
 import { API_BASE } from './config';
 import SupportPage from './components/SupportPage';
 import DownloadPage from './components/DownloadPage';
+import { Analytics } from '@vercel/analytics/react';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -604,7 +605,8 @@ export default function App() {
       {/* LEGAL FOOTER - Always visible */}
       <LegalFooter onNavigate={(page) => setLegalPage(page)} />
 
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </div>
   );
 }
-
