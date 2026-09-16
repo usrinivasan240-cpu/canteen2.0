@@ -6,14 +6,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Trash2, LogOut, CheckCircle, AlertTriangle, UserPlus, Sparkles, X, Globe, MapPin, Plus, TrendingUp, LifeBuoy,
-  Tag, CreditCard, Database
+  Tag, CreditCard
 } from 'lucide-react';
 import { SupportTicket } from '../types';
 import { Order, MenuItem } from '../types';
 import { API_BASE } from '../config';
 import CanteenAdmin from './CanteenAdmin';
 import ImageEditor from './ImageEditor';
-import SuperAdminDbPanel from './SuperAdminDbPanel';
 
 interface ServicePanelProps {
   orders: Order[];
@@ -73,7 +72,7 @@ export default function ServicePanel({
   };
 
   const isSuperAdmin = currentUser?.role === 'superadmin';
-  const [activeTab, setActiveTab] = useState<'users' | 'colleges' | 'canteens' | 'tickets' | 'dashboards' | 'database'>(isSuperAdmin ? 'canteens' : 'users');
+  const [activeTab, setActiveTab] = useState<'users' | 'colleges' | 'canteens' | 'tickets' | 'dashboards'>(isSuperAdmin ? 'canteens' : 'users');
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
   const [ticketFilter, setTicketFilter] = useState<string>('all');
@@ -375,20 +374,26 @@ export default function ServicePanel({
       if (d.success) {
         setScanStatus({ success: true, text: "Successfully deleted college." });
         await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || `Delete failed (${resp.status}). Check permissions or that no canteens/users still link to this college.` });
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); setScanStatus({ success: false, text: "Network failure deleting college." }); }
   };
 
   const handleDeleteCanteen = async (id: string) => {
     if (!confirm('Are you sure you want to delete this canteen?')) return;
     try {
       const resp = await fetch(`${API_BASE}/api/canteens/${id}`, { method: 'DELETE' });
-      const d = await resp.json();
-      if (d.success) {
+      let d: any = null;
+      try { d = await resp.json(); } catch { d = { success: resp.ok }; }
+      if (resp.ok && d?.success !== false) {
         setScanStatus({ success: true, text: "Successfully deleted canteen." });
         await syncAdminData();
+      } else {
+        const msg = d?.error || (resp.status === 401 ? 'Session expired — please sign in again.' : resp.status === 403 ? 'Forbidden: superadmin login required.' : `Delete failed (${resp.status}).`);
+        setScanStatus({ success: false, text: msg });
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); setScanStatus({ success: false, text: "Network failure deleting canteen." }); }
   };
 
   const handleDeleteSubCanteen = async (id: string) => {
@@ -399,8 +404,10 @@ export default function ServicePanel({
       if (d.success) {
         setScanStatus({ success: true, text: "Successfully deleted counter." });
         await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || `Delete failed (${resp.status}).` });
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); setScanStatus({ success: false, text: "Network failure deleting counter." }); }
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -449,9 +456,12 @@ export default function ServicePanel({
       if (d.success) {
         setScanStatus({ success: true, text: `Successfully deleted user: ${email}` });
         await syncAdminData();
+      } else {
+        setScanStatus({ success: false, text: d.error || `Delete failed (${resp.status}).` });
       }
     } catch (e) {
       console.error(e);
+      setScanStatus({ success: false, text: "Network failure deleting user." });
     }
   };
 
@@ -762,15 +772,7 @@ export default function ServicePanel({
               <LifeBuoy className="h-4 w-4" />
               <span>Support Tickets {supportTickets.filter(t => t.status === 'open').length > 0 && `(${supportTickets.filter(t => t.status === 'open').length})`}</span>
             </button>
-            <button
-              onClick={() => setActiveTab('database')}
-              className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-                activeTab === 'database' ? 'border-amber-600 text-amber-600 font-black' : 'border-transparent text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <Database className="h-4 w-4" />
-              <span>Database</span>
-            </button>
+
           </div>
         </div>
       )}
@@ -2423,11 +2425,7 @@ export default function ServicePanel({
             )}
           </div>
         )}
-        {activeTab === 'database' && (
-          <div className="max-w-6xl mx-auto px-4 mt-6">
-            <SuperAdminDbPanel />
-          </div>
-        )}
+
 
       {imageEditorOpen && (
         <ImageEditor
