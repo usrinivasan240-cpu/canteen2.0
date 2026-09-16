@@ -1539,11 +1539,10 @@ app.post('/api/canteens', async (req, res) => {
     try {
       await pgSet('canteens', canteenData.id, canteenData);
       
-      // Auto-seed default settings
-      const settingsDocId = `settings_${canteenData.id}`;
-      const existingSettings = await pgGetById('settings', settingsDocId);
+      // Auto-seed default settings (settings PK is canteen_id, not doc id)
+      const existingSettings = await pgGetById('settings', canteenData.id);
       if (!existingSettings) {
-        await pgSet('settings', settingsDocId, {
+        await pgSet('settings', canteenData.id, {
           noShowMinutes: 30,
           defaultSlotCapacity: 30,
           canteenId: canteenData.id
@@ -1557,9 +1556,16 @@ app.post('/api/canteens', async (req, res) => {
           await pgSet('ingredients', `${ing.id}_${canteenData.id}`, { ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id });
         }
       }
-    } catch (e) {
-      console.error(e);
-      return res.status(500).json({ success: false, error: 'DB Save failed' });
+    } catch (e: any) {
+      console.error('[canteens POST]', e?.message || e, e?.detail || '');
+      const raw = String(e?.message || e);
+      if (raw.includes('duplicate') || raw.includes('already exists')) {
+        return res.status(409).json({ success: false, error: 'Canteen already exists (duplicate ID). Retry.' });
+      }
+      if (raw.includes('foreign key') || raw.includes('violates')) {
+        return res.status(400).json({ success: false, error: 'Invalid college — pick from list. FK: ' + raw.slice(0,120) });
+      }
+      return res.status(500).json({ success: false, error: 'DB Save failed: ' + raw.slice(0,180) });
     }
   }
 
@@ -1631,22 +1637,63 @@ app.put('/api/canteens/:id', async (req, res) => {
 
 app.delete('/api/canteens/:id', async (req, res) => {
   const { id } = req.params;
+  const force = String(req.query.force || '') === 'true';
+  // Always cascade by default — user wants overall things deleted with canteen.
+  // `force` is kept for explicit UI, but even without it we now cascade if FK would block.
   if (pgReady) {
+    let needCascade = false;
     try {
       await pgDelete('canteens', id);
     } catch (e: any) {
-      console.error('[canteens delete]', e?.message || e);
       const msg = String(e?.message || e);
-      // Common PG FK violation when counters/users/orders still reference canteen
-      if (msg.includes('foreign key') || msg.includes('violates')) {
-        return res.status(409).json({ success: false, error: 'Cannot delete canteen while counters, users, or orders still reference it. Remove them first.' });
+      if (msg.includes('foreign key') || msg.includes('violates')) needCascade = true;
+      else {
+        console.error('[canteens delete]', msg);
+        return res.status(500).json({ success: false, error: 'Database delete failed.' });
       }
-      return res.status(500).json({ success: false, error: 'Database delete failed.' });
+    }
+    if (needCascade || force) {
+      try {
+        // Order matters: children first to avoid FKs (kitchen_tasks -> chefs/orders/items, etc)
+        const deps: Array<[string, string]> = [
+          ['kitchen_tasks', 'canteenId'],
+          ['chef_leaves', 'canteenId'],
+          ['chefs', 'canteenId'],
+          ['walkin_bills', 'canteenId'],
+          ['support_tickets', 'canteenId'],
+          ['orders', 'canteenId'],
+          ['reviews', 'canteenId'],
+          ['items', 'canteenId'],
+          ['ingredients', 'canteenId'],
+          ['offers', 'canteenId'],
+          ['settings', 'canteenId'],
+          ['subcanteens', 'canteenId'],
+          ['users', 'canteenId'],
+        ];
+        for (const [table, field] of deps) {
+          try { await pgDeleteWhere(table, { [field]: id } as any); } catch (err: any) {
+            const m = String(err?.message || err);
+            if (!m.includes('does not exist') && !m.includes('column')) console.warn(`[cascade ${table}]`, m.slice(0,120));
+          }
+        }
+        // retry canteen delete after dependents cleared
+        await pgDelete('canteens', id);
+      } catch (e: any) {
+        console.error('[canteens cascade delete]', e?.message || e);
+        return res.status(500).json({ success: false, error: 'Delete failed: ' + String(e?.message || e).slice(0,150) });
+      }
     }
   }
   dataCache.delete('canteens');
   dataCache.delete(`canteen_${id}`);
   canteensState = canteensState.filter(c => c.id !== id);
+  // also purge in-memory dependents for local mode parity
+  try {
+    subCanteensState = subCanteensState.filter(s => (s as any).canteenId !== id);
+    if (typeof (global as any).ordersState !== 'undefined') {
+      // best-effort — not all builds keep ordersState in memory
+    }
+  } catch {}
   saveLocalDB();
   res.json({ success: true });
 });

@@ -381,9 +381,9 @@ export default function ServicePanel({
   };
 
   const handleDeleteCanteen = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this canteen?')) return;
+    if (!confirm('Delete this canteen AND all its counters, menu, orders and users? This cannot be undone.')) return;
     try {
-      const resp = await fetch(`${API_BASE}/api/canteens/${id}`, { method: 'DELETE' });
+      const resp = await fetch(`${API_BASE}/api/canteens/${id}?force=true`, { method: 'DELETE' });
       let d: any = null;
       try { d = await resp.json(); } catch { d = { success: resp.ok }; }
       if (resp.ok && d?.success !== false) {
