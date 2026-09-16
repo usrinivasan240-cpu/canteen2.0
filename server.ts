@@ -2632,7 +2632,7 @@ app.post('/api/canteen/order', async (req, res) => {
   }
   const expiryTime = pickupTimestamp + (noShowMinutes * 60 * 1000);
 
-  const selectedGateway = (gateway === 'vyapar') ? 'vyapar' : 'razorpay';
+  const selectedGateway = (gateway === 'wallet') ? 'wallet' : (gateway === 'vyapar') ? 'vyapar' : 'razorpay';
 
   // ── RAZORPAY GATEWAY ──────────────────────────────────────────────────────
   if (selectedGateway === 'razorpay' && razorpayConfigured && razorpay) {
@@ -2804,6 +2804,80 @@ app.post('/api/canteen/order', async (req, res) => {
         : err?.message || err?.error?.description || err?.statusText || err?.stack?.split('\n')[0] || JSON.stringify(err, Object.getOwnPropertyNames(err));
       console.error('VyaparGateway order creation error:', errDetail, '| raw:', err);
       return res.status(500).json({ success: false, error: `Payment gateway error: ${errDetail}` });
+    }
+  }
+
+  // ── WALLET GATEWAY (ledger debit) ───────────────────────────────────────────
+  if (selectedGateway === 'wallet') {
+    try {
+      if (!userId) return res.status(401).json({ success: false, error: 'Login required for wallet payment.' });
+      const totalPrice = Number((subtotal / 0.9764).toFixed(2));
+      const totalAmountPaise = Math.round(totalPrice * 100);
+      if (!pgReady) return res.status(500).json({ success: false, error: 'Wallet payments require database.' });
+      // Resolve wallet
+      const walletRows: any[] = await query('SELECT id FROM wallets WHERE user_id = $1 LIMIT 1', [userId]);
+      if (!walletRows || walletRows.length === 0) return res.status(400).json({ success: false, error: 'Wallet not found. Please top up first.' });
+      const walletId = walletRows[0].id;
+      const idempotencyKey = `wallet_${orderId}_${userId}`;
+      const purchaseRes: any[] = await query('SELECT * FROM process_wallet_purchase($1,$2,$3,$4)', [walletId, orderId, totalAmountPaise, idempotencyKey]);
+      const pr = purchaseRes[0];
+      if (!pr || !pr.success) {
+        const errMsg = pr?.error || 'Wallet payment failed';
+        if (errMsg === 'INSUFFICIENT_BALANCE') return res.status(402).json({ success: false, error: 'Insufficient wallet balance', code: 'INSUFFICIENT_BALANCE' });
+        return res.status(400).json({ success: false, error: errMsg });
+      }
+      // Stock deduction (reuse fulfill logic but wallet already debited)
+      let currentItems: MenuItem[] = await pgGetAll('items') as MenuItem[];
+      let currentIngredients: Ingredient[] = await pgGetAll('ingredients') as Ingredient[];
+      await pgTransaction(async (client: any) => {
+        for (const item of validatedItems) {
+          const itemInMenu = currentItems.find(i => i.id === item.itemId);
+          if (!itemInMenu) continue;
+          itemInMenu.stock = Math.max(0, itemInMenu.stock - item.quantity);
+          itemInMenu.bookedToday += item.quantity;
+          if (itemInMenu.stock <= 0) itemInMenu.available = false;
+          const snakeItem = toSnakeCase({ ...itemInMenu });
+          const cols = Object.keys(snakeItem);
+          const upd = cols.filter(c => c !== 'id').map(c => `${c} = $${cols.indexOf(c)+1}`).join(', ');
+          const vals = cols.map(c => { const v=(snakeItem as any)[c]; return (typeof v==='object'&&v!==null)?JSON.stringify(v):v; });
+          await client.query(`UPDATE items SET ${upd} WHERE id = $${cols.indexOf('id')+1}`, vals);
+          if (itemInMenu.recipe) {
+            for (const ri of itemInMenu.recipe as any[]) {
+              const req = ri.amountGrams * item.quantity;
+              const ing = currentIngredients.find(x=>x.id===ri.ingredientId);
+              if (!ing) continue;
+              ing.stockGrams = Math.max(0, ing.stockGrams - req);
+              const snakeIng = toSnakeCase({ ...ing });
+              const icols = Object.keys(snakeIng);
+              const iupd = icols.filter(c=>c!=='id').map(c=>`${c} = $${icols.indexOf(c)+1}`).join(', ');
+              const ivals = icols.map(c=>{ const v=(snakeIng as any)[c]; return (typeof v==='object'&&v!==null)?JSON.stringify(v):v; });
+              await client.query(`UPDATE ingredients SET ${iupd} WHERE id = $${icols.indexOf('id')+1}`, ivals);
+            }
+          }
+        }
+      });
+      const signedQr = generateSignedQR(orderId);
+      const containsChef = validatedItems.some(it => {
+        const mi = currentItems.find(m=>m.id===it.itemId);
+        return mi ? mi.requiresChef !== false : true;
+      });
+      const newOrder: Order = {
+        id: orderId, userId: userId || 'user_guest', userName: userName || 'Guest User',
+        items: validatedItems, totalPrice, paymentStatus: 'paid', paymentMethod: 'Wallet',
+        qrCode: `QR_${orderId}_${Math.floor(Math.random()*1000)}`, qrPayload: signedQr,
+        status: containsChef ? 'scheduled' : 'ready', timestamp: new Date().toISOString(),
+        createdAt: Date.now(), pickupTimeText: containsChef ? `Scheduled for pickup at ${selectedSlot}` : 'Ready for collection',
+        pickupSlot: selectedSlot, prepStartTime, expiryTime,
+        canteenId: canteenId || 'canteen_001', subCanteenId: subCanteenId || 'sub_001',
+        collegeId, platformFee, offerId: appliedOfferId, discount: offerDiscount,
+      };
+      await pgSet('orders', orderId, newOrder);
+      canteenState.orders.unshift(newOrder);
+      await routeKitchenTasks(orderId, validatedItems, newOrder.canteenId);
+      return res.json({ success: true, order: newOrder, qrPayload: signedQr, walletPayment: true });
+    } catch (err: any) {
+      console.error('[Wallet] order error:', err?.message||err);
+      return res.status(500).json({ success: false, error: 'Wallet payment failed' });
     }
   }
 } catch (topErr: any) {

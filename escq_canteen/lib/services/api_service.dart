@@ -181,13 +181,15 @@ class ApiService {
     String? collegeId,
     String? offerId,
     String? paymentMethod,
+    String gateway = 'razorpay',
   }) async {
+    final gw = gateway == 'wallet' ? 'wallet' : 'razorpay';
     return _post('/api/canteen/order', {
       'userId': userId,
       'userName': userName,
       'items': items,
-      'paymentMethod': paymentMethod ?? 'Razorpay Gateway',
-      'gateway': 'razorpay',
+      'paymentMethod': paymentMethod ?? (gw == 'wallet' ? 'Wallet' : 'Razorpay Gateway'),
+      'gateway': gw,
       'pickupSlot': pickupSlot,
       'canteenId': canteenId,
       if (subCanteenId != null) 'subCanteenId': subCanteenId,
@@ -410,12 +412,16 @@ class ApiService {
     required int amount,
     required String idempotencyKey,
   }) async {
-    // No server route POST /api/wallet/pay exists yet — caller should gate
-    // on this until backend adds it. Return explicit error instead of 404 HTML.
-    return {
-      'success': false,
-      'error': 'Wallet pay is not yet available — please use Razorpay.',
-    };
+    try {
+      return await _post('/api/wallet/pay', {
+        'orderId': orderId,
+        'amount': amount,
+        'idempotencyKey': idempotencyKey,
+      });
+    } catch (e) {
+      // Fallback: wallet orders are now placed via /api/canteen/order gateway=wallet.
+      return {'success': false, 'error': e.toString()};
+    }
   }
 
 Future<Map<String, dynamic>> requestRefund({

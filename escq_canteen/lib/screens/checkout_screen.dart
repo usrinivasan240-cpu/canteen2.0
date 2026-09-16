@@ -17,16 +17,30 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   String selectedSlot = 'ASAP (Instant)';
+  String selectedGateway = 'razorpay';
   List<Offer> _activeOffers = [];
   Offer? _selectedOffer;
   double _discount = 0;
   bool _loadingOffers = true;
   bool _validatingOffer = false;
+  double? _walletBalance;
+  bool _loadingWallet = false;
 
   @override
   void initState() {
     super.initState();
     _fetchOffers();
+    _fetchWallet();
+  }
+
+  Future<void> _fetchWallet() async {
+    setState(() => _loadingWallet = true);
+    try {
+      final bal = await ApiService().getWalletBalance();
+      if (mounted) setState(() { _walletBalance = (bal['balance'] as num?)?.toDouble(); _loadingWallet = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingWallet = false);
+    }
   }
 
   Future<void> _fetchOffers() async {
@@ -392,12 +406,33 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ],
                     ),
                   ),
+                  // ── PAYMENT METHOD ──
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: cardBorder)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('PAYMENT METHOD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: subTextColor, letterSpacing: 0.5)),
+                        const SizedBox(height: 10),
+                        _gatewayTile('razorpay', 'Razorpay', Icons.credit_card, subTextColor, textColor),
+                        const SizedBox(height: 8),
+                        _gatewayTile('wallet', 'Wallet${_walletBalance != null ? ' (₹${_walletBalance!.toStringAsFixed(2)})' : ''}', Icons.account_balance_wallet, subTextColor, textColor),
+                        if (selectedGateway == 'wallet' && _walletBalance != null && _walletBalance! < (cart.totalAmount - _discount))
+                          Padding(padding: const EdgeInsets.only(top: 8), child: Text('Insufficient wallet balance — please top up.', style: TextStyle(fontSize: 11, color: Colors.red[600], fontWeight: FontWeight.w600))),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
                       onPressed: cart.isEmpty ? null : () {
+                        if (selectedGateway == 'wallet' && _walletBalance != null && _walletBalance! < (cart.totalAmount - _discount)) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Insufficient wallet balance')));
+                          return;
+                        }
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -405,6 +440,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               totalAmount: cart.totalAmount - _discount,
                               pickupSlot: selectedSlot,
                               offerId: _selectedOffer?.id,
+                              gateway: selectedGateway,
                             ),
                           ),
                         );
@@ -418,9 +454,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.lock, size: 16),
+                          Icon(selectedGateway == 'wallet' ? Icons.account_balance_wallet : Icons.lock, size: 16),
                           const SizedBox(width: 8),
-                          Text('Pay via Razorpay ₹${(cart.totalAmount - _discount).toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                          Text(selectedGateway == 'wallet' ? 'Pay via Wallet ₹${(cart.totalAmount - _discount).toStringAsFixed(2)}' : 'Pay via Razorpay ₹${(cart.totalAmount - _discount).toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
                         ],
                       ),
                     ),
@@ -432,6 +468,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _gatewayTile(String value, String label, IconData icon, Color subTextColor, Color textColor) {
+    final selected = selectedGateway == value;
+    return GestureDetector(
+      onTap: () => setState(() => selectedGateway = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFFEF3C7) : Colors.grey[50],
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? const Color(0xFFF59E0B) : Colors.grey[200]!, width: selected ? 2 : 1),
+        ),
+        child: Row(children: [
+          Icon(icon, size: 18, color: selected ? const Color(0xFFD97706) : Colors.grey[500]),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: textColor))),
+          Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18, color: selected ? const Color(0xFFF59E0B) : Colors.grey[400]),
+        ]),
+      ),
     );
   }
 

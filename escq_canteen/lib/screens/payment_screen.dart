@@ -15,8 +15,9 @@ class PaymentScreen extends StatefulWidget {
   final double totalAmount;
   final String pickupSlot;
   final String? offerId;
+  final String gateway;
 
-  const PaymentScreen({super.key, required this.totalAmount, required this.pickupSlot, this.offerId});
+  const PaymentScreen({super.key, required this.totalAmount, required this.pickupSlot, this.offerId, this.gateway = 'razorpay'});
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -165,6 +166,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     try {
       final api = ApiService();
+      final gw = widget.gateway == 'wallet' ? 'wallet' : 'razorpay';
       final result = await api.placeOrder(
         userId: user.id,
         userName: user.name,
@@ -173,6 +175,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         canteenId: canteenId,
         collegeId: user.collegeId,
         offerId: widget.offerId,
+        gateway: gw,
       );
 
       if (result['success'] != true) {

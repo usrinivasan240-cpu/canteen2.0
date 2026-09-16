@@ -110,6 +110,7 @@ export default function CustomerApp({
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const userCollege = colleges.find(c => c.id === selectedCollegeId);
+  const selectedCanteen = canteens.find(c => c.id === selectedCanteenId);
   const branding = (userCollege as any)?.branding || {};
 
   // Filter canteens and subcounters by college
@@ -658,11 +659,11 @@ export default function CustomerApp({
       <div className={`relative rounded-3xl overflow-hidden ${sectionSpacingClass} bg-white border border-gray-100 shadow-sm`}>
         <div className={`flex items-center gap-3 md:gap-5 ${heroPaddingClass} min-h-[180px]`}>
           <div className="shrink-0">
-            {userCollege?.logoUrl ? (
-              <img src={userCollege.logoUrl} alt={userCollege.name} className="w-16 h-16 md:w-36 md:h-36 rounded-full object-contain border-2 border-gray-100 shadow-md bg-white" />
+            {(selectedCanteen?.logoUrl || userCollege?.logoUrl) ? (
+              <img src={selectedCanteen?.logoUrl || userCollege!.logoUrl} alt={selectedCanteen?.name || userCollege!.name} className="w-16 h-16 md:w-36 md:h-36 rounded-full object-contain border-2 border-gray-100 shadow-md bg-white" />
             ) : (
               <div className="w-16 h-16 md:w-36 md:h-36 rounded-full bg-red-50 flex items-center justify-center text-2xl md:text-5xl font-bold text-red-700 border-2 border-gray-100 shadow-md">
-                {userCollege?.name?.charAt(0) || 'B'}
+                {(selectedCanteen?.name || userCollege?.name || 'B').charAt(0)}
               </div>
             )}
           </div>
