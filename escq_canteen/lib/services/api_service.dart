@@ -117,13 +117,34 @@ class ApiService {
     });
   }
 
-  // Colleges
+  // Colleges — defensive: server may return branding/bannerFeatures as JSON strings
+  // (pgSet JSON.stringify on write, toCamelCase leaves them as strings on read),
+  // and in some edge cases `colleges` itself arrives double-encoded.
   Future<List<College>> getColleges() async {
     final data = await _get('/api/colleges');
-    debugPrint('[ApiService] getColleges raw success=${data['success']} error=${data['error']} keys=${data.keys.toList()} colleges=${(data['colleges'] as List?)?.length}');
-    if (data['success'] == true && data['colleges'] != null) {
+    final rawColleges = data['colleges'];
+    int? rawLen;
+    String rawType = rawColleges == null ? 'null' : rawColleges.runtimeType.toString();
+    try {
+      if (rawColleges is List) rawLen = rawColleges.length;
+      else if (rawColleges is String) rawLen = rawColleges.length;
+    } catch (_) {}
+    debugPrint('[ApiService] getColleges raw success=${data['success']} error=${data['error']} keys=${data.keys.toList()} collegesType=$rawType collegesLen=$rawLen');
+    if (data['success'] == true && rawColleges != null) {
       try {
-        return (data['colleges'] as List).map((c) => College.fromJson(c as Map<String, dynamic>)).toList();
+        dynamic list = rawColleges;
+        // Defensive: if server double-encoded the list as a JSON string
+        if (list is String) {
+          list = jsonDecode(list);
+        }
+        if (list is! List) {
+          throw Exception('Expected colleges to be a List but got ${list.runtimeType}');
+        }
+        return list.map((c) {
+          var m = c;
+          if (m is String) m = jsonDecode(m);
+          return College.fromJson(m as Map<String, dynamic>);
+        }).toList();
       } catch (e, st) {
         debugPrint('[ApiService] getColleges parse error: $e\n$st');
         throw Exception('Failed to parse colleges: $e');

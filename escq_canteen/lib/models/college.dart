@@ -1,3 +1,15 @@
+import 'dart:convert';
+
+dynamic _maybeJsonDecode(dynamic v) {
+  if (v is String) {
+    final t = v.trim();
+    if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
+      try { return jsonDecode(t); } catch (_) { return v; }
+    }
+  }
+  return v;
+}
+
 class CollegeBranding {
   final String? heroTitle;
   final String? heroSubtitle;
@@ -51,32 +63,36 @@ class CollegeBranding {
     this.headerStyle,
   });
 
-  factory CollegeBranding.fromJson(Map<String, dynamic> json) {
+  factory CollegeBranding.fromJson(dynamic raw) {
+    final json = _maybeJsonDecode(raw) as Map<String, dynamic>;
+    List<String>? badges;
+    final fb = _maybeJsonDecode(json['featureBadges']);
+    if (fb is List) badges = fb.map((e) => e.toString()).toList();
     return CollegeBranding(
-      heroTitle: json['heroTitle'],
-      heroSubtitle: json['heroSubtitle'],
-      heroTagline: json['heroTagline'],
-      featureBadges: (json['featureBadges'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
-      menuTitle: json['menuTitle'],
-      menuSubtitle: json['menuSubtitle'],
-      menuColumns: json['menuColumns'],
-      showCategoryTabs: json['showCategoryTabs'],
-      showReviews: json['showReviews'],
-      showSentiment: json['showSentiment'],
-      contactPhone: json['contactPhone'],
-      contactEmail: json['contactEmail'],
-      contactAddress: json['contactAddress'],
-      footerCopyright: json['footerCopyright'],
-      heroLayout: json['heroLayout'],
-      heroBannerPosition: json['heroBannerPosition'],
-      heroLogoSize: json['heroLogoSize'],
-      heroPadding: json['heroPadding'],
-      menuCardSize: json['menuCardSize'],
-      menuGap: json['menuGap'],
-      menuAlignment: json['menuAlignment'],
-      footerLayout: json['footerLayout'],
-      sectionSpacing: json['sectionSpacing'],
-      headerStyle: json['headerStyle'],
+      heroTitle: json['heroTitle']?.toString(),
+      heroSubtitle: json['heroSubtitle']?.toString(),
+      heroTagline: json['heroTagline']?.toString(),
+      featureBadges: badges,
+      menuTitle: json['menuTitle']?.toString(),
+      menuSubtitle: json['menuSubtitle']?.toString(),
+      menuColumns: json['menuColumns'] is int ? json['menuColumns'] : int.tryParse(json['menuColumns']?.toString() ?? ''),
+      showCategoryTabs: json['showCategoryTabs'] is bool ? json['showCategoryTabs'] : null,
+      showReviews: json['showReviews'] is bool ? json['showReviews'] : null,
+      showSentiment: json['showSentiment'] is bool ? json['showSentiment'] : null,
+      contactPhone: json['contactPhone']?.toString(),
+      contactEmail: json['contactEmail']?.toString(),
+      contactAddress: json['contactAddress']?.toString(),
+      footerCopyright: json['footerCopyright']?.toString(),
+      heroLayout: json['heroLayout']?.toString(),
+      heroBannerPosition: json['heroBannerPosition']?.toString(),
+      heroLogoSize: json['heroLogoSize'] is int ? json['heroLogoSize'] : int.tryParse(json['heroLogoSize']?.toString() ?? ''),
+      heroPadding: json['heroPadding']?.toString(),
+      menuCardSize: json['menuCardSize']?.toString(),
+      menuGap: json['menuGap']?.toString(),
+      menuAlignment: json['menuAlignment']?.toString(),
+      footerLayout: json['footerLayout']?.toString(),
+      sectionSpacing: json['sectionSpacing']?.toString(),
+      headerStyle: json['headerStyle']?.toString(),
     );
   }
 }
@@ -105,16 +121,23 @@ class College {
   });
 
   factory College.fromJson(Map<String, dynamic> json) {
+    List<String>? feats;
+    final bf = _maybeJsonDecode(json['bannerFeatures']);
+    if (bf is List) feats = bf.map((e) => e.toString()).toList();
+    CollegeBranding? br;
+    if (json['branding'] != null) {
+      try { br = CollegeBranding.fromJson(json['branding']); } catch (_) { br = null; }
+    }
     return College(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '',
-      location: json['location'] ?? '',
-      logoUrl: json['logoUrl'],
-      bannerUrl: json['bannerUrl'],
-      bannerSubtitle: json['bannerSubtitle'],
-      bannerFeatures: (json['bannerFeatures'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
-      branding: json['branding'] != null ? CollegeBranding.fromJson(json['branding']) : null,
-      status: json['status'] ?? 'active',
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      location: (json['location'] ?? '').toString(),
+      logoUrl: json['logoUrl']?.toString(),
+      bannerUrl: json['bannerUrl']?.toString(),
+      bannerSubtitle: json['bannerSubtitle']?.toString(),
+      bannerFeatures: feats,
+      branding: br,
+      status: (json['status'] ?? 'active').toString(),
     );
   }
 }
