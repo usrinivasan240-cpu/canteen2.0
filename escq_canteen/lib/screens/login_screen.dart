@@ -38,15 +38,21 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadColleges();
   }
 
+  String? _collegesError;
+
   Future<void> _loadColleges() async {
-    setState(() => _collegesLoading = true);
+    setState(() { _collegesLoading = true; _collegesError = null; });
     try {
       final menuProv = context.read<MenuProvider>();
       await menuProv.loadData();
+      if (menuProv.colleges.isEmpty) {
+        _collegesError = 'No colleges found on server. Ask admin to add one.';
+      }
       // Never auto-select: the user must explicitly choose their college,
       // otherwise registrations silently get the wrong collegeId.
-    } catch (_) {
-      // Error UI is driven by the empty colleges list below.
+    } catch (e) {
+      _collegesError = e.toString().replaceFirst('Exception: ', '');
+      debugPrint('[LoginScreen] _loadColleges error: $e');
     } finally {
       if (mounted) setState(() => _collegesLoading = false);
     }
@@ -541,9 +547,10 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             child: Row(
               children: [
-                const Expanded(
-                  child: Text('Could not load colleges. Check your connection.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFFB91C1C))),
+                Expanded(
+                  child: Text(
+                      _collegesError ?? 'Could not load colleges. Check your connection.',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFB91C1C))),
                 ),
                 TextButton(
                   onPressed: _loadColleges,

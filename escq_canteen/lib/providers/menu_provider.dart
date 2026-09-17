@@ -128,20 +128,34 @@ class MenuProvider extends ChangeNotifier {
       final normCanteen = userCanteenId?.trim() ?? '';
       if (normCanteen.isNotEmpty) _selectedCanteenId = normCanteen;
 
-      final collegesFuture = _api.getColleges();
-      final canteensFuture = _api.getCanteens(
-        collegeId: normCollege.isNotEmpty ? normCollege : null,
-      );
-      final subCanteensFuture = _api.getSubCanteens();
-
-      _colleges = await collegesFuture;
-      final fetched = await canteensFuture;
+      // Colleges are critical for registration — fetch first and fail loudly
+      // if they cannot be loaded. Canteens/subCanteens are secondary and
+      // must not block the college dropdown when the server is slow.
+      try {
+        _colleges = await _api.getColleges();
+      } catch (e) {
+        // Keep rethrow so LoginScreen can show the actual error via _collegesError
+        rethrow;
+      }
+      List<Canteen> fetched = [];
+      try {
+        fetched = await _api.getCanteens(
+          collegeId: normCollege.isNotEmpty ? normCollege : null,
+        );
+      } catch (e) {
+        debugPrint('[MenuProvider] getCanteens failed (non-fatal): $e');
+      }
       // Strict client-side isolation as safety net.
       final uid = _userCollegeId?.trim() ?? '';
       _canteens = uid.isEmpty
           ? fetched
           : fetched.where((c) => c.collegeId.trim() == uid).toList();
-      _subCanteens = await subCanteensFuture;
+      try {
+        _subCanteens = await _api.getSubCanteens();
+      } catch (e) {
+        debugPrint('[MenuProvider] getSubCanteens failed (non-fatal): $e');
+        _subCanteens = [];
+      }
 
       // Auto-select college ONLY from an explicitly selected canteen.
       // Guessing from the first loaded canteen leaks another college's
@@ -166,6 +180,9 @@ class MenuProvider extends ChangeNotifier {
       await loadMenu();
     } catch (e) {
       print('Error loading data: $e');
+      _loading = false;
+      notifyListeners();
+      rethrow;
     }
 
     _loading = false;

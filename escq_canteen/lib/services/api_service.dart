@@ -120,10 +120,18 @@ class ApiService {
   // Colleges
   Future<List<College>> getColleges() async {
     final data = await _get('/api/colleges');
+    debugPrint('[ApiService] getColleges raw success=${data['success']} error=${data['error']} keys=${data.keys.toList()} colleges=${(data['colleges'] as List?)?.length}');
     if (data['success'] == true && data['colleges'] != null) {
-      return (data['colleges'] as List).map((c) => College.fromJson(c)).toList();
+      try {
+        return (data['colleges'] as List).map((c) => College.fromJson(c as Map<String, dynamic>)).toList();
+      } catch (e, st) {
+        debugPrint('[ApiService] getColleges parse error: $e\n$st');
+        throw Exception('Failed to parse colleges: $e');
+      }
     }
-    return [];
+    final err = data['error']?.toString() ?? 'Could not load colleges (${data['success']})';
+    debugPrint('[ApiService] getColleges failure: $err full=$data');
+    throw Exception(err);
   }
 
   // Canteens — only send collegeId when it is a real non-empty value.
