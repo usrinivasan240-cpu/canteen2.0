@@ -17,12 +17,8 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
   }, []);
 
   const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = '/EscQ-v2.5.7-universal.apk';
-    link.download = 'EscQ-v2.5.7-universal.apk';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Fix: liart Vercel has no public APK (was ignored) — use GitHub release directly
+    window.location.href = 'https://github.com/usrinivasan240-cpu/canteen2.0/releases/download/v2.5.8/app-release.apk';
     setDownloadStarted(true);
   };
 
@@ -63,7 +59,7 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
               <div className="h-8 w-8 rounded-lg bg-amber-600 flex items-center justify-center">
                 <span className="text-white font-display font-bold text-xs">Esc(Q)</span>
               </div>
-              <span className="text-xs font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">v2.5.7 - Latest Update</span>
+               <span className="text-xs font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">v2.5.8 - Latest Update</span>
             </div>
           </div>
 
@@ -100,7 +96,7 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
                 </div>
                 <div className="text-left">
                   <div className="text-xs font-normal opacity-80">Download APK</div>
-                  <div className="text-sm font-bold">EscQ v2.5.7 (Universal)</div>
+                  <div className="text-sm font-bold">EscQ v2.5.8 (Universal)</div>
                 </div>
                 <ExternalLink className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
               </button>
@@ -113,7 +109,7 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
               )}
 
               <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] text-gray-500 mt-1">
-                <span>v2.5.7 — Superadmin Database CRUD + Wallet Everywhere</span>
+                <span>v2.5.8 — College/Logo Fix + liart API</span>
               </div>
 
               <div className="flex items-center gap-4 text-[10px] text-gray-500 mt-1">
@@ -138,7 +134,7 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
         <div className="text-center mb-10">
           <span className="text-[10px] font-bold text-amber-500 uppercase tracking-[0.2em]">What's New</span>
-          <h2 className="font-display font-bold text-xl sm:text-2xl text-white mt-2">v2.5.7 — Superadmin Database CRUD + Wallet Everywhere</h2>
+          <h2 className="font-display font-bold text-xl sm:text-2xl text-white mt-2">v2.5.8 — College/Logo Fix + liart API</h2>
             <p className="text-xs text-gray-500 mt-2">Updated: 17 Sep 2026</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
