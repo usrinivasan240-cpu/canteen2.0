@@ -17,8 +17,13 @@ export default function DownloadPage({ onBack }: DownloadPageProps) {
   }, []);
 
   const handleDownload = () => {
-    // Fix: liart Vercel has no public APK (was ignored) — use GitHub release directly
-    window.location.href = 'https://github.com/usrinivasan240-cpu/canteen2.0/releases/download/v2.5.8/app-release.apk';
+    // Direct Vercel download — no GitHub redirect
+    const a = document.createElement('a');
+    a.href = '/EscQ-v2.5.8-universal.apk';
+    a.download = 'EscQ-v2.5.8-universal.apk';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
     setDownloadStarted(true);
   };
 

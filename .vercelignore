@@ -17,8 +17,6 @@ colleges_tab_working.png
 AGENT-CONTINUATION-PROMPT.md
 escq_canteen
 perfect apk
-public/*.apk
-*.apk
 *.log
 local_db.json
 token.json
