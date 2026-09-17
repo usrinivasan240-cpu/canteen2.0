@@ -103,9 +103,17 @@ class _HomeScreenState extends State<HomeScreen> {
       final effectiveCollegeId = rawCollegeId.isNotEmpty ? rawCollegeId : null;
       final rawUserCanteenId = user?.canteenId?.trim() ?? '';
 
-      final colleges = await api.getColleges().catchError((_) => <College>[]);
-      final canteens = await api.getCanteens(collegeId: effectiveCollegeId).catchError((_) => <Canteen>[]);
-      final subCanteens = await api.getSubCanteens().catchError((_) => <SubCanteen>[]);
+      List<College> colleges = [];
+      try {
+        colleges = await api.getColleges();
+        debugPrint('[Home] colleges loaded: ${colleges.length} raw');
+      } catch (e) {
+        debugPrint('[Home] colleges load failed: $e');
+        _error = 'Colleges load failed: $e';
+        // keep colleges empty so UI shows error instead of silently falling back
+      }
+      final canteens = await api.getCanteens(collegeId: effectiveCollegeId).catchError((e) { debugPrint('[Home] canteens load failed: $e'); return <Canteen>[]; });
+      final subCanteens = await api.getSubCanteens().catchError((e) { debugPrint('[Home] subCanteens load failed: $e'); return <SubCanteen>[]; });
 
       _colleges = colleges;
       // Client-side safety net: server should already filter, but enforce
