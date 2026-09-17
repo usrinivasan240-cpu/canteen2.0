@@ -3,7 +3,7 @@ const isLocalDev = window.location.hostname === 'localhost' && window.location.p
 
 export const API_BASE = isLocalDev
   ? ''
-  : (import.meta.env.VITE_API_BASE_URL as string) || 'https://canteen20.vercel.app';
+  : (import.meta.env.VITE_API_BASE_URL as string) || window.location.origin;
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) || 'https://azoutmrplruhcdxejynj.supabase.co';
 const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6b3V0bXJwbHJ1aGNkeGVqeW5qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1ODYwOTMsImV4cCI6MjEwMjE2MjA5M30.55oQBJC35IUjihXw0wYPtpDC-qpBpG_1CVEigTN-RLA';

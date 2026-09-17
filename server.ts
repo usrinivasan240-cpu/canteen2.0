@@ -280,6 +280,7 @@ function requireRole(allowedRoles: string[]) {
 // ============================================================================
 const ALLOWED_ORIGINS = [
   'https://canteen20.vercel.app',
+  'https://canteen20-liart.vercel.app',
   'http://localhost:3000',
   'http://localhost:5173',
   'capacitor://localhost',
@@ -288,7 +289,12 @@ const ALLOWED_ORIGINS = [
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+  const isAllowed = !!origin && (
+    ALLOWED_ORIGINS.includes(origin) ||
+    /^https:\/\/canteen20.*\.vercel\.app$/.test(origin) ||
+    /^https:\/\/.*-superadmin369.*\.vercel\.app$/.test(origin)
+  );
+  if (isAllowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -1554,11 +1560,29 @@ app.post('/api/canteens', async (req, res) => {
         });
       }
 
+      // Ensure a default sub-canteen exists so ingredients satisfy fk_ingredients_subcanteen
+      let defaultSubId: string | undefined = undefined;
+      try {
+        const existingSubs = await pgGetWhere('subcanteens', { canteenId: canteenData.id });
+        if (existingSubs.length > 0) {
+          defaultSubId = (existingSubs[0] as any).id;
+        }
+      } catch { /* fall through to create */ }
+      if (!defaultSubId) {
+        defaultSubId = `sub_${Date.now()}`;
+        await pgSet('subcanteens', defaultSubId, {
+          id: defaultSubId,
+          canteenId: canteenData.id,
+          name: 'Main Counter',
+          status: 'active',
+        } as any);
+      }
+
       // Auto-seed default ingredients
       const existingIngs = await pgGetWhere('ingredients', { canteenId: canteenData.id });
       if (existingIngs.length === 0) {
         for (const ing of INITIAL_INGREDIENTS) {
-          await pgSet('ingredients', `${ing.id}_${canteenData.id}`, { ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id });
+          await pgSet('ingredients', `${ing.id}_${canteenData.id}`, { ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id, subCanteenId: defaultSubId });
         }
       }
     } catch (e: any) {
@@ -1583,7 +1607,7 @@ app.post('/api/canteens', async (req, res) => {
       items: [],
       orders: [],
       reviews: [],
-      ingredients: INITIAL_INGREDIENTS.map(ing => ({ ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id })),
+      ingredients: INITIAL_INGREDIENTS.map(ing => ({ ...ing, id: `${ing.id}_${canteenData.id}`, canteenId: canteenData.id, subCanteenId: (subCanteensState.find(s => s.canteenId === canteenData.id)?.id || '') })),
       settings: { noShowMinutes: 30, defaultSlotCapacity: 30, slotDuration: 15, prepBufferMinutes: 5, orderCutoffMinutes: 10, advanceBookingDays: 7, canteenId: canteenData.id }
     });
   }
@@ -2294,7 +2318,7 @@ app.delete('/api/canteen/menu/:id', async (req, res) => {
 
 // 3b. Add / Edit Ingredients (Owner)
 app.post('/api/canteen/ingredients', async (req, res) => {
-  const { id, name, stockGrams, unit, canteenId } = req.body;
+  const { id, name, stockGrams, unit, canteenId, subCanteenId } = req.body;
   if (!name || isNaN(stockGrams)) {
     return res.status(400).json({ success: false, error: 'Name and valid stock quantity are required.' });
   }
@@ -2302,12 +2326,28 @@ app.post('/api/canteen/ingredients', async (req, res) => {
   const targetId = id || `ing_${Date.now()}`;
   const targetCanteenId = canteenId || 'canteen_001';
 
+  // FK guard: ingredients.sub_canteen_id must reference a real subcanteen (migrated prod FK).
+  let targetSubId: string | undefined = (subCanteenId as string) || undefined;
+  if (!targetSubId && pgReady) {
+    try {
+      const subs = await pgGetWhere('subcanteens', { canteen_id: targetCanteenId }) as any[];
+      targetSubId = subs?.[0]?.sub_canteen_id || subs?.[0]?.id;
+    } catch { /* fall through to in-memory lookup */ }
+  }
+  if (!targetSubId) {
+    targetSubId = subCanteensState.find(s => s.canteenId === targetCanteenId)?.id;
+  }
+  if (!targetSubId) {
+    return res.status(400).json({ success: false, error: 'Invalid college — pick from list. No sub-canteen exists for this canteen; create one first.' });
+  }
+
   const ingredient: Ingredient = {
     id: targetId,
     name,
     stockGrams: Number(stockGrams),
     unit: unit || 'g',
-    canteenId: targetCanteenId
+    canteenId: targetCanteenId,
+    subCanteenId: targetSubId
   };
 
   if (pgReady) {

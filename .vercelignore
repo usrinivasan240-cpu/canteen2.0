@@ -1,0 +1,28 @@
+# Vercel deploy ignore — keep upload tiny (was 603MB)
+node_modules
+dist
+.git
+.omo
+.playwright-mcp
+.vercel
+.vercel-old-link
+.vercel-old.env
+batch-sql
+chunk_*.sql
+chunk_*.mjs
+batch-insert.mjs
+dump-schema.mjs
+docs
+colleges_tab_working.png
+AGENT-CONTINUATION-PROMPT.md
+escq_canteen
+perfect apk
+public/*.apk
+*.apk
+*.log
+local_db.json
+token.json
+token.rtf
+coverage
+tests
+.vercelignore
