@@ -32,6 +32,7 @@ function ensureSupabaseClients(): boolean {
   const url = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const anonKey = process.env.SUPABASE_ANON_KEY;
+  console.log('[auth] ensureSupabaseClients:', { hasUrl: !!url, hasServiceRole: !!serviceRoleKey, hasAnon: !!anonKey, urlPrefix: url?.substring(0, 30) });
   if (!url || !serviceRoleKey || !anonKey) {
     console.warn('[auth] SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY not set — auth endpoints disabled.');
     return false;
@@ -943,6 +944,7 @@ function getCanteenState(canteenId: string): Canteen {
 app.post('/api/auth/register', async (req, res) => {
   if (!ensureSupabaseClients()) return supabaseNotConfigured(res);
   const { name, email, password, phone, registerNumber, collegeId } = req.body;
+  console.log('[Register] Request received:', { name: name?.substring(0, 20), email, hasPassword: !!password, phone, collegeId });
   if (!name || !email || !password) {
     return res.status(400).json({ success: false, error: 'Name, email, and password are required.' });
   }
@@ -960,41 +962,61 @@ app.post('/api/auth/register', async (req, res) => {
 
   const normalizedEmail = email.trim().toLowerCase();
 
-  if (pgReady) {
+  console.log('[Register] pgReady:', pgReady);
+  // The Postgres pool may be down (Supabase free-tier cold starts, connection
+  // limits).  Auth operations go through the Supabase REST API and still work,
+  // so we must not let a DB failure block registration entirely.
+  try {
+    // Step 1: Check if user already exists in public.users (best-effort).
+    // If the DB is unreachable we skip this check — createUser below will
+    // reject duplicate emails at the auth layer anyway.
+    console.log('[Register] Step 1: Checking existing user...');
+    let existingUser: any = null;
     try {
-      // Check if user already exists in public.users
-      const existingUser = await pgGetByEmail('users', normalizedEmail);
-      if (existingUser) {
+      existingUser = await pgGetByEmail('users', normalizedEmail);
+    } catch (dbErr: any) {
+      console.warn('[Register] Step 1: DB check failed (continuing):', dbErr?.message);
+    }
+    if (existingUser) {
+      return res.status(400).json({ success: false, error: 'User with this email already exists.' });
+    }
+    console.log('[Register] Step 1 OK: No existing user.');
+
+    // Step 2: Create user in Supabase Auth
+    console.log('[Register] Step 2: Creating Supabase auth user...');
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: normalizedEmail,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        name,
+        phone: phone || '',
+        register_number: registerNumber || '',
+        college_id: collegeId || ''
+      }
+    });
+    console.log('[Register] Step 2 result:', { hasData: !!authData, hasUser: !!authData?.user, hasError: !!authError, errorMsg: authError?.message });
+
+    if (authError) {
+      if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
         return res.status(400).json({ success: false, error: 'User with this email already exists.' });
       }
+      console.error('[Register] Supabase Auth createUser error:', authError);
+      return res.status(500).json({ success: false, error: 'Failed to create user account.' });
+    }
 
-      // Create user in Supabase Auth
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: normalizedEmail,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          name,
-          phone: phone || '',
-          register_number: registerNumber || '',
-          college_id: collegeId || ''
-        }
-      });
+    const authUser = authData.user;
+    if (!authUser) {
+      return res.status(500).json({ success: false, error: 'Failed to create user account.' });
+    }
+    console.log('[Register] Step 2 OK: Auth user created:', authUser.id);
 
-      if (authError) {
-        if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
-          return res.status(400).json({ success: false, error: 'User with this email already exists.' });
-        }
-        console.error('Supabase Auth createUser error:', authError);
-        return res.status(500).json({ success: false, error: 'Failed to create user account.' });
-      }
-
-      const authUser = authData.user;
-      if (!authUser) {
-        return res.status(500).json({ success: false, error: 'Failed to create user account.' });
-      }
-
-      // Explicitly insert into public.users (no DB trigger needed)
+    // Step 3: Insert into public.users (best-effort — if DB is down, the user
+    // can still log in; the login handler creates a fallback profile from auth
+    // metadata when the public.users row is missing).
+    console.log('[Register] Step 3: Inserting into public.users...');
+    let profileInserted = false;
+    try {
       await pgSet('users', authUser.id, {
         id: authUser.id,
         name,
@@ -1005,49 +1027,65 @@ app.post('/api/auth/register', async (req, res) => {
         registerNumber: registerNumber || '',
         collegeId: collegeId || ''
       });
-
-      // Get the public user profile we just created
-      let publicUser = await pgGetByEmail('users', normalizedEmail);
-
-      // Sign in to get session tokens
-      const { data: sessionData, error: sessionError } = await supabaseClient.auth.signInWithPassword({
-        email: normalizedEmail,
-        password
-      });
-
-      if (sessionError || !sessionData.session) {
-        console.error('Supabase signIn after register error:', sessionError);
-        return res.status(500).json({ success: false, error: 'Account created but failed to sign in.' });
-      }
-
-      return res.json({ 
-        success: true, 
-        token: sessionData.session.access_token,
-        refreshToken: sessionData.session.refresh_token,
-        user: publicUser ? { 
-          id: publicUser.id, 
-          name: publicUser.name, 
-          email: publicUser.email, 
-          role: publicUser.role,
-          collegeId: publicUser.collegeId,
-          canteenId: publicUser.canteenId,
-          subCanteenId: publicUser.subCanteenId,
-          phone: publicUser.phone,
-          registerNumber: publicUser.registerNumber
-        } : { 
-          id: authUser.id, 
-          name, 
-          email: normalizedEmail, 
-          role: 'customer',
-          phone: phone || '',
-          registerNumber: registerNumber || '',
-          collegeId: collegeId || ''
-        }
-      });
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ success: false, error: 'Server authentication database error.' });
+      profileInserted = true;
+      console.log('[Register] Step 3 OK: User profile inserted.');
+    } catch (dbErr: any) {
+      console.warn('[Register] Step 3: Profile insert failed (non-fatal):', dbErr?.message);
     }
+
+    // Step 4: Get the public user profile we just created (best-effort)
+    console.log('[Register] Step 4: Fetching user profile...');
+    let publicUser: any = null;
+    try {
+      publicUser = profileInserted ? await pgGetByEmail('users', normalizedEmail) : null;
+    } catch (dbErr: any) {
+      console.warn('[Register] Step 4: Profile fetch failed (continuing):', dbErr?.message);
+    }
+    console.log('[Register] Step 4 result:', { hasProfile: !!publicUser });
+
+    // Step 5: Sign in to get session tokens
+    console.log('[Register] Step 5: Signing in to get tokens...');
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.signInWithPassword({
+      email: normalizedEmail,
+      password
+    });
+    console.log('[Register] Step 5 result:', { hasSession: !!sessionData?.session, hasError: !!sessionError, errorMsg: sessionError?.message });
+
+    if (sessionError || !sessionData.session) {
+      console.error('[Register] Supabase signIn after register error:', sessionError);
+      return res.status(500).json({ success: false, error: 'Account created but failed to sign in.' });
+    }
+
+    console.log('[Register] SUCCESS: Registration complete.');
+    return res.json({ 
+      success: true, 
+      token: sessionData.session.access_token,
+      refreshToken: sessionData.session.refresh_token,
+      user: publicUser ? { 
+        id: publicUser.id, 
+        name: publicUser.name, 
+        email: publicUser.email, 
+        role: publicUser.role,
+        collegeId: publicUser.collegeId,
+        canteenId: publicUser.canteenId,
+        subCanteenId: publicUser.subCanteenId,
+        phone: publicUser.phone,
+        registerNumber: publicUser.registerNumber
+      } : { 
+        id: authUser.id, 
+        name, 
+        email: normalizedEmail, 
+        role: 'customer',
+        phone: phone || '',
+        registerNumber: registerNumber || '',
+        collegeId: collegeId || ''
+      }
+    });
+  } catch (err: any) {
+    console.error('[Register] Unhandled error:', err?.message || err);
+    console.error('[Register] Error stack:', err?.stack);
+    console.error('[Register] Error name:', err?.name);
+    return res.status(500).json({ success: false, error: 'Server authentication database error.' });
   }
 
   // Fallback for when PostgreSQL is not ready (should rarely happen)
