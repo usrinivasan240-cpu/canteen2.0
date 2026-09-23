@@ -288,10 +288,33 @@ export default function CustomerApp({
     const itemQuantity = qty as number;
     return sum + (item ? item.price : 0) * itemQuantity;
   }, 0);
-  const baseConvenienceFee = cartSubtotal > 0 ? Math.ceil(cartSubtotal / 100) : 0;
-  const pgCharge = cartSubtotal > 0 ? ((cartSubtotal + baseConvenienceFee) / 0.9764) - (cartSubtotal + baseConvenienceFee) : 0;
-  const totalAmount = cartSubtotal + baseConvenienceFee + pgCharge;
-  const displayedConvenienceFee = baseConvenienceFee + pgCharge;
+  // Single-fee model: the ONLY customer fee is the superadmin-configured
+  // college platform fee (same math as the server's calculatePlatformFee).
+  // No hardcoded convenience fee, no gateway gross-up in the estimate —
+  // the server computes the charged total authoritatively per order.
+  const calcPlatformFee = (cfg: any, amount: number): number => {
+    if (!cfg || amount <= 0) return 0;
+    switch ((cfg.type ?? 'free') as string) {
+      case 'flat':
+        return Number(cfg.flatAmount) || 0;
+      case 'percentage':
+        return Math.round((amount * (Number(cfg.percentage) || 0)) / 100);
+      case 'tiered':
+        if (Array.isArray(cfg.tiers)) {
+          for (const tier of cfg.tiers) {
+            const min = Number(tier.minAmount) || 0;
+            const max = tier.maxAmount == null ? Infinity : Number(tier.maxAmount);
+            if (amount >= min && amount <= max) return Number(tier.feeAmount) || 0;
+          }
+        }
+        return 0;
+      default:
+        return 0;
+    }
+  };
+  const platformFeeConfig = (userCollege as any)?.platformFees || { type: 'free' };
+  const platformFee = calcPlatformFee(platformFeeConfig, cartSubtotal);
+  const totalAmount = cartSubtotal + platformFee;
 
   // Sync latest order state
   useEffect(() => {
@@ -1182,8 +1205,8 @@ export default function CustomerApp({
                           <span className="font-mono text-gray-700">₹{cartSubtotal.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Convenience Fee:</span>
-                          <span className="font-mono text-gray-700">₹{displayedConvenienceFee.toFixed(2)}</span>
+                          <span>Platform Fee:</span>
+                          <span className="font-mono text-gray-700">{platformFee > 0 ? `₹${platformFee.toFixed(2)}` : 'FREE'}</span>
                         </div>
                         <div className="border-t border-red-50 pt-2.5 flex justify-between font-bold text-sm text-gray-900">
                           <span>Grand Total Due:</span>
