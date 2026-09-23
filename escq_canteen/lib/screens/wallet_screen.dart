@@ -37,6 +37,21 @@ class _WalletScreenState extends State<WalletScreen> {
     final wallet = walletProvider.wallet;
     final isLoading = walletProvider.loading;
 
+    // Dead session (expired/revoked token): bounce to login instead of
+    // stranding the user on "No Food Balance Yet" + auth errors.
+    if (walletProvider.sessionExpired) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        walletProvider.clearSessionExpired();
+        await context.read<AuthProvider>().logoutEverywhere(context);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Session expired. Please log in again.')),
+        );
+      });
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
@@ -754,8 +769,19 @@ class _AddMoneyBottomSheetState extends State<_AddMoneyBottomSheet> {
         provider: _selectedProvider,
       );
       if (!mounted) return;
-      if (result == null) {
-        // Initiation failed (auth / validation / Razorpay not configured):
+      if (result == null || result['sessionExpired'] == true) {
+        if (result?['sessionExpired'] == true || prov.sessionExpired) {
+          prov.clearSessionExpired();
+          Navigator.pop(context);
+          await context.read<AuthProvider>().logoutEverywhere(context);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Session expired. Please log in again.')),
+          );
+          return;
+        }
+        // Initiation failed (validation / Razorpay not configured):
         // say so instead of looping back to "No Food Balance Yet".
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(prov.error ?? 'Failed to start payment')),

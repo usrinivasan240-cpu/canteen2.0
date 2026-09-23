@@ -13,6 +13,13 @@ class WalletProvider extends ChangeNotifier {
   bool _loading = false;
   String? _error;
   Timer? _balanceRefreshTimer;
+  // Set when the server reports a dead session (expired/revoked JWT).
+  // Screens watch this to send the user to login instead of error loops.
+  bool _sessionExpired = false;
+  bool get sessionExpired => _sessionExpired;
+  void clearSessionExpired() {
+    _sessionExpired = false;
+  }
 
   Wallet? get wallet => _wallet;
   List<WalletTransaction> get transactions => _transactions;
@@ -35,6 +42,12 @@ class WalletProvider extends ChangeNotifier {
 
     try {
       final response = await _api.getWallet();
+      if (response['sessionExpired'] == true) {
+        _sessionExpired = true;
+        _wallet = null;
+        notifyListeners();
+        return;
+      }
       if (response['success'] == true && response['wallet'] != null) {
         _wallet = Wallet.fromJson(response['wallet']);
         _transactions = (response['transactions'] as List<dynamic>?)
@@ -118,6 +131,11 @@ class WalletProvider extends ChangeNotifier {
         provider: provider,
       );
 
+      if (response['sessionExpired'] == true) {
+        _sessionExpired = true;
+        _setError('Session expired. Please log in again.');
+        return {'sessionExpired': true};
+      }
       if (response['success'] == true) {
         // Server returns { topupId, useRazorpay, razorpayOrderId, ... }
         // for Razorpay, not a full `topup` object. Handle both shapes so
@@ -152,6 +170,7 @@ class WalletProvider extends ChangeNotifier {
           'razorpayKeyId': response['razorpayKeyId'],
           'amount': amount,
           'message': response['message'],
+          'sessionExpired': response['sessionExpired'] == true,
         };
       } else {
         _setError(response['error'] ?? 'Failed to initiate topup');
@@ -288,6 +307,7 @@ class WalletProvider extends ChangeNotifier {
     _topups = [];
     _loading = false;
     _error = null;
+    _sessionExpired = false;
     notifyListeners();
   }
 

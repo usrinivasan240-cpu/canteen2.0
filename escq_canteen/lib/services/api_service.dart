@@ -36,10 +36,45 @@ class ApiService {
   /// `Authorization: Bearer <supabase-jwt>` (see server authMiddleware).
   Map<String, String> _headers() {
     final token = AuthService().accessToken;
+    return _headersFor(token);
+  }
+
+  Map<String, String> _headersFor(String? token) {
     return {
       'Content-Type': 'application/json',
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
     };
+  }
+
+  /// Sends with a fresh token; on a mid-flight 401, refreshes once and
+  /// retries. A final 401 for a logged-in user is flagged `sessionExpired`
+  /// so screens can send the user to login instead of looping on errors.
+  Future<http.Response> _authedSend(
+      Future<http.Response> Function(Map<String, String>) send) async {
+    var token = await AuthService().getValidToken();
+    var resp = await send(_headersFor(token));
+    if (resp.statusCode == 401) {
+      final ok = await AuthService().refreshAccessToken();
+      if (ok) {
+        resp = await send(_headersFor(AuthService().accessToken));
+      }
+    }
+    return resp;
+  }
+
+  Map<String, dynamic> _withSessionFlag(
+      Map<String, dynamic> data, int statusCode) {
+    if (statusCode == 401 &&
+        AuthService().currentUser != null &&
+        data['success'] != true) {
+      return {
+        ...data,
+        'success': false,
+        'error': 'Session expired. Please log in again.',
+        'sessionExpired': true,
+      };
+    }
+    return data;
   }
 
   /// Decodes a response body defensively. Error pages (502/HTML from the
@@ -61,12 +96,14 @@ class ApiService {
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body,
       {bool allowRetry = true}) async {
     Future<Map<String, dynamic>> once() async {
-      final resp = await http.post(
-        Uri.parse('$_baseUrl$path'),
-        headers: _headers(),
-        body: jsonEncode(body),
-      ).timeout(_timeout);
-      final data = _decode(resp);
+      final resp = await _authedSend((h) => http
+          .post(
+            Uri.parse('$_baseUrl$path'),
+            headers: h,
+            body: jsonEncode(body),
+          )
+          .timeout(_timeout));
+      final data = _withSessionFlag(_decode(resp), resp.statusCode);
       if (resp.statusCode >= 500 && data['error'] != null) {
         return {'success': false, 'error': data['error'], 'retryable': true};
       }
@@ -84,8 +121,9 @@ class ApiService {
       if (params != null && params.isNotEmpty) {
         uri = uri.replace(queryParameters: params);
       }
-      final resp = await http.get(uri, headers: _headers()).timeout(_timeout);
-      final data = _decode(resp);
+      final resp =
+          await _authedSend((h) => http.get(uri, headers: h).timeout(_timeout));
+      final data = _withSessionFlag(_decode(resp), resp.statusCode);
       if (resp.statusCode >= 500 && data['error'] != null) {
         return {'success': false, 'error': data['error'], 'retryable': true};
       }
@@ -315,16 +353,18 @@ class ApiService {
   }) async {
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
-        final resp = await http.post(
-          Uri.parse('$_baseUrl/api/razorpay/verify'),
-          headers: _headers(),
-          body: jsonEncode({
-            'razorpay_order_id': razorpayOrderId,
-            'razorpay_payment_id': razorpayPaymentId,
-            'razorpay_signature': razorpaySignature,
-          }),
-        ).timeout(const Duration(seconds: 30));
-        final data = _decode(resp);
+        final resp = await _authedSend((h) => http
+            .post(
+              Uri.parse('$_baseUrl/api/razorpay/verify'),
+              headers: h,
+              body: jsonEncode({
+                'razorpay_order_id': razorpayOrderId,
+                'razorpay_payment_id': razorpayPaymentId,
+                'razorpay_signature': razorpaySignature,
+              }),
+            )
+            .timeout(const Duration(seconds: 30)));
+        final data = _withSessionFlag(_decode(resp), resp.statusCode);
         if (data['success'] == true || data['alreadyVerified'] == true) return data;
         // Server may not have order yet (cold start) — retry
         if (data['retryable'] == true && attempt < 2) {
@@ -507,14 +547,14 @@ Future<Map<String, dynamic>> requestRefund({
     if (specialization != null) body['specialization'] = specialization;
     if (status != null) body['status'] = status;
     if (isAvailable != null) body['isAvailable'] = isAvailable;
-    final resp = await http
+    final resp = await _authedSend((h) => http
         .put(
           Uri.parse('$_baseUrl/api/chefs/$chefId'),
-          headers: _headers(),
+          headers: h,
           body: jsonEncode(body),
         )
-        .timeout(_timeout);
-    final data = _decode(resp);
+        .timeout(_timeout));
+    final data = _withSessionFlag(_decode(resp), resp.statusCode);
     if (resp.statusCode >= 500 && data['error'] != null) {
       return {'success': false, 'error': data['error'], 'retryable': true};
     }
@@ -522,11 +562,13 @@ Future<Map<String, dynamic>> requestRefund({
   }
 
   Future<Map<String, dynamic>> deleteChef({required String chefId}) async {
-    final resp = await http.delete(
-      Uri.parse('$_baseUrl/api/chefs/$chefId'),
-      headers: _headers(),
-    ).timeout(_timeout);
-    final data = _decode(resp);
+    final resp = await _authedSend((h) => http
+        .delete(
+          Uri.parse('$_baseUrl/api/chefs/$chefId'),
+          headers: h,
+        )
+        .timeout(_timeout));
+    final data = _withSessionFlag(_decode(resp), resp.statusCode);
     if (resp.statusCode >= 500 && data['error'] != null) {
       return {'success': false, 'error': data['error'], 'retryable': true};
     }
