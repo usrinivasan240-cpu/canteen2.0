@@ -6,7 +6,24 @@ import '../providers/auth_provider.dart';
 import '../providers/wallet_provider.dart';
 import '../models/wallet.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import 'home_screen.dart';
+import 'login_screen.dart';
+
+/// Sends the user to a clean login screen no matter what broke the session.
+/// Explicit navigation (not just provider notify) so a dead session can never
+/// strand the user on an error toast loop.
+Future<void> sendToLoginAgain(BuildContext context, String message) async {
+  try {
+    await context.read<AuthProvider>().logoutEverywhere(context);
+  } catch (_) {}
+  if (!context.mounted) return;
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const LoginScreen()),
+    (_) => false,
+  );
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -37,18 +54,15 @@ class _WalletScreenState extends State<WalletScreen> {
     final wallet = walletProvider.wallet;
     final isLoading = walletProvider.loading;
 
-    // Dead session (expired/revoked token): bounce to login instead of
-    // stranding the user on "No Food Balance Yet" + auth errors.
+    // Dead session (expired/revoked token, or a legacy install that never
+    // stored a refresh token): bounce to login instead of stranding the
+    // user on "No Food Balance Yet" + auth errors.
     if (walletProvider.sessionExpired) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         walletProvider.clearSessionExpired();
-        await context.read<AuthProvider>().logoutEverywhere(context);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Session expired. Please log in again.')),
-        );
+        await sendToLoginAgain(
+            context, 'Session expired. Please log in again.');
       });
     }
 
@@ -748,6 +762,14 @@ class _AddMoneyBottomSheetState extends State<_AddMoneyBottomSheet> {
   }
 
   Future<void> _startTopup() async {
+    // No token at all (legacy session with nothing stored): skip the doomed
+    // request and go straight to login.
+    if (AuthService().accessToken == null ||
+        AuthService().accessToken!.isEmpty) {
+      Navigator.pop(context);
+      await sendToLoginAgain(context, 'Please log in again to add money.');
+      return;
+    }
     final amount = double.tryParse(_amountController.text) ?? 0;
     if (amount < 50) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -773,12 +795,8 @@ class _AddMoneyBottomSheetState extends State<_AddMoneyBottomSheet> {
         if (result?['sessionExpired'] == true || prov.sessionExpired) {
           prov.clearSessionExpired();
           Navigator.pop(context);
-          await context.read<AuthProvider>().logoutEverywhere(context);
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Session expired. Please log in again.')),
-          );
+          await sendToLoginAgain(
+              context, 'Session expired. Please log in again.');
           return;
         }
         // Initiation failed (validation / Razorpay not configured):
