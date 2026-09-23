@@ -351,6 +351,12 @@ app.use('/api/support-tickets', (req, res, next) => {
   if (req.method === 'GET') return next();
   authMiddleware(req, res, next);
 });
+// Wallet: reads stay open (Flutter passes userId), writes need a verified user
+// so authUser is always set for topup/confirm/refund ownership checks.
+app.use('/api/wallet', (req, res, next) => {
+  if (req.method === 'GET') return next();
+  authMiddleware(req, res, next);
+});
 // Chefs & Kitchen: owner/superadmin for writes, chef for kitchen tasks
 app.use('/api/chefs', (req, res, next) => {
   if (req.method === 'GET') return next();
@@ -465,7 +471,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.13';
+const APP_VERSION = '2.5.14';
 
 const APP_UPDATE_URL = 'https://canteen20.vercel.app';
 app.get('/api/app-version', (req, res) => {

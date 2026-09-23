@@ -122,10 +122,10 @@ class AuthService {
     final t = _token;
     if (t == null || t.isEmpty) return null;
     final exp = _tokenExp(t);
-    if (exp != null &&
-        exp * 1000 - DateTime.now().millisecondsSinceEpoch > 60000) {
-      return t;
-    }
+    // No exp claim: cannot judge freshness — send it and let the server
+    // decide (the 401 retry path handles a truly dead token).
+    if (exp == null) return t;
+    if (exp * 1000 - DateTime.now().millisecondsSinceEpoch > 60000) return t;
     if (await refreshAccessToken()) return _token;
     return null;
   }
