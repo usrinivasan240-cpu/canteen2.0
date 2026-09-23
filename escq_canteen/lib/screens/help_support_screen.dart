@@ -170,7 +170,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               ),
               Container(
                 padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: const Color(0xFFF59E0B).withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: const Color(0xFFF59E0B).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
                 child: const Icon(Icons.headset_mic, size: 16, color: Color(0xFFF59E0B)),
               ),
             ],
@@ -235,7 +235,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
             Container(
               width: 40, height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFFF59E0B).withOpacity(0.15),
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, size: 20, color: const Color(0xFFF59E0B)),
@@ -414,7 +414,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
             Container(
               width: 80, height: 80,
               decoration: BoxDecoration(
-                color: const Color(0xFFF59E0B).withOpacity(0.15),
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.check_circle, color: Color(0xFFF59E0B), size: 44),

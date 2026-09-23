@@ -112,9 +112,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withOpacity(0.1),
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
+                  border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
                 ),
                 child: const Row(
                   children: [
@@ -192,7 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _editingProfile ? const Color(0xFFF59E0B).withOpacity(0.1) : Colors.grey[100],
+                    color: _editingProfile ? const Color(0xFFF59E0B).withValues(alpha: 0.1) : Colors.grey[100],
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(_editingProfile ? 'Cancel' : 'Edit', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _editingProfile ? const Color(0xFFF59E0B) : Colors.grey[600])),
@@ -256,9 +256,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFFF59E0B).withOpacity(0.10),
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.32)),
+          border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.32)),
         ),
         child: Row(
           children: [

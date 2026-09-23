@@ -179,7 +179,7 @@ class MenuProvider extends ChangeNotifier {
 
       await loadMenu();
     } catch (e) {
-      print('Error loading data: $e');
+      debugPrint('Error loading data: $e');
       _loading = false;
       notifyListeners();
       rethrow;
@@ -201,7 +201,7 @@ class MenuProvider extends ChangeNotifier {
       final data = await _api.getCanteenData(_selectedCanteenId);
       _items = _api.parseMenuItems(data);
     } catch (e) {
-      print('Error loading menu: $e');
+      debugPrint('Error loading menu: $e');
     }
     notifyListeners();
   }

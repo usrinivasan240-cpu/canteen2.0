@@ -190,7 +190,7 @@ class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStat
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
+        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -282,7 +282,7 @@ class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStat
             Expanded(child: Text(chef.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: statusColor.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
               child: Text(chef.statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: statusColor)),
             ),
           ]),
@@ -292,8 +292,8 @@ class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStat
               spacing: 6,
               children: chef.specialization.map((s) => Chip(
                 label: Text(s, style: const TextStyle(fontSize: 10)),
-                backgroundColor: const Color(0xFFF59E0B).withOpacity(0.1),
-                side: BorderSide(color: const Color(0xFFF59E0B).withOpacity(0.3)),
+                backgroundColor: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                side: BorderSide(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
               )).toList(),
@@ -416,7 +416,7 @@ class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStat
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
           child: Text('$count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
         ),
       ]),
@@ -485,7 +485,7 @@ class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStat
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withOpacity(0.2))),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha: 0.2))),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(icon, color: color, size: 14),
           const SizedBox(width: 4),
@@ -528,7 +528,7 @@ class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStat
             Expanded(child: Text('Order: $orderId', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: statusColor.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
               child: Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: statusColor)),
             ),
           ]),

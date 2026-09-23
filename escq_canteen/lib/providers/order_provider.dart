@@ -43,7 +43,7 @@ class OrderProvider extends ChangeNotifier {
       _orders = await _api.getUserOrders(userId, canteenId: canteenId);
       notifyListeners();
     } catch (e) {
-      print('Error loading orders: $e');
+      debugPrint('Error loading orders: $e');
     }
   }
 

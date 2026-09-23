@@ -214,7 +214,7 @@ class _EscqSplashLogo extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFF59E0B).withOpacity(0.4),
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
             blurRadius: 30,
             spreadRadius: 5,
           ),
@@ -238,8 +238,8 @@ class _EscqSplashLogo extends StatelessWidget {
               shape: BoxShape.circle,
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFFF59E0B).withOpacity(0.2),
-                  const Color(0xFFEA580C).withOpacity(0.1),
+                  const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                  const Color(0xFFEA580C).withValues(alpha: 0.1),
                 ],
               ),
             ),

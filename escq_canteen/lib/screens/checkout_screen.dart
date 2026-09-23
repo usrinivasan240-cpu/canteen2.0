@@ -300,7 +300,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEE2E2).withOpacity(0.3),
+                            color: const Color(0xFFFEE2E2).withValues(alpha: 0.3),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: const Color(0xFFFEE2E2)),
                           ),
