@@ -2255,7 +2255,7 @@ app.get('/api/canteen/all-orders', async (req, res) => {
 
 // 2. Add / Edit Menu Items (Owner)
 app.post('/api/canteen/menu', async (req, res) => {
-  const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe, requiresChef, canteenId, collegeId, subCanteenId } = req.body;
+  const { id, name, price, stock, category, description, tags, available, imageUrl, prepTime, dailyLimit, isPaused, recipe, requiresChef, canteenId, collegeId, subCanteenId, primaryChefId, backupChefId, preparationType } = req.body;
   
   if (!name || isNaN(price) || isNaN(stock)) {
     return res.status(400).json({ success: false, error: 'Name, valid price and stock are required.' });
@@ -2273,7 +2273,6 @@ app.post('/api/canteen/menu', async (req, res) => {
 
   const isNew = !id;
   const targetId = id || `item_${Date.now()}`;
-  const resolvedCanteenId = canteenId || 'canteen_001';
 
   let existingItem: MenuItem | undefined;
   if (pgReady && !isNew) {
@@ -2289,21 +2288,75 @@ app.post('/api/canteen/menu', async (req, res) => {
     existingItem = canteenState.items.find(i => i.id === id);
   }
 
+  // Never silently fall back to a hardcoded canteen — a wrong canteenId trips
+  // the fk_items_canteen FK and surfaces as generic "Failed to save item".
+  // Prefer explicit client canteenId, else the item being edited.
+  const resolvedCanteenId = (canteenId as string) || (existingItem as any)?.canteenId || '';
+  if (!resolvedCanteenId) {
+    return res.status(400).json({ success: false, error: 'No canteen selected. Please select a canteen and try again.' });
+  }
+
   // DB flow correction: always stamp collegeId from the parent canteen so
   // college -> canteen -> item chain stays intact even if client omits it.
-  let resolvedCollegeId: string = (collegeId as string) || (existingItem as any)?.collegeId || '';
+  // FK-safe: live college_id / sub_canteen_id FKs reject '' — use NULL.
+  let resolvedCollegeId: string | null = (collegeId as string) || (existingItem as any)?.collegeId || null;
   if (!resolvedCollegeId && pgReady) {
     try {
       const parentCanteen: any = await pgGetById('canteens', resolvedCanteenId);
       if (parentCanteen?.collegeId) resolvedCollegeId = parentCanteen.collegeId;
-    } catch { /* keep empty, column defaults to '' */ }
+    } catch { /* keep null */ }
   }
+  if (resolvedCollegeId === '') resolvedCollegeId = null;
+  const resolvedSubCanteenId: string | null = (() => {
+    const s = (subCanteenId as string) || (existingItem as any)?.subCanteenId || '';
+    return s.trim() ? s : null;
+  })();
+
+  // Chef assignment: live items.primary_chef_id / backup_chef_id are uuid.
+  // UI sends '' (Auto-assign) or null — both must become null, never ''.
+  // Unknown ids are treated as auto-assign (null) so a stale dropdown
+  // selection can never block saving the food item.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const normChefId = (v: any): string | null => {
+    if (v === null || v === undefined) return null;
+    const s = String(v).trim();
+    if (!s || s === 'null' || s === 'undefined') return null;
+    return UUID_RE.test(s) ? s : null;
+  };
+  let resolvedPrimaryChefId: string | null;
+  let resolvedBackupChefId: string | null;
+  if (primaryChefId === undefined) {
+    resolvedPrimaryChefId = (existingItem as any)?.primaryChefId ?? null;
+  } else {
+    resolvedPrimaryChefId = normChefId(primaryChefId);
+  }
+  if (backupChefId === undefined) {
+    resolvedBackupChefId = (existingItem as any)?.backupChefId ?? null;
+  } else {
+    resolvedBackupChefId = normChefId(backupChefId);
+  }
+  if (pgReady) {
+    try {
+      if (resolvedPrimaryChefId) {
+        const chef: any = await pgGetById('chefs', resolvedPrimaryChefId);
+        if (!chef || chef.canteenId !== resolvedCanteenId) resolvedPrimaryChefId = null;
+      }
+      if (resolvedBackupChefId) {
+        const chef: any = await pgGetById('chefs', resolvedBackupChefId);
+        if (!chef || chef.canteenId !== resolvedCanteenId) resolvedBackupChefId = null;
+      }
+    } catch { /* chef lookup is best-effort; never block the save */ }
+  }
+  const validPrepTypes = ['COOKABLE', 'READY_TO_SERVE'];
+  const resolvedPrepType = validPrepTypes.includes(preparationType as string)
+    ? preparationType
+    : ((existingItem as any)?.preparationType || 'COOKABLE');
 
   const menuItem: MenuItem = {
     id: targetId,
     canteenId: resolvedCanteenId,
-    collegeId: resolvedCollegeId,
-    subCanteenId: (subCanteenId as string) || (existingItem as any)?.subCanteenId || '',
+    collegeId: resolvedCollegeId as any,
+    subCanteenId: resolvedSubCanteenId as any,
     name,
     price: Number(price),
     stock: Number(stock),
@@ -2319,15 +2372,25 @@ app.post('/api/canteen/menu', async (req, res) => {
     bookedToday: existingItem?.bookedToday || 0,
     isPaused: isPaused !== undefined ? !!isPaused : (existingItem?.isPaused || false),
     recipe: recipe || existingItem?.recipe || [],
-    requiresChef: requiresChef !== undefined ? !!requiresChef : true
+    requiresChef: requiresChef !== undefined ? !!requiresChef : true,
+    primaryChefId: resolvedPrimaryChefId,
+    backupChefId: resolvedBackupChefId,
+    preparationType: resolvedPrepType as 'COOKABLE' | 'READY_TO_SERVE'
   };
 
   if (pgReady) {
     try {
       await pgSet('items', targetId, menuItem);
       console.log(`Menu item saved to PostgreSQL: ${targetId} for canteen ${resolvedCanteenId}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error('PostgreSQL save item error:', err);
+      const code = String((err as any)?.code || '');
+      if (code === '23503') {
+        return res.status(400).json({ success: false, error: 'Selected canteen does not exist in the database. Please re-login and select a valid canteen.' });
+      }
+      if (code === '22P02') {
+        return res.status(400).json({ success: false, error: 'Invalid chef selection. Please re-select the chef (or Auto-assign) and try again.' });
+      }
       return res.status(500).json({ success: false, error: 'Failed to save item to database. Please try again.' });
     }
   } else {
