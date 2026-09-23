@@ -2766,6 +2766,41 @@ app.post('/api/canteen/order', async (req, res) => {
   const subtotal = foodAmount + convenienceFee + platformFee;
   const orderId = `ORD_${Math.floor(1000 + Math.random() * 9000)}`;
 
+  // FK-safe tenant resolution: live orders FKs reject unknown ids ('canteen_001',
+  // 'sub_001', 'college_001' don't exist in prod) — validate every id, stamp the
+  // college from the real canteen, derive the canteen from the ordered items when
+  // the client sends none, and fall back to undefined (NULL) instead of fake ids.
+  let resolvedOrderCanteenId: string | undefined =
+    (typeof canteenId === 'string' && canteenId.trim()) ? canteenId.trim() : undefined;
+  let resolvedOrderSubId: string | undefined =
+    (typeof subCanteenId === 'string' && subCanteenId.trim()) ? subCanteenId.trim() : undefined;
+  let resolvedOrderCollegeId: string | undefined =
+    (typeof collegeId === 'string' && collegeId.trim() && collegeId !== 'college_001') ? collegeId : undefined;
+  if (!resolvedOrderCanteenId && currentItems.length) {
+    const first = currentItems.find(i => (items as any[]).some((ci: any) => ci.itemId === i.id));
+    if ((first as any)?.canteenId) resolvedOrderCanteenId = (first as any).canteenId;
+  }
+  if (pgReady) {
+    try {
+      if (resolvedOrderCanteenId) {
+        const cc: any = await pgGetById('canteens', resolvedOrderCanteenId);
+        if (!cc) {
+          resolvedOrderCanteenId = undefined;
+        } else if (!resolvedOrderCollegeId && cc.collegeId) {
+          resolvedOrderCollegeId = cc.collegeId;
+        }
+      }
+      if (resolvedOrderSubId) {
+        const ss: any = await pgGetById('subcanteens', resolvedOrderSubId);
+        if (!ss) resolvedOrderSubId = undefined;
+      }
+      if (resolvedOrderCollegeId) {
+        const cl: any = await pgGetById('colleges', resolvedOrderCollegeId);
+        if (!cl) resolvedOrderCollegeId = undefined;
+      }
+    } catch { /* best-effort; NULLs are FK-safe */ }
+  }
+
   const pickupTimestamp = parseSlotToTimestamp(selectedSlot);
   const prepStartTime = pickupTimestamp - (maxPrepTime * 60 * 1000) - (5 * 60 * 1000); // 5 mins buffer
   let noShowMinutes = 30;
@@ -2810,9 +2845,9 @@ app.post('/api/canteen/order', async (req, res) => {
         pickupSlot: selectedSlot,
         prepStartTime,
         expiryTime,
-        canteenId: canteenId || 'canteen_001',
-        subCanteenId: subCanteenId || 'sub_001',
-        collegeId: collegeId,
+        canteenId: resolvedOrderCanteenId,
+        subCanteenId: resolvedOrderSubId,
+        collegeId: resolvedOrderCollegeId,
         platformFee: platformFee,
         offerId: appliedOfferId,
         discount: offerDiscount,
@@ -2865,9 +2900,9 @@ app.post('/api/canteen/order', async (req, res) => {
         pickupSlot: selectedSlot,
         prepStartTime,
         expiryTime,
-        canteenId: canteenId || 'canteen_001',
-        subCanteenId: subCanteenId || 'sub_001',
-        collegeId: collegeId,
+        canteenId: resolvedOrderCanteenId,
+        subCanteenId: resolvedOrderSubId,
+        collegeId: resolvedOrderCollegeId,
         platformFee: platformFee,
         offerId: appliedOfferId,
         discount: offerDiscount,
@@ -2960,8 +2995,21 @@ app.post('/api/canteen/order', async (req, res) => {
       const totalPrice = Number((subtotal / 0.9764).toFixed(2));
       const totalAmountPaise = Math.round(totalPrice * 100);
       if (!pgReady) return res.status(500).json({ success: false, error: 'Wallet payments require database.' });
-      // Resolve wallet
-      const walletRows: any[] = await query('SELECT id FROM wallets WHERE user_id = $1 LIMIT 1', [userId]);
+      // Resolve wallet — auto-provision on first use so buyers never hit a
+      // dead-end "Wallet not found". A fresh wallet has 0 balance, so the
+      // purchase proc below returns INSUFFICIENT_BALANCE with a top-up hint.
+      let walletRows: any[] = await query('SELECT id FROM wallets WHERE user_id = $1 LIMIT 1', [userId]);
+      if (!walletRows || walletRows.length === 0) {
+        try {
+          const created: any[] = await query(
+            "INSERT INTO wallets (user_id, currency, status, created_at, updated_at) VALUES ($1, 'INR', 'ACTIVE', $2, $2) RETURNING id",
+            [userId, Date.now()]
+          );
+          walletRows = created;
+        } catch (e: any) {
+          console.error('[Wallet] auto-provision error:', e?.message || e);
+        }
+      }
       if (!walletRows || walletRows.length === 0) return res.status(400).json({ success: false, error: 'Wallet not found. Please top up first.' });
       const walletId = walletRows[0].id;
       const idempotencyKey = `wallet_${orderId}_${userId}`;
@@ -3014,8 +3062,8 @@ app.post('/api/canteen/order', async (req, res) => {
         status: containsChef ? 'scheduled' : 'ready', timestamp: new Date().toISOString(),
         createdAt: Date.now(), pickupTimeText: containsChef ? `Scheduled for pickup at ${selectedSlot}` : 'Ready for collection',
         pickupSlot: selectedSlot, prepStartTime, expiryTime,
-        canteenId: canteenId || 'canteen_001', subCanteenId: subCanteenId || 'sub_001',
-        collegeId, platformFee, offerId: appliedOfferId, discount: offerDiscount,
+        canteenId: resolvedOrderCanteenId, subCanteenId: resolvedOrderSubId,
+        collegeId: resolvedOrderCollegeId, platformFee, offerId: appliedOfferId, discount: offerDiscount,
       };
       await pgSet('orders', orderId, newOrder);
       canteenState.orders.unshift(newOrder);
@@ -5321,6 +5369,34 @@ interface WalletTopup {
   updatedAt: number;
 }
 
+// Live wallets table is uuid-keyed (id uuid PK) with user_id UNIQUE and NO
+// balance column — balance is always derived from SUCCESS transactions.
+// These helpers keep every wallet route uuid-safe and spoof-proof.
+async function getWalletRowByUserId(userId: string): Promise<any | null> {
+  const rows: any[] = await query('SELECT * FROM wallets WHERE user_id = $1 LIMIT 1', [userId]);
+  return rows[0] || null;
+}
+
+async function getWalletBalancePaise(walletId: string): Promise<number> {
+  const row = await queryOne(
+    "SELECT COALESCE(SUM(CASE WHEN direction = 'CREDIT' THEN amount ELSE -amount END), 0)::bigint AS bal FROM wallet_transactions WHERE wallet_id = $1 AND status = 'SUCCESS'",
+    [walletId]
+  );
+  return Number(row?.bal || 0);
+}
+
+function toWalletResponse(w: any, balance: number): any {
+  return {
+    id: w.id,
+    userId: w.user_id,
+    balance,
+    currency: w.currency || 'INR',
+    status: w.status || 'ACTIVE',
+    createdAt: Number(w.created_at || 0),
+    updatedAt: Number(w.updated_at || 0)
+  };
+}
+
 // GET /api/wallet - combined wallet data (wallet, transactions, topups)
 app.get('/api/wallet', async (req, res) => {
   try {
@@ -5337,30 +5413,17 @@ app.get('/api/wallet', async (req, res) => {
       // Live wallets table is uuid-keyed (id uuid PK) with user_id UNIQUE and
       // NO balance column — look up by user_id and derive balance from
       // SUCCESS transactions. Never pass a user id string as uuid PK.
-      const wrows: any[] = await query('SELECT * FROM wallets WHERE user_id = $1 LIMIT 1', [userId]);
-      wallet = wrows[0] || null;
-      if (!wallet) {
+      let wrow = await getWalletRowByUserId(userId);
+      if (!wrow) {
         const created: any[] = await query(
           "INSERT INTO wallets (user_id, currency, status, created_at, updated_at) VALUES ($1, 'INR', 'ACTIVE', $2, $2) RETURNING *",
           [userId, Date.now()]
         );
-        wallet = created[0];
+        wrow = created[0];
       }
-      const walletId = wallet.id;
-      const brow = await queryOne(
-        "SELECT COALESCE(SUM(CASE WHEN direction = 'CREDIT' THEN amount ELSE -amount END), 0)::bigint AS bal FROM wallet_transactions WHERE wallet_id = $1 AND status = 'SUCCESS'",
-        [walletId]
-      );
+      const walletId = wrow.id;
       // Normalize to the camelCase shape clients expect (raw pg rows are snake_case).
-      wallet = {
-        id: wallet.id,
-        userId: wallet.user_id,
-        balance: Number(brow?.bal || 0),
-        currency: wallet.currency || 'INR',
-        status: wallet.status || 'ACTIVE',
-        createdAt: Number(wallet.created_at || 0),
-        updatedAt: Number(wallet.updated_at || 0)
-      };
+      wallet = toWalletResponse(wrow, await getWalletBalancePaise(walletId));
       const transactionsRaw = await pgGetWhere('wallet_transactions', { walletId });
       transactions = sortByCreatedAtDesc(transactionsRaw as any[]);
       const topupsRaw = await pgGetWhere('wallet_topups', { walletId });
@@ -5393,8 +5456,8 @@ app.get('/api/wallet/balance', async (req, res) => {
     
     let wallet: any = null;
     if (pgReady) {
-      const wrows: any[] = await query('SELECT * FROM wallets WHERE user_id = $1 LIMIT 1', [userId]);
-      wallet = wrows[0] || null;
+      const wrow = await getWalletRowByUserId(userId);
+      if (wrow) wallet = toWalletResponse(wrow, await getWalletBalancePaise(wrow.id));
     } else {
       wallet = (canteenState as any).wallets?.find((w: any) => w.userId === userId) || null;
     }
@@ -5406,16 +5469,7 @@ app.get('/api/wallet/balance', async (req, res) => {
           "INSERT INTO wallets (user_id, currency, status, created_at, updated_at) VALUES ($1, 'INR', 'ACTIVE', $2, $2) RETURNING *",
           [userId, Date.now()]
         );
-        const w = created[0];
-        wallet = {
-          id: w.id,
-          userId: w.user_id,
-          balance: 0,
-          currency: w.currency || 'INR',
-          status: w.status || 'ACTIVE',
-          createdAt: Number(w.created_at || 0),
-          updatedAt: Number(w.updated_at || 0)
-        };
+        wallet = toWalletResponse(created[0], 0);
       } else {
         const newWallet: any = {
           id: userId,
@@ -5431,19 +5485,8 @@ app.get('/api/wallet/balance', async (req, res) => {
         wallet = newWallet;
       }
     } else if (pgReady) {
-      const brow = await queryOne(
-        "SELECT COALESCE(SUM(CASE WHEN direction = 'CREDIT' THEN amount ELSE -amount END), 0)::bigint AS bal FROM wallet_transactions WHERE wallet_id = $1 AND status = 'SUCCESS'",
-        [wallet.id]
-      );
-      wallet = {
-        id: wallet.id,
-        userId: wallet.user_id,
-        balance: Number(brow?.bal || 0),
-        currency: wallet.currency || 'INR',
-        status: wallet.status || 'ACTIVE',
-        createdAt: Number(wallet.created_at || 0),
-        updatedAt: Number(wallet.updated_at || 0)
-      };
+      const wrow = await getWalletRowByUserId(userId);
+      if (wrow) wallet = toWalletResponse(wrow, await getWalletBalancePaise(wrow.id));
     }
     
     res.json({ success: true, wallet });
@@ -5468,9 +5511,9 @@ let transactions: any[] = [];
     let walletId = userId;
     
 if (pgReady) {
-      const wallet = await pgGetById('wallets', userId);
+      const wallet = await getWalletRowByUserId(userId);
       if (wallet) walletId = wallet.id;
-      const transactionsRaw = await pgGetWhere('wallet_transactions', { wallet_id: walletId });
+      const transactionsRaw = await pgGetWhere('wallet_transactions', { walletId });
       const sortedTxs = sortByCreatedAtDesc(transactionsRaw as any[]);
       transactions = (sortedTxs as any[]).slice((pageNum - 1) * limitNum, pageNum * limitNum);
     } else {
@@ -5490,11 +5533,12 @@ if (pgReady) {
 // POST /api/wallet/topup - initiate wallet topup
 app.post('/api/wallet/topup', async (req, res) => {
   try {
-    const userId = (req as any).authUser?.id || req.body.userId;
+    // Auth identity only — never trust body.userId (spoofable).
+    const userId = (req as any).authUser?.id;
     const { amount, provider } = req.body;
     
     if (!userId) {
-      return res.status(401).json({ success: false, error: 'User ID required' });
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
     }
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, error: 'Valid amount required' });
@@ -5505,7 +5549,16 @@ app.post('/api/wallet/topup', async (req, res) => {
     
     let wallet: any = null;
     if (pgReady) {
-      wallet = await pgGetById('wallets', (req as any).authUser?.id || req.body.userId);
+      const wrow = await getWalletRowByUserId(userId);
+      if (wrow) {
+        wallet = toWalletResponse(wrow, await getWalletBalancePaise(wrow.id));
+      } else {
+        const created: any[] = await query(
+          "INSERT INTO wallets (user_id, currency, status, created_at, updated_at) VALUES ($1, 'INR', 'ACTIVE', $2, $2) RETURNING *",
+          [userId, Date.now()]
+        );
+        wallet = toWalletResponse(created[0], 0);
+      }
     } else {
       wallet = (canteenState as any).wallets?.find((w: any) => w.userId === userId) || null;
     }
@@ -5581,9 +5634,17 @@ app.post('/api/wallet/topup', async (req, res) => {
 // POST /api/wallet/topup/confirm - confirm wallet topup
 app.post('/api/wallet/topup/confirm', async (req, res) => {
   try {
+    const callerId = (req as any).authUser?.id;
     const { topupId, provider, providerOrderId, providerPaymentId } = req.body;
     if (!topupId || !provider) {
       return res.status(400).json({ success: false, error: 'topupId and provider required' });
+    }
+    if (!['RAZORPAY', 'VYAPAR', 'STRIPE', 'MOCK'].includes(provider)) {
+      return res.status(400).json({ success: false, error: 'Invalid provider' });
+    }
+    // MOCK credits with zero verification — dev only, never in production.
+    if (provider === 'MOCK' && process.env.NODE_ENV === 'production') {
+      return res.status(400).json({ success: false, error: 'MOCK payments are disabled in production.' });
     }
     
     let topup: any = null;
@@ -5598,6 +5659,15 @@ app.post('/api/wallet/topup/confirm', async (req, res) => {
     }
     if (topup.status === 'SUCCESS') {
       return res.status(400).json({ success: false, error: 'Topup already confirmed' });
+    }
+
+    // Ownership: the topup's wallet must belong to the caller — otherwise any
+    // logged-in user could confirm (and credit) anyone else's topup.
+    if (pgReady && callerId) {
+      const ownerRows: any[] = await query('SELECT user_id FROM wallets WHERE id = $1 LIMIT 1', [topup.walletId]);
+      if (!ownerRows[0] || ownerRows[0].user_id !== callerId) {
+        return res.status(403).json({ success: false, error: 'Topup does not belong to this user.' });
+      }
     }
     
     // Verify with provider
@@ -5640,15 +5710,15 @@ app.post('/api/wallet/topup/confirm', async (req, res) => {
       );
     }
     
-    // Credit wallet
+    // Credit wallet — the ledger (wallet_transactions) is the source of truth;
+    // the wallets table has no balance column, so only bump updated_at.
     const walletId = topup.walletId;
     let wallet: any = null;
     if (pgReady) {
-      wallet = await pgGetById('wallets', walletId);
-      if (wallet) {
-        wallet.balance += topup.amount;
-        wallet.updatedAt = Date.now();
-        await pgSet('wallets', walletId, wallet);
+      const wrows: any[] = await query('SELECT * FROM wallets WHERE id = $1 LIMIT 1', [walletId]);
+      if (wrows[0]) {
+        await pgUpdate('wallets', walletId, { updatedAt: Date.now() });
+        wallet = toWalletResponse(wrows[0], await getWalletBalancePaise(walletId));
       }
     } else {
       wallet = (canteenState as any).wallets?.find((w: any) => w.id === walletId);
@@ -5675,6 +5745,8 @@ app.post('/api/wallet/topup/confirm', async (req, res) => {
     
     if (pgReady) {
       await pgSet('wallet_transactions', txnId, transaction);
+      // Recompute AFTER the credit lands so the returned balance is current.
+      if (wallet) wallet.balance = await getWalletBalancePaise(walletId);
     } else {
       (canteenState as any).walletTransactions = (canteenState as any).walletTransactions || [];
       (canteenState as any).walletTransactions.push(transaction);
@@ -5690,11 +5762,12 @@ app.post('/api/wallet/topup/confirm', async (req, res) => {
 // POST /api/wallet/refund - process wallet refund
 app.post('/api/wallet/refund', async (req, res) => {
   try {
-    const userId = (req as any).authUser?.id || req.body.userId;
+    // Auth identity only — never trust body.userId (spoofable).
+    const userId = (req as any).authUser?.id;
     const { amount, idempotencyKey, reason } = req.body;
     
     if (!userId) {
-      return res.status(401).json({ success: false, error: 'User ID required' });
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
     }
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, error: 'Valid amount required' });
@@ -5703,10 +5776,11 @@ app.post('/api/wallet/refund', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Idempotency key required' });
     }
     
-    // Check idempotency
+    // Check idempotency (metadata is jsonb — query the key, not a column).
     let existing: any = null;
     if (pgReady) {
-      existing = await pgGetWhere('wallet_transactions', { 'metadata.idempotencyKey': idempotencyKey });
+      const rows: any[] = await query("SELECT * FROM wallet_transactions WHERE metadata->>'idempotencyKey' = $1 LIMIT 1", [idempotencyKey]);
+      existing = rows[0] || null;
     } else {
       existing = (canteenState as any).walletTransactions?.find((t: any) => t.metadata?.idempotencyKey === idempotencyKey) || null;
     }
@@ -5714,10 +5788,11 @@ app.post('/api/wallet/refund', async (req, res) => {
       return res.json({ success: true, transaction: existing, message: 'Already processed' });
     }
     
-    // Get wallet
+    // Get wallet (uuid-safe lookup + derived ledger balance)
     let wallet: any = null;
     if (pgReady) {
-      wallet = await pgGetById('wallets', userId);
+      const wrow = await getWalletRowByUserId(userId);
+      if (wrow) wallet = toWalletResponse(wrow, await getWalletBalancePaise(wrow.id));
     } else {
       wallet = (canteenState as any).wallets?.find((w: any) => w.userId === userId) || null;
     }
@@ -5729,16 +5804,15 @@ app.post('/api/wallet/refund', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Insufficient balance' });
     }
     
-    // Deduct from wallet
-    wallet.balance = (wallet.balance as number) - amount;
-    wallet.updatedAt = Date.now();
-    
-    if (pgReady) {
-      await pgSet('wallets', wallet.id, wallet);
-    } else {
+    // The DEBIT transaction below is the deduction (ledger is source of truth).
+    if (!pgReady) {
+      wallet.balance = (wallet.balance as number) - amount;
+      wallet.updatedAt = Date.now();
       (canteenState as any).wallets = (canteenState as any).wallets.map((w: any) => 
         w.id === wallet.id ? wallet : w
       );
+    } else {
+      await pgUpdate('wallets', wallet.id, { updatedAt: Date.now() });
     }
     
     // Create refund transaction
@@ -5761,14 +5835,6 @@ app.post('/api/wallet/refund', async (req, res) => {
     } else {
       (canteenState as any).walletTransactions = (canteenState as any).walletTransactions || [];
       (canteenState as any).walletTransactions.push(transaction);
-    }
-    
-    if (pgReady) {
-      await pgSet('wallets', wallet.id, wallet);
-    } else {
-      (canteenState as any).wallets = (canteenState as any).wallets.map((w: any) => 
-        w.id === wallet.id ? wallet : w
-      );
     }
     
     res.json({ success: true, transaction });
