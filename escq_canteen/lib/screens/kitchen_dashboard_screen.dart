@@ -227,7 +227,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.withValues(alpha: 0.3))),
+                decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.withOpacity(0.3))),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Container(width: 6, height: 6, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
                   const SizedBox(width: 4),
@@ -297,7 +297,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha: 0.2))),
+        decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withOpacity(0.2))),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(icon, color: color, size: 14),
           const SizedBox(width: 4),
@@ -414,7 +414,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
           _buildSectionHeader('Aggregated Cook List', sorted.length, const Color(0xFFEA580C), isDark),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: const Color(0xFFEA580C).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: const Color(0xFFEA580C).withOpacity(0.08), borderRadius: BorderRadius.circular(10)),
             child: Text('${toCook.length} orders · ${sorted.length} unique items', style: TextStyle(fontSize: 11, color: Colors.orange[700], fontWeight: FontWeight.w600)),
           ),
           const SizedBox(height: 8),
@@ -430,14 +430,14 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1F2937) : Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFEA580C).withValues(alpha: 0.3)),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+                border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.3)),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
               ),
               child: Row(
                 children: [
                   Container(
                     width: 48, height: 48,
-                    decoration: BoxDecoration(color: const Color(0xFFEA580C).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: const Color(0xFFEA580C).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
                     child: Center(child: Text('x$totalQty', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFEA580C)))),
                   ),
                   const SizedBox(width: 14),
@@ -496,7 +496,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1F2937) : Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
+                border: Border.all(color: const Color(0xFF8B5CF6).withOpacity(0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -504,7 +504,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(color: const Color(0xFF8B5CF6).withValues(alpha: 0.1), borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12))),
+                    decoration: BoxDecoration(color: const Color(0xFF8B5CF6).withOpacity(0.1), borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12))),
                     child: Row(children: [
                       const Icon(Icons.access_time, size: 14, color: Color(0xFF8B5CF6)),
                       const SizedBox(width: 6),
@@ -516,13 +516,13 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
                   ...orders.map((o) => _buildOrderCard(o, 'prebook', isDark)),
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: const Color(0xFFEA580C).withValues(alpha: 0.06), borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12))),
+                    decoration: BoxDecoration(color: const Color(0xFFEA580C).withOpacity(0.06), borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12))),
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 4,
                       children: aggregated.entries.map((e) => Chip(
                         label: Text('${e.key} x${e.value}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                        backgroundColor: const Color(0xFFEA580C).withValues(alpha: 0.1),
+                        backgroundColor: const Color(0xFFEA580C).withOpacity(0.1),
                         side: const BorderSide(color: Color(0xFFEA580C), width: 0.5),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         visualDensity: VisualDensity.compact,
@@ -548,7 +548,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
           child: Text('$count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
         ),
       ]),
@@ -595,7 +595,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
         color: isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border(left: BorderSide(color: statusColor, width: 3)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -606,7 +606,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
               Padding(padding: const EdgeInsets.only(right: 8), child: Text(liveTime, style: TextStyle(fontSize: 10, color: Colors.grey[500], fontStyle: FontStyle.italic))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: statusColor.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
               child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: statusColor)),
             ),
           ]),
@@ -618,7 +618,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
             child: Row(children: [
               Container(
                 width: 20, height: 20,
-                decoration: BoxDecoration(color: const Color(0xFFEA580C).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                decoration: BoxDecoration(color: const Color(0xFFEA580C).withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
                 child: Center(child: Text('${item.quantity}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFEA580C)))),
               ),
               const SizedBox(width: 6),

@@ -421,7 +421,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               decoration: BoxDecoration(
                 gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEA580C)]),
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: const Color(0xFFF59E0B).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))],
+                boxShadow: [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
               ),
               child: const Center(child: Text('Esc(Q)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white))),
             ),
@@ -511,7 +511,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               decoration: BoxDecoration(
                 color: Colors.green,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.green.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))],
+                boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
               ),
               child: const Icon(Icons.check_circle, color: Colors.white, size: 44),
             ),
@@ -569,7 +569,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               decoration: BoxDecoration(
                 color: Colors.green,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.green.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))],
+                boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
               ),
               child: const Icon(Icons.check_circle, color: Colors.white, size: 36),
             ),
@@ -584,7 +584,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: const Color(0xFFF59E0B), width: 2),
-                boxShadow: [BoxShadow(color: const Color(0xFFF59E0B).withValues(alpha: 0.15), blurRadius: 24, offset: const Offset(0, 8))],
+                boxShadow: [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.15), blurRadius: 24, offset: const Offset(0, 8))],
               ),
               child: Column(
                 children: [
@@ -631,7 +631,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       const Text('BILL SUMMARY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1, color: Color(0xFF111827))),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
                         child: const Text('PAID', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF16A34A))),
                       ),
                     ],

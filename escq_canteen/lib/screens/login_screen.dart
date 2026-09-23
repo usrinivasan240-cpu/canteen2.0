@@ -143,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
+                  color: Colors.black.withOpacity(0.06),
                   blurRadius: 20,
                   offset: const Offset(0, 4),
                 ),
@@ -162,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                        color: const Color(0xFFF59E0B).withOpacity(0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -212,7 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFFEF2F2),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFFEE2E2).withValues(alpha: 0.5)),
+                    border: Border.all(color: const Color(0xFFFEE2E2).withOpacity(0.5)),
                   ),
                   padding: const EdgeInsets.all(4),
                   child: Row(
@@ -225,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             decoration: BoxDecoration(
                               color: !isSignUp ? const Color(0xFFF59E0B) : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: !isSignUp ? [BoxShadow(color: const Color(0xFFF59E0B).withValues(alpha: 0.3), blurRadius: 6)] : null,
+                              boxShadow: !isSignUp ? [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 6)] : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -253,7 +253,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             decoration: BoxDecoration(
                               color: isSignUp ? const Color(0xFFF59E0B) : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: isSignUp ? [BoxShadow(color: const Color(0xFFF59E0B).withValues(alpha: 0.3), blurRadius: 6)] : null,
+                              boxShadow: isSignUp ? [BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.3), blurRadius: 6)] : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -566,7 +566,7 @@ class _LoginScreenState extends State<LoginScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFE5E7EB)),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 4, offset: const Offset(0, 2))],
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2))],
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(

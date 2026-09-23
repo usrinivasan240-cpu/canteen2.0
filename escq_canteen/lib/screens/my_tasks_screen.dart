@@ -199,7 +199,7 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha: 0.2))),
+        decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withOpacity(0.2))),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(icon, color: color, size: 14),
           const SizedBox(width: 4),
@@ -222,7 +222,7 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
           child: Text('$count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
         ),
       ]),
@@ -262,7 +262,7 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
               Padding(padding: const EdgeInsets.only(right: 8), child: Text(liveTime, style: TextStyle(fontSize: 10, color: Colors.grey[500], fontStyle: FontStyle.italic))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: statusColor.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
               child: Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: statusColor)),
             ),
           ]),

@@ -200,7 +200,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD97706).withValues(alpha: 0.1),
+                    color: const Color(0xFFD97706).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -289,7 +289,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
         color: themeProv.isDark ? const Color(0xFF1F2937) : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: isActive ? (themeProv.isDark ? const Color(0xFF374151) : const Color(0xFFFEE2E2)) : (themeProv.isDark ? const Color(0xFF374151) : Colors.grey.shade200)),
-        boxShadow: isActive ? [BoxShadow(color: Colors.black.withValues(alpha: themeProv.isDark ? 0.1 : 0.03), blurRadius: 4)] : [],
+        boxShadow: isActive ? [BoxShadow(color: Colors.black.withOpacity(themeProv.isDark ? 0.1 : 0.03), blurRadius: 4)] : [],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,7 +308,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                          decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
                           child: Text(order.statusLabel, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: statusColor)),
                         ),
                       ],
@@ -595,10 +595,10 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: alreadyCollected
-                            ? Colors.red.withValues(alpha: 0.1)
+                            ? Colors.red.withOpacity(0.1)
                             : order.status == 'ready'
-                                ? Colors.green.withValues(alpha: 0.1)
-                                : Colors.orange.withValues(alpha: 0.1),
+                                ? Colors.green.withOpacity(0.1)
+                                : Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
