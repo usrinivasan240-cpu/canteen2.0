@@ -38,6 +38,15 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadColleges();
   }
 
+  @override
+  void dispose() {
+    emailCtrl.dispose();
+    passwordCtrl.dispose();
+    nameCtrl.dispose();
+    phoneCtrl.dispose();
+    super.dispose();
+  }
+
   String? _collegesError;
 
   Future<void> _loadColleges() async {

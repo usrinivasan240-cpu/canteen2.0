@@ -52,7 +52,7 @@ export default function UpdatePopup() {
 
           <div className="flex flex-col gap-3 pt-2">
             <a
-              href={`${API_BASE}/EscQ-v2.5.11-universal.apk`}
+              href={`${API_BASE}/EscQ-v${latestVersion || BUNDLED_VERSION}-universal.apk`}
               download
               className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-sm font-semibold transition-all flex items-center justify-center space-x-2 shadow-md"
             >

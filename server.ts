@@ -5334,24 +5334,36 @@ app.get('/api/wallet', async (req, res) => {
     let topups: any[] = [];
 
     if (pgReady) {
-      wallet = await pgGetById('wallets', userId);
+      // Live wallets table is uuid-keyed (id uuid PK) with user_id UNIQUE and
+      // NO balance column — look up by user_id and derive balance from
+      // SUCCESS transactions. Never pass a user id string as uuid PK.
+      const wrows: any[] = await query('SELECT * FROM wallets WHERE user_id = $1 LIMIT 1', [userId]);
+      wallet = wrows[0] || null;
       if (!wallet) {
-        const newWallet: any = {
-          id: userId,
-          userId,
-          balance: 0,
-          currency: 'INR',
-          status: 'active',
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
-        await pgSet('wallets', userId, newWallet);
-        wallet = newWallet;
+        const created: any[] = await query(
+          "INSERT INTO wallets (user_id, currency, status, created_at, updated_at) VALUES ($1, 'INR', 'ACTIVE', $2, $2) RETURNING *",
+          [userId, Date.now()]
+        );
+        wallet = created[0];
       }
-      const walletId = wallet.id || userId;
-      const transactionsRaw = await pgGetWhere('wallet_transactions', { wallet_id: walletId });
+      const walletId = wallet.id;
+      const brow = await queryOne(
+        "SELECT COALESCE(SUM(CASE WHEN direction = 'CREDIT' THEN amount ELSE -amount END), 0)::bigint AS bal FROM wallet_transactions WHERE wallet_id = $1 AND status = 'SUCCESS'",
+        [walletId]
+      );
+      // Normalize to the camelCase shape clients expect (raw pg rows are snake_case).
+      wallet = {
+        id: wallet.id,
+        userId: wallet.user_id,
+        balance: Number(brow?.bal || 0),
+        currency: wallet.currency || 'INR',
+        status: wallet.status || 'ACTIVE',
+        createdAt: Number(wallet.created_at || 0),
+        updatedAt: Number(wallet.updated_at || 0)
+      };
+      const transactionsRaw = await pgGetWhere('wallet_transactions', { walletId });
       transactions = sortByCreatedAtDesc(transactionsRaw as any[]);
-      const topupsRaw = await pgGetWhere('wallet_topups', { wallet_id: walletId });
+      const topupsRaw = await pgGetWhere('wallet_topups', { walletId });
       topups = sortByCreatedAtDesc(topupsRaw as any[]);
     } else {
       wallet = (canteenState as any).wallets?.find((w: any) => w.userId === userId) || null;
@@ -5381,29 +5393,57 @@ app.get('/api/wallet/balance', async (req, res) => {
     
     let wallet: any = null;
     if (pgReady) {
-      wallet = await pgGetById('wallets', userId);
+      const wrows: any[] = await query('SELECT * FROM wallets WHERE user_id = $1 LIMIT 1', [userId]);
+      wallet = wrows[0] || null;
     } else {
       wallet = (canteenState as any).wallets?.find((w: any) => w.userId === userId) || null;
     }
     
     if (!wallet) {
       // Create wallet if not exists
-      const newWallet: any = {
-        id: userId,
-        userId,
-        balance: 0,
-        currency: 'INR',
-        status: 'active',
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
       if (pgReady) {
-        await pgSet('wallets', userId, newWallet);
+        const created: any[] = await query(
+          "INSERT INTO wallets (user_id, currency, status, created_at, updated_at) VALUES ($1, 'INR', 'ACTIVE', $2, $2) RETURNING *",
+          [userId, Date.now()]
+        );
+        const w = created[0];
+        wallet = {
+          id: w.id,
+          userId: w.user_id,
+          balance: 0,
+          currency: w.currency || 'INR',
+          status: w.status || 'ACTIVE',
+          createdAt: Number(w.created_at || 0),
+          updatedAt: Number(w.updated_at || 0)
+        };
       } else {
+        const newWallet: any = {
+          id: userId,
+          userId,
+          balance: 0,
+          currency: 'INR',
+          status: 'active',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
         (canteenState as any).wallets = (canteenState as any).wallets || [];
         (canteenState as any).wallets.push(newWallet);
+        wallet = newWallet;
       }
-      wallet = newWallet;
+    } else if (pgReady) {
+      const brow = await queryOne(
+        "SELECT COALESCE(SUM(CASE WHEN direction = 'CREDIT' THEN amount ELSE -amount END), 0)::bigint AS bal FROM wallet_transactions WHERE wallet_id = $1 AND status = 'SUCCESS'",
+        [wallet.id]
+      );
+      wallet = {
+        id: wallet.id,
+        userId: wallet.user_id,
+        balance: Number(brow?.bal || 0),
+        currency: wallet.currency || 'INR',
+        status: wallet.status || 'ACTIVE',
+        createdAt: Number(wallet.created_at || 0),
+        updatedAt: Number(wallet.updated_at || 0)
+      };
     }
     
     res.json({ success: true, wallet });
@@ -5739,7 +5779,7 @@ app.post('/api/wallet/refund', async (req, res) => {
 });
 
 // 7. Reset state (for demo debugging)
-app.post('/api/canteen/reset', async (req, res) => {
+app.post('/api/canteen/reset', authMiddleware, requireRole(['owner', 'superadmin']), async (req, res) => {
   if (pgReady) {
     try {
       await pgDeleteWhere('items', {});
@@ -5748,6 +5788,7 @@ app.post('/api/canteen/reset', async (req, res) => {
       await seedPostgresIfNeeded();
     } catch (err) {
       console.error('PostgreSQL reset error:', err);
+      return res.status(500).json({ success: false, error: 'Reset failed. Please try again.' });
     }
   }
 

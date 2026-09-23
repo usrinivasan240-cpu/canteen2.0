@@ -1,12 +1,13 @@
 const isCapacitor = !!(window as any).Capacitor;
-const isLocalDev = window.location.hostname === 'localhost' && window.location.port !== '' && !isCapacitor;
+const hostname = window.location.hostname;
+const isLocalDev = (hostname === 'localhost' || hostname === '127.0.0.1') && window.location.port !== '' && !isCapacitor;
 
 export const API_BASE = isLocalDev
   ? ''
   : (import.meta.env.VITE_API_BASE_URL as string) || window.location.origin;
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) || 'https://azoutmrplruhcdxejynj.supabase.co';
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6b3V0bXJwbHJ1aGNkeGVqeW5qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1ODYwOTMsImV4cCI6MjEwMjE2MjA5M30.55oQBJC35IUjihXw0wYPtpDC-qpBpG_1CVEigTN-RLA';
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) || 'https://pgqjkkbcaiefdzzljjfn.supabase.co';
+const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBncWpra2JjYWllZmR6emxqamZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5NzMxMzEsImV4cCI6MjEwNDU0OTEzMX0.yCsPf_FpgQJ1xvTzN7YCKkIxOH_nfAdDixbAx240T_4';
 
 function getTokenExp(token: string): number | null {
   try {
@@ -81,7 +82,9 @@ async function getValidToken(): Promise<string | null> {
 const _originalFetch = window.fetch;
 window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const rawUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-  if (!rawUrl.startsWith(API_BASE)) return _originalFetch(input, init);
+  // Local-dev API_BASE is '' — ''.startsWith matches everything, so bail out
+  // explicitly instead of leaking Bearer tokens to external URLs.
+  if (!API_BASE || !rawUrl.startsWith(API_BASE)) return _originalFetch(input, init);
 
   const sendWithToken = async (): Promise<{ res: Response; sentToken: string | null } | null> => {
     const token = await getValidToken();
