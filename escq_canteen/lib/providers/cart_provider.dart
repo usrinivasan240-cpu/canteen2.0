@@ -13,10 +13,16 @@ class CartProvider extends ChangeNotifier {
 
   int get totalItems => _cart.totalItems;
   double get subtotal => _cart.subtotal;
+  double get platformFee => _cart.platformFee;
   double get convenienceFee => _cart.convenienceFee;
   double get pgCharge => _cart.pgCharge;
   double get totalAmount => _cart.totalAmount;
   bool get isEmpty => _cart.totalItems == 0;
+
+  void setFeeConfig(Map<String, dynamic>? config) {
+    _cart.setFeeConfig(config);
+    notifyListeners();
+  }
 
   String? addItem(MenuItem item, {int qty = 1}) {
     try {

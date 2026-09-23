@@ -471,7 +471,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.17';
+const APP_VERSION = '2.5.18';
 
 const APP_UPDATE_URL = 'https://canteen20.vercel.app';
 app.get('/api/app-version', (req, res) => {
@@ -2784,8 +2784,12 @@ app.post('/api/canteen/order', async (req, res) => {
   }
 
   let platformFee = await calculatePlatformFee(collegeId, foodAmount);
-  const convenienceFee = foodAmount > 0 ? Math.ceil(foodAmount / 100) : 0;
-  let subtotal = foodAmount + convenienceFee + platformFee;
+  // Single-fee model: the ONLY customer fee is the superadmin-configured
+  // college platform fee. No separate convenience fee, no gateway gross-up —
+  // the canteen absorbs the ~2.4% Razorpay cut (bake it into the platform
+  // fee config if it must be passed on).
+  const convenienceFee = 0;
+  let subtotal = foodAmount + platformFee;
   const orderId = `ORD_${Math.floor(1000 + Math.random() * 9000)}`;
 
   // FK-safe tenant resolution: live orders FKs reject unknown ids ('canteen_001',
@@ -2852,7 +2856,7 @@ app.post('/api/canteen/order', async (req, res) => {
   // ── RAZORPAY GATEWAY ──────────────────────────────────────────────────────
   if (selectedGateway === 'razorpay' && razorpayConfigured && razorpay) {
     try {
-      const totalPrice = Number((subtotal / 0.9764).toFixed(2));
+      const totalPrice = Number(subtotal.toFixed(2));
       const totalAmountPaise = Math.round(totalPrice * 100);
 
       const razorpayOrder = await razorpay.orders.create({
@@ -2914,7 +2918,7 @@ app.post('/api/canteen/order', async (req, res) => {
   // ── VYAPARGATEWAY (UPI DYNAMIC QR) ────────────────────────────────────────
   if (selectedGateway === 'vyapar') {
     try {
-      const totalPrice = Number((subtotal / 0.9764).toFixed(2));
+      const totalPrice = Number(subtotal.toFixed(2));
       const totalAmountPaise = Math.round(totalPrice * 100);
 
       const newOrder: Order = {
@@ -3026,7 +3030,7 @@ app.post('/api/canteen/order', async (req, res) => {
   if (selectedGateway === 'wallet') {
     try {
       if (!userId) return res.status(401).json({ success: false, error: 'Login required for wallet payment.' });
-      const totalPrice = Number((subtotal / 0.9764).toFixed(2));
+      const totalPrice = Number(subtotal.toFixed(2));
       const totalAmountPaise = Math.round(totalPrice * 100);
       if (!pgReady) return res.status(500).json({ success: false, error: 'Wallet payments require database.' });
       // Resolve wallet — auto-provision on first use so buyers never hit a

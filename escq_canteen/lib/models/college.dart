@@ -111,6 +111,7 @@ class College {
   final String? bannerSubtitle;
   final List<String>? bannerFeatures;
   final CollegeBranding? branding;
+  final Map<String, dynamic>? platformFees;
   final String status;
 
   College({
@@ -122,6 +123,7 @@ class College {
     this.bannerSubtitle,
     this.bannerFeatures,
     this.branding,
+    this.platformFees,
     this.status = 'active',
   });
 
@@ -133,6 +135,13 @@ class College {
     if (json['branding'] != null) {
       try { br = CollegeBranding.fromJson(json['branding']); } catch (_) { br = null; }
     }
+    Map<String, dynamic>? pf;
+    final rawPf = _maybeJsonDecode(json['platformFees']);
+    if (rawPf is Map<String, dynamic>) {
+      pf = rawPf;
+    } else if (rawPf is Map) {
+      try { pf = Map<String, dynamic>.from(rawPf); } catch (_) { pf = null; }
+    }
     return College(
       id: (json['id'] ?? '').toString(),
       name: (json['name'] ?? '').toString(),
@@ -142,8 +151,41 @@ class College {
       bannerSubtitle: json['bannerSubtitle']?.toString(),
       bannerFeatures: feats,
       branding: br,
+      platformFees: pf,
       status: (json['status'] ?? 'active').toString(),
     );
+  }
+
+  /// Superadmin-configured platform fee for a cart amount (mirrors the
+  /// server's calculatePlatformFee). Display estimate only — the server
+  /// computes the charged fee authoritatively per order.
+  double platformFeeFor(double amount) {
+    final pf = platformFees;
+    if (pf == null || amount <= 0) return 0;
+    switch ((pf['type'] ?? 'free').toString()) {
+      case 'flat':
+        return ((pf['flatAmount'] as num?) ?? 0).toDouble();
+      case 'percentage':
+        final pct = ((pf['percentage'] as num?) ?? 0).toDouble();
+        return (amount * pct / 100).round().toDouble();
+      case 'tiered':
+        final tiers = pf['tiers'];
+        if (tiers is List) {
+          for (final t in tiers) {
+            if (t is Map) {
+              final min = ((t['minAmount'] as num?) ?? 0).toDouble();
+              final maxRaw = t['maxAmount'];
+              final max = maxRaw == null ? double.infinity : ((maxRaw as num?) ?? double.infinity).toDouble();
+              if (amount >= min && amount <= max) {
+                return ((t['feeAmount'] as num?) ?? 0).toDouble();
+              }
+            }
+          }
+        }
+        return 0;
+      default:
+        return 0;
+    }
   }
 }
 

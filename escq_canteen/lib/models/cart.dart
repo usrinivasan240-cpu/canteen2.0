@@ -12,6 +12,10 @@ class CartItem {
 class Cart {
   final Map<String, CartItem> _items = {};
   String? _canteenId;
+  // Superadmin-configured fee table of the shopper's college. Set once per
+  // checkout from the college record; the fee below derives from it so the
+  // bill shows the live configured fee instead of hardcoded charges.
+  Map<String, dynamic>? _feeConfig;
 
   Map<String, CartItem> get items => Map.unmodifiable(_items);
   String? get canteenId => _canteenId;
@@ -20,18 +24,49 @@ class Cart {
 
   double get subtotal => _items.values.fold(0.0, (sum, item) => sum + item.total);
 
-  double get convenienceFee {
-    if (subtotal <= 0) return 0;
-    return (subtotal / 100).ceil().toDouble();
+  void setFeeConfig(Map<String, dynamic>? config) {
+    _feeConfig = config;
   }
 
-  double get pgCharge {
-    if (subtotal <= 0) return 0;
-    final base = subtotal + convenienceFee;
-    return (base / 0.9764) - base;
+  /// The single customer fee: superadmin college platform fee.
+  double get platformFee {
+    final cfg = _feeConfig;
+    if (cfg == null || subtotal <= 0) return 0;
+    switch ((cfg['type'] ?? 'free').toString()) {
+      case 'flat':
+        return ((cfg['flatAmount'] as num?) ?? 0).toDouble();
+      case 'percentage':
+        final pct = ((cfg['percentage'] as num?) ?? 0).toDouble();
+        return (subtotal * pct / 100).round().toDouble();
+      case 'tiered':
+        final tiers = cfg['tiers'];
+        if (tiers is List) {
+          for (final t in tiers) {
+            if (t is Map) {
+              final min = ((t['minAmount'] as num?) ?? 0).toDouble();
+              final maxRaw = t['maxAmount'];
+              final max = maxRaw == null
+                  ? double.infinity
+                  : ((maxRaw as num?) ?? double.infinity).toDouble();
+              if (subtotal >= min && subtotal <= max) {
+                return ((t['feeAmount'] as num?) ?? 0).toDouble();
+              }
+            }
+          }
+        }
+        return 0;
+      default:
+        return 0;
+    }
   }
 
-  double get totalAmount => subtotal + convenienceFee + pgCharge;
+  /// Legacy hardcoded charges — retired in the single-fee model.
+  /// Kept (zero) so existing UI references keep compiling.
+  double get convenienceFee => 0;
+
+  double get pgCharge => 0;
+
+  double get totalAmount => subtotal + platformFee;
 
   bool get isEmpty => _items.isEmpty;
 
@@ -74,6 +109,7 @@ class Cart {
   void clear() {
     _items.clear();
     _canteenId = null;
+    _feeConfig = null;
   }
 
   List<Map<String, dynamic>> toOrderPayload() {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/menu_provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/theme_provider.dart';
 import '../models/offer.dart';
@@ -31,6 +32,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.initState();
     _fetchOffers();
     _fetchWallet();
+    // Bill shows the live superadmin platform fee for the shopper's college
+    // (single-fee model — no hardcoded convenience/gateway charges).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final userCollegeId = context.read<AuthProvider>().user?.collegeId ?? '';
+        final colleges = context.read<MenuProvider>().colleges;
+        final college = colleges
+            .where((c) => c.id == userCollegeId)
+            .cast();
+        final cfg = college.isEmpty ? null : college.first.platformFees;
+        context.read<CartProvider>().setFeeConfig(cfg);
+      } catch (_) {}
+    });
   }
 
   Future<void> _fetchWallet() async {
@@ -400,7 +414,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         _summaryRow('Subtotal', '₹${cart.subtotal.toStringAsFixed(2)}'),
                         if (_discount > 0)
                           _summaryRow('Offer Discount ($_selectedOffer!.displayText)', '-₹${_discount.toStringAsFixed(2)}', bold: false, isDiscount: true),
-                        _summaryRow('Convenience Fee', '₹${cart.convenienceFee.toStringAsFixed(2)} + ₹${cart.pgCharge.toStringAsFixed(2)}'),
+                        _summaryRow(
+                          'Platform Fee',
+                          cart.platformFee > 0
+                              ? '₹${cart.platformFee.toStringAsFixed(2)}'
+                              : 'FREE',
+                        ),
                         const Divider(color: Color(0xFFFEE2E2)),
                         _summaryRow('Grand Total', '₹${(cart.totalAmount - _discount).toStringAsFixed(2)}', bold: true),
                       ],
