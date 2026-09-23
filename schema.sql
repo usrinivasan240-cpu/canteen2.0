@@ -25,7 +25,9 @@ CREATE TABLE IF NOT EXISTS "colleges" (
   "branding" jsonb DEFAULT '{}'::jsonb,
   "status" text DEFAULT 'active'::text,
   "updated_at" text DEFAULT ''::text,
-  "platform_fee" numeric(10, 2) DEFAULT 0
+  "platform_fee" numeric(10, 2) DEFAULT 0,
+  "platform_fees" jsonb DEFAULT NULL,
+  "razorpay_config" jsonb DEFAULT NULL
 );
 
 ALTER TABLE "colleges" ADD CONSTRAINT "colleges_pkey" PRIMARY KEY ("id");

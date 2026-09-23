@@ -2761,9 +2761,9 @@ app.post('/api/canteen/order', async (req, res) => {
     console.warn('Failed to get college ID for platform fee:', e);
   }
 
-  const platformFee = await calculatePlatformFee(collegeId, foodAmount);
+  let platformFee = await calculatePlatformFee(collegeId, foodAmount);
   const convenienceFee = foodAmount > 0 ? Math.ceil(foodAmount / 100) : 0;
-  const subtotal = foodAmount + convenienceFee + platformFee;
+  let subtotal = foodAmount + convenienceFee + platformFee;
   const orderId = `ORD_${Math.floor(1000 + Math.random() * 9000)}`;
 
   // FK-safe tenant resolution: live orders FKs reject unknown ids ('canteen_001',
@@ -2799,6 +2799,18 @@ app.post('/api/canteen/order', async (req, res) => {
         if (!cl) resolvedOrderCollegeId = undefined;
       }
     } catch { /* best-effort; NULLs are FK-safe */ }
+  }
+
+  // Re-resolve the fee against the validated college: the pre-resolution
+  // collegeId may be the 'college_001' fallback (fee 0) while the order now
+  // carries the real college. Keeps checkout in sync with superadmin edits.
+  if (resolvedOrderCollegeId && resolvedOrderCollegeId !== collegeId) {
+    try {
+      platformFee = await calculatePlatformFee(resolvedOrderCollegeId, foodAmount);
+      subtotal = foodAmount + convenienceFee + platformFee;
+    } catch (e) {
+      console.warn('Platform fee re-resolve failed, keeping earlier fee:', e);
+    }
   }
 
   const pickupTimestamp = parseSlotToTimestamp(selectedSlot);
