@@ -26,37 +26,49 @@ jobs:
         working-directory: escq_canteen
 
       - name: Create google-services.json
+        # Real Firebase config comes from the GOOGLE_SERVICES_JSON repo secret
+        # (raw google-services.json for Android app com.escq.canteen in project
+        # canteen2-0). Without it FCM mints no token and pushes never arrive —
+        # the placeholder below only keeps forks building, with pushes broken.
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          cat > escq_canteen/android/app/google-services.json << 'EOF'
-          {
-            "project_info": {
-              "project_number": "123456789012",
-              "project_id": "canteen2-placeholder",
-              "storage_bucket": "canteen2-placeholder.appspot.com"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:123456789012:android:abcdef123456",
-                  "android_client_info": {
-                    "package_name": "com.escq.canteen"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "PLACEHOLDER_API_KEY"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > escq_canteen/android/app/google-services.json
+            echo "Using real google-services.json from secrets."
+          else
+            echo "::warning::GOOGLE_SERVICES_JSON secret is empty — building with placeholder (push notifications WILL NOT work)."
+            cat > escq_canteen/android/app/google-services.json << 'EOF'
+            {
+              "project_info": {
+                "project_number": "123456789012",
+                "project_id": "canteen2-placeholder",
+                "storage_bucket": "canteen2-placeholder.appspot.com"
+              },
+              "client": [
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:123456789012:android:abcdef123456",
+                    "android_client_info": {
+                      "package_name": "com.escq.canteen"
+                    }
+                  },
+                  "oauth_client": [],
+                  "api_key": [
+                    {
+                      "current_key": "PLACEHOLDER_API_KEY"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "other_platform_oauth_client": []
+                    }
                   }
                 }
-              }
-            ]
-          }
-          EOF
+              ]
+            }
+            EOF
+          fi
         shell: bash
 
       - name: Build APK

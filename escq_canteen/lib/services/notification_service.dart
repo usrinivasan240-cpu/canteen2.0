@@ -125,24 +125,33 @@ class NotificationService {
   }
 
   Future<void> sendTokenToServer(String userId) async {
-    if (_fcmToken == null) {
-      // Retry after 3 seconds in case init is still running
-      await Future.delayed(const Duration(seconds: 3));
+    // FCM init can still be running (or fail-then-recover) when login
+    // finishes — retry a few times so the server always learns the token.
+    // Without this row, order-status pushes silently never arrive.
+    for (int attempt = 0; attempt < 4; attempt++) {
+      if (_fcmToken == null) {
+        try {
+          _fcmToken ??= await _fcm?.getToken();
+        } catch (_) {}
+        if (_fcmToken == null) {
+          await Future.delayed(Duration(seconds: 3 * (attempt + 1)));
+          continue;
+        }
+      }
+      try {
+        final resp = await http.post(
+          Uri.parse('${AppConfig.apiBase}/api/fcm-token'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'userId': userId, 'fcmToken': _fcmToken}),
+        );
+        debugPrint('FCM token sent to server: ${resp.statusCode}');
+        if (resp.statusCode == 200) return;
+      } catch (e) {
+        debugPrint('Failed to send FCM token (attempt $attempt): $e');
+      }
+      await Future.delayed(Duration(seconds: 3 * (attempt + 1)));
     }
-    if (_fcmToken == null) {
-      debugPrint('FCM token still null after retry, skipping sendTokenToServer');
-      return;
-    }
-    try {
-      final resp = await http.post(
-        Uri.parse('${AppConfig.apiBase}/api/fcm-token'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'userId': userId, 'fcmToken': _fcmToken}),
-      );
-      debugPrint('FCM token sent to server: ${resp.statusCode}');
-    } catch (e) {
-      debugPrint('Failed to send FCM token: $e');
-    }
+    debugPrint('FCM token still unregistered after retries');
   }
 
   Future<void> showOrderNotification(String title, String body, Map<String, String> data) async {
