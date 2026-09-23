@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import '../config.dart';
+import '../providers/auth_provider.dart';
 import '../providers/wallet_provider.dart';
 import '../models/wallet.dart';
 import '../services/api_service.dart';
@@ -709,17 +712,125 @@ class _AddMoneyBottomSheetState extends State<_AddMoneyBottomSheet> {
   int _selectedAmount = 10000; // in paise
   String _selectedProvider = 'RAZORPAY';
   final _amountController = TextEditingController();
+  late Razorpay _razorpay;
+  String? _pendingTopupId;
+  bool _paying = false;
 
   @override
   void initState() {
     super.initState();
     _amountController.text = '100.00';
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _onTopupSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _onTopupError);
   }
 
   @override
   void dispose() {
+    _razorpay.clear();
     _amountController.dispose();
     super.dispose();
+  }
+
+  Future<void> _startTopup() async {
+    final amount = double.tryParse(_amountController.text) ?? 0;
+    if (amount < 50) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Minimum amount is ₹50')),
+      );
+      return;
+    }
+    if (amount > 10000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maximum amount is ₹10,000')),
+      );
+      return;
+    }
+    setState(() => _paying = true);
+    try {
+      final prov = context.read<WalletProvider>();
+      final result = await prov.initiateTopup(
+        amount: _selectedAmount,
+        provider: _selectedProvider,
+      );
+      if (!mounted) return;
+      if (result == null) {
+        // Initiation failed (auth / validation / Razorpay not configured):
+        // say so instead of looping back to "No Food Balance Yet".
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(prov.error ?? 'Failed to start payment')),
+        );
+        return;
+      }
+      if (result['useRazorpay'] == true && result['razorpayOrderId'] != null) {
+        _pendingTopupId = (result['topup'] as WalletTopup).id;
+        _openRazorpay(
+          result['razorpayOrderId'] as String,
+          result['amount'] as int,
+          result['razorpayKeyId'] as String?,
+        );
+      } else {
+        final msg = (result['message'] as String?) ??
+            'Top-up registered. Complete the payment to see balance.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        Navigator.pop(context);
+      }
+    } finally {
+      if (mounted) setState(() => _paying = false);
+    }
+  }
+
+  void _openRazorpay(String razorpayOrderId, int amountPaise, String? keyId) {
+    final user = context.read<AuthProvider>().user;
+    try {
+      _razorpay.open({
+        'key': keyId ?? AppConfig.razorpayKeyId,
+        'amount': amountPaise,
+        'currency': 'INR',
+        'name': 'Esc(Q) Canteen',
+        'description': 'Wallet top-up',
+        'order_id': razorpayOrderId,
+        'prefill': {
+          'name': user?.name ?? '',
+          'contact': user?.phone ?? '',
+          'email': user?.email ?? '',
+        },
+        'theme': {'color': '#F59E0B'},
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open payment: $e')),
+      );
+    }
+  }
+
+  Future<void> _onTopupSuccess(PaymentSuccessResponse response) async {
+    final topupId = _pendingTopupId;
+    if (topupId == null) return;
+    final ok = await context.read<WalletProvider>().processTopupSuccess(
+          topupId: topupId,
+          provider: _selectedProvider,
+          providerOrderId: response.orderId,
+          providerPaymentId: response.paymentId,
+        );
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok
+            ? 'Money added to wallet'
+            : 'Payment received, confirmation pending — pull to refresh.'),
+      ),
+    );
+  }
+
+  void _onTopupError(PaymentFailureResponse response) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text('Payment failed: ${response.message ?? 'cancelled'}')),
+    );
   }
 
   @override
@@ -836,27 +947,7 @@ class _AddMoneyBottomSheetState extends State<_AddMoneyBottomSheet> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: () async {
-                final amount = double.tryParse(_amountController.text) ?? 0;
-                if (amount < 50) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Minimum amount is ₹50')),
-                  );
-                  return;
-                }
-                if (amount > 10000) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Maximum amount is ₹10,000')),
-                  );
-                  return;
-                }
-
-                Navigator.pop(context);
-                await context.read<WalletProvider>().initiateTopup(
-                  amount: _selectedAmount,
-                  provider: _selectedProvider,
-                );
-              },
+              onPressed: _paying ? null : _startTopup,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFF59E0B),
                 foregroundColor: Colors.white,
@@ -865,10 +956,20 @@ class _AddMoneyBottomSheetState extends State<_AddMoneyBottomSheet> {
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: const Text(
-                'Proceed to Pay',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
+              child: _paying
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : const Text(
+                      'Proceed to Pay',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
             ),
           ),
         ],

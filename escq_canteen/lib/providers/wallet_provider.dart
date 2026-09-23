@@ -102,7 +102,10 @@ class WalletProvider extends ChangeNotifier {
     }
   }
 
-  Future<WalletTopup?> initiateTopup({
+  /// Starts a top-up. Returns a result map so the caller can branch:
+  /// `{topup, useRazorpay, razorpayOrderId, razorpayKeyId, amount, message}`.
+  /// Null means the request itself failed (see [error]).
+  Future<Map<String, dynamic>?> initiateTopup({
     required int amount, // in paise
     required String provider, // 'RAZORPAY', 'VYAPAR', 'MOCK'
   }) async {
@@ -119,15 +122,14 @@ class WalletProvider extends ChangeNotifier {
         // Server returns { topupId, useRazorpay, razorpayOrderId, ... }
         // for Razorpay, not a full `topup` object. Handle both shapes so
         // the caller can branch (launch PSP vs no-op) without an error.
+        WalletTopup? topup;
         if (response['topup'] != null) {
-          final topup = WalletTopup.fromJson(response['topup']);
+          topup = WalletTopup.fromJson(response['topup']);
           _topups.insert(0, topup);
           notifyListeners();
-          return topup;
-        }
-        // Razorpay path — synthesize minimal topup so UI can confirm later.
-        if (response['topupId'] != null) {
-          final synth = WalletTopup(
+        } else if (response['topupId'] != null) {
+          // Razorpay path — synthesize minimal topup so UI can confirm later.
+          topup = WalletTopup(
             id: response['topupId'] as String,
             walletId: _wallet?.id ?? '',
             amount: amount,
@@ -137,12 +139,20 @@ class WalletProvider extends ChangeNotifier {
             createdAt: DateTime.now().millisecondsSinceEpoch,
             updatedAt: DateTime.now().millisecondsSinceEpoch,
           );
-          _topups.insert(0, synth);
+          _topups.insert(0, topup);
           notifyListeners();
-          return synth;
+        } else {
+          _setError('Topup initiated but no topupId returned');
+          return null;
         }
-        _setError('Topup initiated but no topupId returned');
-        return null;
+        return {
+          'topup': topup,
+          'useRazorpay': response['useRazorpay'] == true,
+          'razorpayOrderId': response['razorpayOrderId'],
+          'razorpayKeyId': response['razorpayKeyId'],
+          'amount': amount,
+          'message': response['message'],
+        };
       } else {
         _setError(response['error'] ?? 'Failed to initiate topup');
         return null;

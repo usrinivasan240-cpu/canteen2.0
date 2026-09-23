@@ -465,7 +465,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.11';
+const APP_VERSION = '2.5.12';
 
 const APP_UPDATE_URL = 'https://canteen20.vercel.app';
 app.get('/api/app-version', (req, res) => {
@@ -3347,7 +3347,7 @@ async function routeKitchenTasks(
 
   // Create one kitchen task per chef
   for (const [chefId, items] of chefTaskMap.entries()) {
-    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const taskId = crypto.randomUUID(); // kitchen_tasks.id is uuid
     const task: KitchenTask = {
       id: taskId,
       orderId,
@@ -5027,7 +5027,7 @@ app.post('/api/chefs', async (req, res) => {
     if (!canteenId || !name) {
       return res.status(400).json({ success: false, error: 'canteenId and name required' });
     }
-    const chefId = `chef_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const chefId = crypto.randomUUID(); // chefs.id is uuid
     const newChef: Chef = {
       id: chefId,
       canteenId,
@@ -5116,7 +5116,7 @@ app.post('/api/chefs/:id/leave', async (req, res) => {
     if (!startDate || !endDate) {
       return res.status(400).json({ success: false, error: 'startDate and endDate required' });
     }
-    const leaveId = `leave_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const leaveId = crypto.randomUUID(); // chef_leave.id is uuid
     const newLeave: ChefLeave = {
       id: leaveId,
       chefId: id,
@@ -5567,7 +5567,7 @@ app.post('/api/wallet/topup', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Wallet not found' });
     }
     
-    const topupId = `topup_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const topupId = crypto.randomUUID();
     const newTopup = {
       id: topupId,
       walletId: wallet.id,
@@ -5728,8 +5728,8 @@ app.post('/api/wallet/topup/confirm', async (req, res) => {
       }
     }
     
-    // Create transaction record
-    const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    // Create transaction record (uuid PK — never a text stub)
+    const txnId = crypto.randomUUID();
     const transaction = {
       id: txnId,
       walletId,
@@ -5815,8 +5815,8 @@ app.post('/api/wallet/refund', async (req, res) => {
       await pgUpdate('wallets', wallet.id, { updatedAt: Date.now() });
     }
     
-    // Create refund transaction
-    const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    // Create refund transaction (uuid PK — never a text stub)
+    const txnId = crypto.randomUUID();
     const transaction = {
       id: txnId,
       walletId: wallet.id,
