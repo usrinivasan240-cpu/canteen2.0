@@ -62,11 +62,21 @@ class ApiService {
     return resp;
   }
 
+  /// Only genuine auth failures flag a dead session. The server also uses
+  /// 401 for "parameter missing" cases (e.g. 'User ID required') — those
+  /// must NEVER log the user out (that bug bounced wallet users to login).
+  static const _authFailureMessages = {
+    'Authentication required.',
+    'Invalid or expired token.',
+    'Invalid token.',
+  };
+
   Map<String, dynamic> _withSessionFlag(
       Map<String, dynamic> data, int statusCode) {
     if (statusCode == 401 &&
         AuthService().currentUser != null &&
-        data['success'] != true) {
+        data['success'] != true &&
+        _authFailureMessages.contains(data['error'])) {
       return {
         ...data,
         'success': false,
@@ -430,16 +440,28 @@ class ApiService {
   }
 
   // ── WALLET ──
+  // Server wallet GETs resolve authUser (when middleware ran) else the
+  // userId query param — always send both so reads never 401 for a
+  // logged-in user even on routes without the auth middleware.
+  Map<String, String> _walletScope([Map<String, String>? extra]) {
+    final uid = AuthService().currentUser?.id;
+    return {
+      if (uid != null && uid.isNotEmpty) 'userId': uid,
+      ...?extra,
+    };
+  }
+
   Future<Map<String, dynamic>> getWallet() async {
-    return _get('/api/wallet');
+    return _get('/api/wallet', _walletScope());
   }
 
   Future<Map<String, dynamic>> getWalletBalance() async {
-    return _get('/api/wallet/balance');
+    return _get('/api/wallet/balance', _walletScope());
   }
 
   Future<Map<String, dynamic>> getWalletTransactions({int page = 1, int limit = 20}) async {
-    return _get('/api/wallet/transactions', {'page': page.toString(), 'limit': limit.toString()});
+    return _get('/api/wallet/transactions',
+        _walletScope({'page': page.toString(), 'limit': limit.toString()}));
   }
 
   Future<Map<String, dynamic>> getWalletTopups({int page = 1, int limit = 20}) async {

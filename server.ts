@@ -471,7 +471,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.15';
+const APP_VERSION = '2.5.16';
 
 const APP_UPDATE_URL = 'https://canteen20.vercel.app';
 app.get('/api/app-version', (req, res) => {
@@ -5464,7 +5464,7 @@ app.get('/api/wallet', async (req, res) => {
   try {
     const userId = (req as any).authUser?.id || req.query.userId;
     if (!userId) {
-      return res.status(401).json({ success: false, error: 'User ID required' });
+      return res.status(400).json({ success: false, error: 'User ID required' });
     }
 
     let wallet: any = null;
@@ -5513,7 +5513,7 @@ app.get('/api/wallet/balance', async (req, res) => {
   try {
     const userId = (req as any).authUser?.id || req.query.userId;
     if (!userId) {
-      return res.status(401).json({ success: false, error: 'User ID required' });
+      return res.status(400).json({ success: false, error: 'User ID required' });
     }
     
     let wallet: any = null;
@@ -5566,7 +5566,7 @@ app.get('/api/wallet/transactions', async (req, res) => {
     const pageNum = Number(page);
     const limitNum = Number(limit);
     if (!userId) {
-      return res.status(401).json({ success: false, error: 'User ID required' });
+      return res.status(400).json({ success: false, error: 'User ID required' });
     }
     
 let transactions: any[] = [];
