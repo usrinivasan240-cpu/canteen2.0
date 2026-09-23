@@ -1020,9 +1020,17 @@ app.post('/api/auth/register', async (req, res) => {
     // Step 3: Insert into public.users (best-effort — if DB is down, the user
     // can still log in; the login handler creates a fallback profile from auth
     // metadata when the public.users row is missing).
+    // Tenant ids MUST be NULL (never '') — '' trips the users_* FKs.
     console.log('[Register] Step 3: Inserting into public.users...');
     let profileInserted = false;
     try {
+      let regCollegeId: string | null = (collegeId as string)?.trim() || null;
+      if (regCollegeId && pgReady) {
+        try {
+          const cc: any = await pgGetById('colleges', regCollegeId);
+          if (!cc) regCollegeId = null;
+        } catch { regCollegeId = null; }
+      }
       await pgSet('users', authUser.id, {
         id: authUser.id,
         name,
@@ -1031,7 +1039,9 @@ app.post('/api/auth/register', async (req, res) => {
         role: 'customer',
         phone: phone || '',
         registerNumber: registerNumber || '',
-        collegeId: collegeId || ''
+        collegeId: regCollegeId,
+        canteenId: null,
+        subCanteenId: null
       });
       profileInserted = true;
       console.log('[Register] Step 3 OK: User profile inserted.');
@@ -1911,6 +1921,12 @@ app.post('/api/users', async (req, res) => {
   if (!user.id) user.id = `user_${Date.now()}`;
   if (!user.status) user.status = 'active';
   if (!user.password) user.password = 'changeme_' + Math.random().toString(36).substring(2, 10);
+  // Tenant ids MUST be NULL (never '') — '' trips the users_* FKs.
+  for (const k of ['collegeId', 'canteenId', 'subCanteenId'] as const) {
+    if ((user as any)[k] !== undefined && String((user as any)[k]).trim() === '') {
+      (user as any)[k] = null;
+    }
+  }
   const rawPassword = user.password;
 
   // Create the Supabase Auth account first (without it the profile can never log in).
@@ -3016,6 +3032,8 @@ app.post('/api/canteen/order', async (req, res) => {
       // Resolve wallet — auto-provision on first use so buyers never hit a
       // dead-end "Wallet not found". A fresh wallet has 0 balance, so the
       // purchase proc below returns INSUFFICIENT_BALANCE with a top-up hint.
+      // ensureUserRow first: wallets.user_id FK needs the profile row.
+      await ensureUserRow((req as any).authUser?.id || userId, (req as any).authEmail || '');
       let walletRows: any[] = await query('SELECT id FROM wallets WHERE user_id = $1 LIMIT 1', [userId]);
       if (!walletRows || walletRows.length === 0) {
         try {
@@ -5415,6 +5433,32 @@ function toWalletResponse(w: any, balance: number): any {
   };
 }
 
+// Users created before the users_* FKs (or via auth-only flows) may have no
+// public.users row — wallets.user_id FK then blocks wallet creation.
+// Recreate the minimal profile from the verified auth identity (best-effort,
+// never blocks the caller on failure).
+async function ensureUserRow(authId: string, email: string): Promise<void> {
+  if (!pgReady || !authId || !email) return;
+  try {
+    const existing = await pgGetByEmail('users', email);
+    if (existing) return;
+    await pgSet('users', authId, {
+      id: authId,
+      name: email.split('@')[0],
+      email: email.trim().toLowerCase(),
+      password: '',
+      role: 'customer',
+      phone: '',
+      registerNumber: '',
+      collegeId: null,
+      canteenId: null,
+      subCanteenId: null
+    });
+  } catch (e: any) {
+    console.warn('[users] ensure profile failed (non-fatal):', e?.message || e);
+  }
+}
+
 // GET /api/wallet - combined wallet data (wallet, transactions, topups)
 app.get('/api/wallet', async (req, res) => {
   try {
@@ -5567,6 +5611,7 @@ app.post('/api/wallet/topup', async (req, res) => {
     
     let wallet: any = null;
     if (pgReady) {
+      await ensureUserRow((req as any).authUser?.id, (req as any).authEmail || '');
       const wrow = await getWalletRowByUserId(userId);
       if (wrow) {
         wallet = toWalletResponse(wrow, await getWalletBalancePaise(wrow.id));

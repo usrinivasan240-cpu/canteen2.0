@@ -235,9 +235,9 @@ CREATE TABLE IF NOT EXISTS "users" (
   "role" text DEFAULT 'customer'::text,
   "phone" text DEFAULT ''::text,
   "register_number" text DEFAULT ''::text,
-  "college_id" text DEFAULT ''::text,
-  "canteen_id" text DEFAULT ''::text,
-  "sub_canteen_id" text DEFAULT ''::text,
+  "college_id" text DEFAULT NULL,
+  "canteen_id" text DEFAULT NULL,
+  "sub_canteen_id" text DEFAULT NULL,
   "status" text DEFAULT 'active'::text,
   "posting" text DEFAULT ''::text,
   "created_at" bigint DEFAULT 0
