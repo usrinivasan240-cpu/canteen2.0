@@ -64,7 +64,12 @@ class CollegeBranding {
   });
 
   factory CollegeBranding.fromJson(dynamic raw) {
-    final json = _maybeJsonDecode(raw) as Map<String, dynamic>;
+    final decoded = _maybeJsonDecode(raw);
+    final json = decoded is Map<String, dynamic>
+        ? decoded
+        : decoded is Map
+            ? Map<String, dynamic>.from(decoded)
+            : <String, dynamic>{};
     List<String>? badges;
     final fb = _maybeJsonDecode(json['featureBadges']);
     if (fb is List) badges = fb.map((e) => e.toString()).toList();
