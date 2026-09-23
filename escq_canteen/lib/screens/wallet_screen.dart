@@ -771,9 +771,9 @@ class _AddMoneyBottomSheetState extends State<_AddMoneyBottomSheet> {
       return;
     }
     final amount = double.tryParse(_amountController.text) ?? 0;
-    if (amount < 50) {
+    if (amount < 5) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Minimum amount is ₹50')),
+        const SnackBar(content: Text('Minimum amount is ₹5')),
       );
       return;
     }
@@ -915,7 +915,7 @@ class _AddMoneyBottomSheetState extends State<_AddMoneyBottomSheet> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Minimum ₹50 | Maximum ₹10,000',
+            'Minimum ₹5 | Maximum ₹10,000',
             style: TextStyle(fontSize: 13, color: Colors.grey[500]),
           ),
           const SizedBox(height: 24),
