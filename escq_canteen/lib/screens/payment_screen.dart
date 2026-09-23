@@ -215,11 +215,22 @@ class _PaymentScreenState extends State<PaymentScreen> {
         _showRazorpayModal(_razorpayOrderId!, _amountPaise!);
         _startPolling();
       }
-      // Direct order success (free items or already paid)
+      // Direct order success (free items or already paid, e.g. wallet).
+      // The order (with QR payload + bill lines) is already in hand — show
+      // it instantly instead of parking on the recovery spinner.
       else {
-        context.read<OrderProvider>().setLastOrder(Order.fromJson(result['order']));
-        context.read<CartProvider>().clear();
-        setState(() { isProcessing = false; isComplete = true; });
+        try {
+          final order = Order.fromJson(result['order']);
+          _successOrder = order;
+          context.read<OrderProvider>().setLastOrder(order);
+          context.read<CartProvider>().clear();
+          final uid = context.read<AuthProvider>().user?.id ?? '';
+          if (uid.isNotEmpty) context.read<OrderProvider>().loadOrders(uid);
+          setState(() { isProcessing = false; isComplete = true; });
+        } catch (e) {
+          debugPrint('[Payment] Direct order parse failed: $e');
+          setState(() { isProcessing = false; isComplete = true; });
+        }
       }
     } catch (e) {
       setState(() { isProcessing = false; isFailed = true; errorMessage = e.toString(); });
@@ -486,8 +497,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final match = orders.where((o) => o.id == orderId).toList();
       if (match.isNotEmpty) {
         if (!mounted) return;
+        _successOrder = match.first;
         context.read<OrderProvider>().setLastOrder(match.first);
         context.read<OrderProvider>().loadOrders(auth.user?.id ?? '');
+        setState(() {});
       } else {
         if (!mounted) return;
         setState(() => _recoverySeconds = 0);
