@@ -32,10 +32,14 @@ jobs:
         # the placeholder below only keeps forks building, with pushes broken.
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
         run: |
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             printf '%s' "$GOOGLE_SERVICES_JSON" > escq_canteen/android/app/google-services.json
-            echo "Using real google-services.json from secrets."
+            echo "Using real google-services.json from GOOGLE_SERVICES_JSON."
+          elif [ -n "$GOOGLE_SERVICES" ]; then
+            printf '%s' "$GOOGLE_SERVICES" > escq_canteen/android/app/google-services.json
+            echo "Using real google-services.json from GOOGLE_SERVICES."
           else
             echo "::warning::GOOGLE_SERVICES_JSON secret is empty — building with placeholder (push notifications WILL NOT work)."
             cat > escq_canteen/android/app/google-services.json << 'EOF'
