@@ -471,7 +471,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.24';
+const APP_VERSION = '2.5.25';
 
 const APP_UPDATE_URL = 'https://canteen20-liart.vercel.app';
 app.get('/api/app-version', (req, res) => {
@@ -2181,7 +2181,12 @@ app.get('/api/canteen', async (req, res) => {
         settings
       };
 
-      setCache(cacheKey, result, CANTEEN_CACHE_TTL);
+      // NOTE: intentionally NOT cached. This payload carries live order
+      // statuses polled every few seconds by chef/staff apps, and the API
+      // runs on serverless instances with per-instance memory — a cached
+      // copy on instance B survives invalidation on instance A, so orders
+      // would snap back to old statuses (and re-taps re-fire pushes).
+      // Postgres is the single source of truth here.
       return res.json({ success: true, canteen: result });
     } catch (err) {
       console.error('PostgreSQL get error, falling back to local memory state:', err);
@@ -4679,7 +4684,11 @@ app.post('/api/canteen/order/status', async (req, res) => {
   // re-fires notifications + kitchen side effects.
   if ((updatedOrder as any).canteenId) invalidateCanteenCache((updatedOrder as any).canteenId);
 
-  await notifyOrderStatus(updatedOrder, targetOrder.status, mappedStatus);
+  // Same-status replays (client retries, double taps) must NOT re-notify —
+  // each push is a real customer ping.
+  if (targetOrder.status !== mappedStatus) {
+    await notifyOrderStatus(updatedOrder, targetOrder.status, mappedStatus);
+  }
 
   res.json({ success: true, message: `Order status set to: ${mappedStatus}`, order: updatedOrder });
 });

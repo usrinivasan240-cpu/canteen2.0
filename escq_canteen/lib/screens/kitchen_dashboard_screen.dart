@@ -24,6 +24,9 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
   List<Order> _allOrders = [];
   List<MenuItem> _menuItems = [];
   String _viewMode = 'orders';
+  // Orders with a status write in flight — their buttons stay disabled so an
+  // impatient second tap can never double-submit (double push to customer).
+  final Set<String> _updatingIds = {};
 
   @override
   void initState() {
@@ -70,8 +73,10 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
   }
 
   Future<void> _updateStatus(String orderId, String status) async {
+    if (_updatingIds.contains(orderId)) return;
     // Optimistic update — change instantly
     setState(() {
+      _updatingIds.add(orderId);
       _allOrders = _allOrders.map((o) {
         if (o.id == orderId) {
           return Order(
@@ -122,6 +127,8 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
           SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 1)),
         );
       }
+    } finally {
+      if (mounted) setState(() => _updatingIds.remove(orderId));
     }
   }
 
@@ -577,6 +584,7 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
   Widget _buildOrderCard(Order order, String phase, bool isDark) {
     final items = order.items.map((i) => '${i.quantity}x ${i.name}').join(', ');
     final liveTime = _liveElapsed(order.createdAt);
+    final busy = _updatingIds.contains(order.id);
 
     Color statusColor;
     String statusLabel;
@@ -600,7 +608,8 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
               () => _updateStatus(order.id, 'ready'),
               confirmTitle: 'Mark ready?',
               confirmMessage:
-                  'Mark ${order.id} as ready? The customer will be notified for pickup.'),
+                  'Mark ${order.id} as ready? The customer will be notified for pickup.',
+              enabled: !busy),
         ];
         break;
       default:
@@ -611,7 +620,8 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
               () => _updateStatus(order.id, 'preparing'),
               confirmTitle: 'Start cooking?',
               confirmMessage:
-                  'Move ${order.id} to the stove? The customer will be notified that cooking started.'),
+                  'Move ${order.id} to the stove? The customer will be notified that cooking started.',
+              enabled: !busy),
         ];
     }
 
@@ -669,36 +679,39 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     );
   }
 
-  Widget _actionButton(String label, IconData icon, Color color, VoidCallback onTap, {String? confirmTitle, String? confirmMessage}) {
+  Widget _actionButton(String label, IconData icon, Color color, VoidCallback onTap, {String? confirmTitle, String? confirmMessage, bool enabled = true}) {
+    final bg = enabled ? color : Colors.grey[400]!;
     return GestureDetector(
-      onTap: () {
-        if (confirmTitle != null && confirmMessage != null) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text(confirmTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
-              content: Text(confirmMessage),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    onTap();
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white),
-                  child: Text(label),
-                ),
-              ],
-            ),
-          );
-        } else {
-          onTap();
-        }
-      },
+      onTap: enabled
+          ? () {
+              if (confirmTitle != null && confirmMessage != null) {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    title: Text(confirmTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    content: Text(confirmMessage),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          onTap();
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white),
+                        child: Text(label),
+                      ),
+                    ],
+                  ),
+                );
+              } else {
+                onTap();
+              }
+            }
+          : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, color: Colors.white, size: 16),
           const SizedBox(width: 4),

@@ -324,10 +324,13 @@ class ApiService {
   }
 
   // Update order status
-  Future<Map<String, dynamic>> updateOrderStatus(String orderId, String status) async {
-    return _post('/api/canteen/order/status', {'id': orderId, 'status': status});
+  Future<Map<String, dynamic>> updateOrderStatus(String orderId,
+      String status) async {
+    // Never auto-retry: the server pushes a customer notification per call,
+    // so a retried POST would notify twice for one tap.
+    return _post('/api/canteen/order/status', {'id': orderId, 'status': status},
+        allowRetry: false);
   }
-
   // Add review
   Future<Map<String, dynamic>> addReview({
     required String userId,
