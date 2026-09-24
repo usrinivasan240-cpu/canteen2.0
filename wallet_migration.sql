@@ -271,17 +271,17 @@ DECLARE
 BEGIN
   -- Check wallet exists and is active
   IF NOT EXISTS (SELECT 1 FROM wallets WHERE id = p_wallet_id AND status = 'ACTIVE') THEN
-    RETURN QUERY VALUES (FALSE, NULL, 0, 'Wallet not found or inactive');
+    RETURN QUERY VALUES (FALSE, NULL::UUID, 0::BIGINT, 'Wallet not found or inactive'::TEXT);
   END IF;
   
   -- Check idempotency
   IF EXISTS (SELECT 1 FROM wallet_transactions WHERE idempotency_key = p_idempotency_key AND status = 'SUCCESS') THEN
-    RETURN QUERY VALUES (TRUE, NULL, (SELECT get_wallet_balance(p_wallet_id)), 'DUPLICATE_REQUEST');
+    RETURN QUERY VALUES (TRUE, NULL::UUID, (SELECT get_wallet_balance(p_wallet_id)), 'DUPLICATE_REQUEST'::TEXT);
   END IF;
   
   -- Check balance
   IF (SELECT get_wallet_balance(p_wallet_id)) < p_amount THEN
-    RETURN QUERY VALUES (FALSE, NULL, (SELECT get_wallet_balance(p_wallet_id)), 'INSUFFICIENT_BALANCE');
+    RETURN QUERY VALUES (FALSE, NULL::UUID, (SELECT get_wallet_balance(p_wallet_id)), 'INSUFFICIENT_BALANCE'::TEXT);
   END IF;
   
   -- Create debit transaction
@@ -291,14 +291,13 @@ BEGIN
   ) VALUES (
     p_wallet_id, 'PURCHASE', p_amount, 'DEBIT', 'SUCCESS',
     'ORDER', p_order_id, p_idempotency_key, 'Food purchase', EXTRACT(EPOCH FROM NOW()) * 1000
-  )
-  RETURNING id INTO v_balance;
+  );
   
   RETURN QUERY VALUES (
     TRUE, 
     (SELECT id FROM wallet_transactions WHERE idempotency_key = p_idempotency_key AND type = 'PURCHASE'),
     (SELECT get_wallet_balance(p_wallet_id)), 
-    NULL
+    NULL::TEXT
   );
 END;
 $$;
@@ -330,7 +329,7 @@ BEGIN
   WHERE id = p_original_transaction_id AND wallet_id = p_wallet_id AND type = 'PURCHASE' AND status = 'SUCCESS';
   
   IF NOT FOUND THEN
-    RETURN QUERY VALUES (FALSE, NULL, 0, 'Original purchase transaction not found');
+    RETURN QUERY VALUES (FALSE, NULL::UUID, 0::BIGINT, 'Original purchase transaction not found'::TEXT);
   END IF;
   
   -- Check if already refunded
@@ -338,12 +337,12 @@ BEGIN
     SELECT 1 FROM wallet_transactions 
     WHERE reference_id = p_original_transaction_id::TEXT AND type = 'REFUND' AND status = 'SUCCESS'
   ) THEN
-    RETURN QUERY VALUES (TRUE, NULL, (SELECT get_wallet_balance(p_wallet_id)), 'DUPLICATE_REFUND');
+    RETURN QUERY VALUES (TRUE, NULL::UUID, (SELECT get_wallet_balance(p_wallet_id)), 'DUPLICATE_REFUND'::TEXT);
   END IF;
   
   -- Check idempotency
   IF EXISTS (SELECT 1 FROM wallet_transactions WHERE idempotency_key = p_idempotency_key AND status = 'SUCCESS') THEN
-    RETURN QUERY VALUES (TRUE, NULL, (SELECT get_wallet_balance(p_wallet_id)), 'DUPLICATE_REFUND');
+    RETURN QUERY VALUES (TRUE, NULL::UUID, (SELECT get_wallet_balance(p_wallet_id)), 'DUPLICATE_REFUND'::TEXT);
   END IF;
   
   -- Create refund transaction
@@ -353,15 +352,14 @@ BEGIN
   ) VALUES (
     p_wallet_id, 'REFUND', p_amount, 'CREDIT', 'SUCCESS',
     'REFUND', p_original_transaction_id::TEXT, 
-    'REFUND_' || gen_random_uuid()::TEXT, 'Refund for order', EXTRACT(EPOCH FROM NOW()) * 1000
-  )
-  RETURNING id INTO v_balance;
+    p_idempotency_key, 'Refund for order', EXTRACT(EPOCH FROM NOW()) * 1000
+  );
   
   RETURN QUERY VALUES (
     TRUE, 
-    (SELECT id FROM wallet_transactions WHERE idempotency_key = 'REFUND_' || p_original_transaction_id::TEXT),
+    (SELECT id FROM wallet_transactions WHERE idempotency_key = p_idempotency_key AND type = 'REFUND'),
     (SELECT get_wallet_balance(p_wallet_id)),
-    NULL
+    NULL::TEXT
   );
 END;
 $$;
