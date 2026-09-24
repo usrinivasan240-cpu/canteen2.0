@@ -435,6 +435,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         Text('PAYMENT METHOD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: subTextColor, letterSpacing: 0.5)),
                         const SizedBox(height: 10),
                         _gatewayTile('razorpay', 'Razorpay', Icons.credit_card, subTextColor, textColor),
+                        if (selectedGateway == 'razorpay' && (cart.totalAmount - _discount) < 1)
+                          Padding(padding: const EdgeInsets.only(top: 8), child: Text('Razorpay needs a minimum order of ₹1.00.', style: TextStyle(fontSize: 11, color: Colors.red[600], fontWeight: FontWeight.w600))),
                         const SizedBox(height: 8),
                         _gatewayTile('wallet', 'Wallet${_walletBalance != null ? ' (₹${_walletBalance!.toStringAsFixed(2)})' : ''}', Icons.account_balance_wallet, subTextColor, textColor),
                         if (selectedGateway == 'wallet' && _walletBalance != null && _walletBalance! < (cart.totalAmount - _discount))
@@ -450,6 +452,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       onPressed: cart.isEmpty ? null : () {
                         if (selectedGateway == 'wallet' && _walletBalance != null && _walletBalance! < (cart.totalAmount - _discount)) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Insufficient wallet balance')));
+                          return;
+                        }
+                        if (selectedGateway == 'razorpay' && (cart.totalAmount - _discount) < 1) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order total must be at least ₹1.00 for Razorpay.')));
                           return;
                         }
                         Navigator.push(

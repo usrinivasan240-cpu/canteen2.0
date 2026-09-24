@@ -471,7 +471,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.23';
+const APP_VERSION = '2.5.24';
 
 const APP_UPDATE_URL = 'https://canteen20-liart.vercel.app';
 app.get('/api/app-version', (req, res) => {
@@ -2858,6 +2858,11 @@ app.post('/api/canteen/order', async (req, res) => {
     try {
       const totalPrice = Number(subtotal.toFixed(2));
       const totalAmountPaise = Math.round(totalPrice * 100);
+      // Razorpay rejects anything below ₹1 — fail fast with a clear message
+      // instead of a cryptic gateway error after the order row is written.
+      if (totalAmountPaise < 100) {
+        return res.status(400).json({ success: false, error: 'Order total must be at least ₹1.00 for Razorpay payment.', code: 'MIN_AMOUNT' });
+      }
 
       const razorpayOrder = await razorpay.orders.create({
         amount: totalAmountPaise,
