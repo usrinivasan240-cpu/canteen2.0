@@ -272,7 +272,11 @@ BEGIN
   -- Check wallet exists and is active
   IF NOT EXISTS (SELECT 1 FROM wallets WHERE id = p_wallet_id AND status = 'ACTIVE') THEN
     RETURN QUERY VALUES (FALSE, NULL::UUID, 0::BIGINT, 'Wallet not found or inactive'::TEXT);
+    RETURN;
   END IF;
+  -- Row lock: serializes concurrent debits so two simultaneous pays can
+  -- never both pass the balance check and drive the ledger negative.
+  PERFORM 1 FROM wallets WHERE id = p_wallet_id FOR UPDATE;
   
   -- Check idempotency
   IF EXISTS (SELECT 1 FROM wallet_transactions WHERE idempotency_key = p_idempotency_key AND status = 'SUCCESS') THEN

@@ -471,7 +471,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.21';
+const APP_VERSION = '2.5.22';
 
 const APP_UPDATE_URL = 'https://canteen20-liart.vercel.app';
 app.get('/api/app-version', (req, res) => {
@@ -3057,7 +3057,7 @@ app.post('/api/canteen/order', async (req, res) => {
       const pr = purchaseRes[0];
       if (!pr || !pr.success) {
         const errMsg = pr?.error || 'Wallet payment failed';
-        if (errMsg === 'INSUFFICIENT_BALANCE') return res.status(402).json({ success: false, error: 'Insufficient wallet balance', code: 'INSUFFICIENT_BALANCE' });
+        if (errMsg === 'INSUFFICIENT_BALANCE') return res.status(402).json({ success: false, error: `Insufficient wallet balance (₹${(Number(pr.new_balance || 0) / 100).toFixed(2)}). Please top up.`, code: 'INSUFFICIENT_BALANCE', balance: Number(pr.new_balance || 0) });
         return res.status(400).json({ success: false, error: errMsg });
       }
       // Stock deduction (reuse fulfill logic but wallet already debited)

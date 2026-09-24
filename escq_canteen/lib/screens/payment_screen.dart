@@ -10,6 +10,7 @@ import '../services/api_service.dart';
 import '../config.dart';
 import '../models/order.dart';
 import 'home_screen.dart';
+import 'wallet_screen.dart';
 
 class PaymentScreen extends StatefulWidget {
   final double totalAmount;
@@ -44,6 +45,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
   Timer? _recoveryTimer;
   int _recoverySeconds = 0;
   Order? _successOrder;
+  // True when the failure is short balance (wallet 10 vs bill 11): the order
+  // is NOT placed and the ledger is untouched — top-up first, retry after.
+  bool _isInsufficient = false;
 
   @override
   void initState() {
@@ -179,7 +183,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
       );
 
       if (result['success'] != true) {
-        setState(() { isProcessing = false; isFailed = true; errorMessage = result['error'] ?? 'Order failed'; });
+        final code = result['code']?.toString() ?? '';
+        final err = (result['error'] ?? 'Order failed').toString();
+        _isInsufficient = code == 'INSUFFICIENT_BALANCE' ||
+            err.toLowerCase().contains('insufficient');
+        setState(() { isProcessing = false; isFailed = true; errorMessage = err; });
         return;
       }
 
@@ -242,7 +250,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   /// yet (order creation itself failed) is a fresh order placed.
   void _retryPayment() {
     _pollTimer?.cancel();
-    setState(() { isFailed = false; isUncertain = false; isProcessing = true; _pollCount = 0; });
+    setState(() { isFailed = false; isUncertain = false; _isInsufficient = false; isProcessing = true; _pollCount = 0; });
     if (orderId != null && _razorpayOrderId != null && _amountPaise != null) {
       setState(() { isProcessing = false; waitingForPayment = true; });
       _showRazorpayModal(_razorpayOrderId!, _amountPaise!);
@@ -801,6 +809,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Widget _buildFailed() {
+    final insufficient = _isInsufficient;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -809,31 +818,70 @@ class _PaymentScreenState extends State<PaymentScreen> {
           children: [
             Container(
               width: 80, height: 80,
-              decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(20)),
-              child: Icon(Icons.error_outline, color: Colors.red[600], size: 44),
+              decoration: BoxDecoration(
+                color: insufficient ? const Color(0xFFFEF9E7) : Colors.red[50],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                insufficient ? Icons.account_balance_wallet_outlined : Icons.error_outline,
+                color: insufficient ? const Color(0xFFD97706) : Colors.red[600],
+                size: 44,
+              ),
             ),
             const SizedBox(height: 24),
-            const Text('Payment Failed', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF111827))),
+            Text(
+              insufficient ? 'Insufficient Balance' : 'Payment Failed',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF111827)),
+            ),
             const SizedBox(height: 8),
-            Text(errorMessage ?? 'Something went wrong', style: TextStyle(fontSize: 14, color: Colors.grey[500]), textAlign: TextAlign.center),
+            Text(
+              insufficient
+                  ? '${errorMessage ?? 'Your wallet balance is short for this bill.'}\nNo money was deducted. Top up and try again.'
+                  : (errorMessage ?? 'Something went wrong'),
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 32),
+            if (insufficient) ...[
+              SizedBox(
+                width: double.infinity, height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WalletScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Top Up Wallet', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF59E0B),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             SizedBox(
               width: double.infinity, height: 52,
               child: ElevatedButton(
-                onPressed: _retryPayment,
+                onPressed: insufficient ? () => Navigator.pop(context) : _retryPayment,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF59E0B),
-                  foregroundColor: Colors.white,
+                  backgroundColor: insufficient ? Colors.grey[200] : const Color(0xFFF59E0B),
+                  foregroundColor: insufficient ? const Color(0xFF111827) : Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('Try Again', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                child: Text(insufficient ? 'Go Back' : 'Try Again', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
               ),
             ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Go Back', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-            ),
+            if (!insufficient) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Go Back', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+              ),
+            ],
           ],
         ),
       ),
