@@ -41,37 +41,8 @@ jobs:
             printf '%s' "$GOOGLE_SERVICES" > escq_canteen/android/app/google-services.json
             echo "Using real google-services.json from GOOGLE_SERVICES."
           else
-            echo "::warning::GOOGLE_SERVICES_JSON secret is empty — building with placeholder (push notifications WILL NOT work)."
-            cat > escq_canteen/android/app/google-services.json << 'EOF'
-            {
-              "project_info": {
-                "project_number": "123456789012",
-                "project_id": "canteen2-placeholder",
-                "storage_bucket": "canteen2-placeholder.appspot.com"
-              },
-              "client": [
-                {
-                  "client_info": {
-                    "mobilesdk_app_id": "1:123456789012:android:abcdef123456",
-                    "android_client_info": {
-                      "package_name": "com.escq.canteen"
-                    }
-                  },
-                  "oauth_client": [],
-                  "api_key": [
-                    {
-                      "current_key": "PLACEHOLDER_API_KEY"
-                    }
-                  ],
-                  "services": {
-                    "appinvite_service": {
-                      "other_platform_oauth_client": []
-                    }
-                  }
-                }
-              ]
-            }
-            EOF
+            echo "::warning::No Firebase secret set - building with placeholder (push notifications WILL NOT work)."
+            python3 -c "open('escq_canteen/android/app/google-services.json','w').write('{\"project_info\":{\"project_number\":\"123456789012\",\"project_id\":\"canteen2-placeholder\",\"storage_bucket\":\"canteen2-placeholder.appspot.com\"},\"client\":[{\"client_info\":{\"mobilesdk_app_id\":\"1:123456789012:android:abcdef123456\",\"android_client_info\":{\"package_name\":\"com.escq.canteen\"}},\"oauth_client\":[],\"api_key\":[{\"current_key\":\"PLACEHOLDER_API_KEY\"}],\"services\":{\"appinvite_service\":{\"other_platform_oauth_client\":[]}}}]}')"
           fi
         shell: bash
 
