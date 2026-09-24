@@ -229,6 +229,31 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
     );
   }
 
+  Future<bool> _confirmStep(
+      BuildContext context, String title, String message, String okLabel) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(message),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF59E0B),
+                foregroundColor: Colors.white),
+            child: Text(okLabel),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Widget _buildTaskCard(Map<String, dynamic> task, String status, bool isDark, ChefProvider chefProv) {
     Color statusColor;
     switch (status) {
@@ -276,7 +301,14 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
                   icon: const Icon(Icons.play_arrow, size: 14),
                   label: const Text('Start', style: TextStyle(fontSize: 11)),
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEA580C), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  onPressed: () {
+                  onPressed: () async {
+                    final ok = await _confirmStep(
+                      context,
+                      'Start cooking?',
+                      'Move this task to the stove? The customer will be notified.',
+                      'Start',
+                    );
+                    if (!ok || !context.mounted) return;
                     final uid = context.read<AuthProvider>().user;
                     chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'PREPARING', canteenId: uid?.canteenId, chefId: uid?.id);
                   },
@@ -286,7 +318,14 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
                   icon: const Icon(Icons.check, size: 14),
                   label: const Text('Mark Ready', style: TextStyle(fontSize: 11)),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  onPressed: () {
+                  onPressed: () async {
+                    final ok = await _confirmStep(
+                      context,
+                      'Mark ready?',
+                      'Mark this task as ready? The customer will be notified for pickup.',
+                      'Mark Ready',
+                    );
+                    if (!ok || !context.mounted) return;
                     final uid = context.read<AuthProvider>().user;
                     chefProv.updateKitchenTaskStatus(taskId: task['id'], status: 'READY', canteenId: uid?.canteenId, chefId: uid?.id);
                   },

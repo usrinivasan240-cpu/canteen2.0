@@ -93,7 +93,26 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
     });
     try {
       final result = await _api.updateOrderStatus(orderId, status);
-      if (result['success'] != true) {
+      if (result['success'] == true) {
+        // Reconcile with the server copy (it carries pickup text + exact
+        // status). With cache invalidation server-side, the next poll
+        // agrees — no more snap-back to the old list.
+        try {
+          final srv = result['order'];
+          if (srv is Map<String, dynamic>) {
+            final confirmed = Order.fromJson(srv);
+            if (mounted) {
+              setState(() {
+                _allOrders = _allOrders
+                    .map((o) => o.id == orderId ? confirmed : o)
+                    .toList();
+              });
+            }
+          }
+        } catch (e) {
+          debugPrint('[Kitchen] reconcile failed: $e');
+        }
+      } else {
         _loadOrders(); // revert on failure
       }
     } catch (e) {
@@ -577,14 +596,22 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
         statusColor = const Color(0xFFEA580C);
         statusLabel = 'Cooking';
         actions = [
-          _actionButton('Done', Icons.check, const Color(0xFF16A34A), () => _updateStatus(order.id, 'ready')),
+          _actionButton('Done', Icons.check, const Color(0xFF16A34A),
+              () => _updateStatus(order.id, 'ready'),
+              confirmTitle: 'Mark ready?',
+              confirmMessage:
+                  'Mark ${order.id} as ready? The customer will be notified for pickup.'),
         ];
         break;
       default:
         statusColor = const Color(0xFF2563EB);
         statusLabel = order.pickupSlot != null && order.pickupSlot!.isNotEmpty && order.pickupSlot != 'ASAP (Instant)' ? 'Pre-book' : 'New';
         actions = [
-          _actionButton('Cook', Icons.play_arrow, const Color(0xFFEA580C), () => _updateStatus(order.id, 'preparing')),
+          _actionButton('Cook', Icons.play_arrow, const Color(0xFFEA580C),
+              () => _updateStatus(order.id, 'preparing'),
+              confirmTitle: 'Start cooking?',
+              confirmMessage:
+                  'Move ${order.id} to the stove? The customer will be notified that cooking started.'),
         ];
     }
 

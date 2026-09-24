@@ -471,7 +471,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.22';
+const APP_VERSION = '2.5.23';
 
 const APP_UPDATE_URL = 'https://canteen20-liart.vercel.app';
 app.get('/api/app-version', (req, res) => {
@@ -4669,10 +4669,14 @@ app.post('/api/canteen/order/status', async (req, res) => {
   }
 
   canteenState.orders = canteenState.orders.map(order => order.id === id ? updatedOrder : order);
+  // Chef apps poll GET /api/canteen (30s cache) — without this the order
+  // snaps back to its old status on next refresh and every re-tap
+  // re-fires notifications + kitchen side effects.
+  if ((updatedOrder as any).canteenId) invalidateCanteenCache((updatedOrder as any).canteenId);
 
   await notifyOrderStatus(updatedOrder, targetOrder.status, mappedStatus);
 
-  res.json({ success: true, message: `Order status set to: ${mappedStatus}` });
+  res.json({ success: true, message: `Order status set to: ${mappedStatus}`, order: updatedOrder });
 });
 
 // 5a. Update Order Pickup Slot (Owner editing order)
@@ -4714,6 +4718,7 @@ app.post('/api/canteen/order/update-slot', async (req, res) => {
 
   canteenState.orders = canteenState.orders.map(order => order.id === id ? updatedOrder : order);
   saveLocalDB();
+  if ((updatedOrder as any).canteenId) invalidateCanteenCache((updatedOrder as any).canteenId);
   res.json({ success: true, order: updatedOrder });
 });
 
@@ -4754,6 +4759,7 @@ app.post('/api/canteen/order/batch-status', async (req, res) => {
         await pgSet('orders', id, updated);
       }
       canteenState.orders = canteenState.orders.map(o => o.id === id ? updated : o);
+      if ((updated as any).canteenId) invalidateCanteenCache((updated as any).canteenId);
       updatedOrders.push(updated);
     }
   }
@@ -5301,6 +5307,7 @@ app.post('/api/kitchen/tasks/:id/status', async (req, res) => {
 
     // Check if all tasks for this order are complete
     await maybeMarkOrderReadyFromTasks(task.orderId, task.canteenId);
+    if (task.canteenId) invalidateCanteenCache(task.canteenId);
 
     res.json({ success: true, task: updatedTask });
   } catch (err: any) {

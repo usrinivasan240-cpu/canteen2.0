@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw, Download, X } from 'lucide-react';
 import { API_BASE } from '../config';
 
-const BUNDLED_VERSION = '2.5.22';
+const BUNDLED_VERSION = '2.5.23';
 
 export default function UpdatePopup() {
   const [showUpdate, setShowUpdate] = useState(false);
