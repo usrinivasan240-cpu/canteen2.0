@@ -6,20 +6,37 @@ export const API_BASE = isLocalDev
   ? ''
   : (import.meta.env.VITE_API_BASE_URL as string) || window.location.origin;
 
-// Never hardcode these: they are baked into the public bundle and cannot be
-// rotated without a rebuild. Unset in dev is fine — token refresh no-ops.
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) || '';
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || '';
+// Supabase creds resolve from build-time VITE_* when present, otherwise at
+// runtime from /api/client-config. Nothing is hardcoded, so rotating Supabase
+// no longer requires a frontend rebuild.
+let supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string) || '';
+let supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || '';
+let configLoaded = !!(supabaseUrl && supabaseAnonKey);
+let configPromise: Promise<boolean> | null = null;
 
-// Build-time misconfiguration, not a session problem: no re-login can fix it.
-export const isSupabaseConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+export let isSupabaseConfigured = configLoaded;
 
-if (!isSupabaseConfigured) {
-  console.error(
-    '[config] VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not both set. ' +
-    'Add them to the build environment (for Vercel: project Settings -> Environment ' +
-    'Variables, then redeploy). Login and token refresh cannot work until they are.'
-  );
+async function loadSupabaseConfig(): Promise<boolean> {
+  if (configLoaded) return true;
+  if (!configPromise) {
+    // Uses the pre-interceptor fetch on purpose: the interceptor would re-enter
+    // refreshAccessToken and recurse.
+    configPromise = _originalFetch(`${API_BASE}/api/client-config`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && d.supabaseUrl && d.supabaseAnonKey) {
+          supabaseUrl = d.supabaseUrl;
+          supabaseAnonKey = d.supabaseAnonKey;
+          configLoaded = true;
+          isSupabaseConfigured = true;
+          return true;
+        }
+        console.error('[config] /api/client-config returned no Supabase creds — set SUPABASE_URL and SUPABASE_ANON_KEY on the server.');
+        return false;
+      })
+      .catch(() => false);
+  }
+  return configPromise;
 }
 
 function getTokenExp(token: string): number | null {
@@ -37,12 +54,12 @@ function needsRefresh(token: string): boolean {
   return exp * 1000 - Date.now() < 60_000;
 }
 
-function hardResetAuth(): void {
+function hardResetAuth(canReload = true): void {
   ['bb_token', 'bb_refresh_token', 'bb_user', 'bb_role', 'bb_loggedIn'].forEach((k) => localStorage.removeItem(k));
   // Reloading only helps if a fresh session can be established. When the Supabase
-  // env pair is missing it cannot, so reloading here would trap the visitor in an
-  // endless refresh loop with no way back out.
-  if (!isSupabaseConfigured) return;
+  // creds are unavailable it cannot, so reloading here would trap the visitor in
+  // an endless refresh loop with no way back out.
+  if (!canReload) return;
   window.location.reload();
 }
 
@@ -50,13 +67,14 @@ let refreshingPromise: Promise<string | null> | null = null;
 
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = localStorage.getItem('bb_refresh_token');
-  if (!refreshToken || !SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  if (!refreshToken) return null;
+  if (!(await loadSupabaseConfig())) return null;
   try {
-    const res = await _originalFetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+    const res = await _originalFetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY
+        'apikey': supabaseAnonKey
       },
       body: JSON.stringify({ refresh_token: refreshToken })
     });
@@ -86,7 +104,7 @@ async function getValidToken(): Promise<string | null> {
     }
     const fresh = await refreshingPromise;
     if (!fresh) {
-      hardResetAuth();
+      hardResetAuth(configLoaded);
       return null;
     }
     token = fresh;
@@ -132,7 +150,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
     }
     if (!fresh || attempt.res.status === 401) {
       // Session unrecoverable — clean re-login instead of endless errors.
-      hardResetAuth();
+      hardResetAuth(configLoaded);
       return attempt.res;
     }
   }

@@ -478,6 +478,18 @@ app.get('/api/app-version', (req, res) => {
   res.json({ version: APP_VERSION, updateUrl: APP_UPDATE_URL });
 });
 
+// Public client config, served at runtime so the web bundle needs no VITE_*
+// build vars. The anon key is a publishable credential by design — it ships in
+// every APK and browser bundle regardless, and RLS (0 anon policies =
+// deny-by-default) is the actual security boundary. Serving it from here means
+// rotating Supabase no longer requires a frontend rebuild.
+app.get('/api/client-config', (req, res) => {
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || ''
+  });
+});
+
 // Initialize PostgreSQL (Supabase)
 let pgReady = false;
 let pgInitError: string | null = null;
