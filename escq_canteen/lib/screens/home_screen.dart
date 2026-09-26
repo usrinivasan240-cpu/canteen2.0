@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../providers/auth_provider.dart';
-import '../providers/menu_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/theme_provider.dart';
@@ -16,10 +15,8 @@ import '../models/college.dart';
 import '../models/review.dart';
 import '../services/api_service.dart';
 import 'checkout_screen.dart';
-import '../config.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
-import 'help_support_screen.dart';
 import 'wallet_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -1806,6 +1803,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   else
                     _buildOrderHistory(user),
                   const SizedBox(height: 24),
+                  _buildDarkFooter(
+                    branding,
+                    bFooterCopyright,
+                    bContactPhone,
+                    bContactEmail,
+                    bContactAddress,
+                  ),
                 ],
               ),
             ),
