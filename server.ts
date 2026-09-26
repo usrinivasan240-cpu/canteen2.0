@@ -471,7 +471,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // App version endpoint - bump this to force update popup on all devices
-const APP_VERSION = '2.5.25';
+const APP_VERSION = '2.5.26';
 
 const APP_UPDATE_URL = 'https://canteen20-liart.vercel.app';
 app.get('/api/app-version', (req, res) => {
