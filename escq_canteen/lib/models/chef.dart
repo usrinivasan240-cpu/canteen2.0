@@ -1,4 +1,5 @@
-import 'dart:convert';
+
+import '../utils/json_parse.dart';
 
 enum ChefStatus {
   AVAILABLE,
@@ -81,8 +82,8 @@ class Chef {
           .toList() ?? [],
       status: json['status']?.toString() ?? 'AVAILABLE',
       isAvailable: json['is_available'] ?? true,
-      createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
-      updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
+      createdAt: asInt(json['created_at']),
+      updatedAt: asInt(json['updated_at']),
       createdBy: json['created_by']?.toString(),
     );
   }
@@ -228,16 +229,16 @@ class KitchenTask {
       orderItemId: json['order_item_id']?.toString() ?? '',
       itemId: json['item_id']?.toString() ?? '',
       itemName: json['item_name']?.toString() ?? '',
-      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      quantity: asInt(json['quantity'], 1),
       canteenId: json['canteen_id']?.toString() ?? '',
       chefId: json['chef_id']?.toString(),
       status: json['status']?.toString() ?? 'PENDING',
-      priority: (json['priority'] as num?)?.toInt() ?? 0,
-      assignedAt: (json['assigned_at'] as num?)?.toInt() ?? 0,
-      startedAt: (json['started_at'] as num?)?.toInt() ?? 0,
-      completedAt: (json['completed_at'] as num?)?.toInt() ?? 0,
-      createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
-      updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
+      priority: asInt(json['priority']),
+      assignedAt: asInt(json['assigned_at']),
+      startedAt: asInt(json['started_at']),
+      completedAt: asInt(json['completed_at']),
+      createdAt: asInt(json['created_at']),
+      updatedAt: asInt(json['updated_at']),
     );
   }
 
@@ -333,10 +334,10 @@ class ChefLeave {
     return ChefLeave(
       id: json['id']?.toString() ?? '',
       chefId: json['chef_id']?.toString() ?? '',
-      startDate: (json['start_date'] as num?)?.toInt() ?? 0,
-      endDate: (json['end_date'] as num?)?.toInt() ?? 0,
+      startDate: asInt(json['start_date']),
+      endDate: asInt(json['end_date']),
       reason: json['reason']?.toString() ?? '',
-      createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
+      createdAt: asInt(json['created_at']),
       createdBy: json['created_by']?.toString(),
     );
   }
@@ -353,8 +354,7 @@ class ChefLeave {
 
   bool get isActive {
     final now = DateTime.now().millisecondsSinceEpoch;
-    return startDate <= DateTime.now().millisecondsSinceEpoch &&
-        endDate >= DateTime.now().millisecondsSinceEpoch;
+    return startDate <= now && endDate >= now;
   }
 
   String get formattedStartDate {
@@ -395,11 +395,11 @@ class ChefAvailability {
     return ChefAvailability(
       id: json['id']?.toString() ?? '',
       chefId: json['chef_id']?.toString() ?? '',
-      dayOfWeek: (json['day_of_week'] as num?)?.toInt() ?? 0,
+      dayOfWeek: asInt(json['day_of_week']),
       startTime: json['start_time']?.toString() ?? '',
       endTime: json['end_time']?.toString() ?? '',
       isActive: json['is_active'] ?? true,
-      createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
+      createdAt: asInt(json['created_at']),
     );
   }
 

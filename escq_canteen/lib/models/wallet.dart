@@ -1,4 +1,5 @@
-import 'dart:convert';
+
+import '../utils/json_parse.dart';
 
 enum WalletTransactionType {
   TOPUP,
@@ -74,14 +75,14 @@ class WalletTransaction {
       id: json['id']?.toString() ?? '',
       walletId: json['wallet_id']?.toString() ?? '',
       type: json['type']?.toString() ?? '',
-      amount: (json['amount'] as num?)?.toInt() ?? 0,
+      amount: asInt(json['amount']),
       direction: json['direction']?.toString() ?? 'CREDIT',
       status: json['status']?.toString() ?? 'SUCCESS',
       referenceType: json['reference_type']?.toString(),
       referenceId: json['reference_id']?.toString(),
       idempotencyKey: json['idempotency_key']?.toString(),
       description: json['description']?.toString() ?? '',
-      createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
+      createdAt: asInt(json['created_at']),
     );
   }
 
@@ -162,7 +163,7 @@ class WalletTopup {
     return WalletTopup(
       id: json['id']?.toString() ?? '',
       walletId: (json['wallet_id'] ?? json['walletId'])?.toString() ?? '',
-      amount: (json['amount'] as num?)?.toInt() ?? 0,
+      amount: asInt(json['amount']),
       provider: json['provider']?.toString() ?? '',
       providerOrderId: (json['provider_order_id'] ?? json['providerOrderId'])
           ?.toString(),
@@ -172,10 +173,8 @@ class WalletTopup {
       status: json['status']?.toString() ?? 'PENDING',
       idempotencyKey:
           (json['idempotency_key'] ?? json['idempotencyKey'])?.toString(),
-      createdAt:
-          (json['created_at'] ?? json['createdAt'] as num?)?.toInt() ?? 0,
-      updatedAt:
-          (json['updated_at'] ?? json['updatedAt'] as num?)?.toInt() ?? 0,
+      createdAt: asInt(json['created_at'] ?? json['createdAt']),
+      updatedAt: asInt(json['updated_at'] ?? json['updatedAt']),
     );
   }
 
@@ -237,9 +236,9 @@ class Wallet {
       userId: (json['user_id'] ?? json['userId'])?.toString() ?? '',
       currency: json['currency']?.toString() ?? 'INR',
       status: json['status']?.toString() ?? 'ACTIVE',
-      balance: (json['balance'] as num?)?.toInt() ?? 0,
-      createdAt: (json['created_at'] ?? json['createdAt'] as num?)?.toInt() ?? 0,
-      updatedAt: (json['updated_at'] ?? json['updatedAt'] as num?)?.toInt() ?? 0,
+      balance: asInt(json['balance']),
+      createdAt: asInt(json['created_at'] ?? json['createdAt']),
+      updatedAt: asInt(json['updated_at'] ?? json['updatedAt']),
       transactions: (json['transactions'] as List<dynamic>?)
           ?.map((e) => WalletTransaction.fromJson(e as Map<String, dynamic>))
           .toList(),

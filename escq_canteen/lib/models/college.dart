@@ -1,4 +1,5 @@
-import 'dart:convert';
+﻿import 'dart:convert';
+import '../utils/json_parse.dart';
 
 dynamic _maybeJsonDecode(dynamic v) {
   if (v is String) {
@@ -157,27 +158,27 @@ class College {
   }
 
   /// Superadmin-configured platform fee for a cart amount (mirrors the
-  /// server's calculatePlatformFee). Display estimate only — the server
+  /// server's calculatePlatformFee). Display estimate only â€” the server
   /// computes the charged fee authoritatively per order.
   double platformFeeFor(double amount) {
     final pf = platformFees;
     if (pf == null || amount <= 0) return 0;
     switch ((pf['type'] ?? 'free').toString()) {
       case 'flat':
-        return ((pf['flatAmount'] as num?) ?? 0).toDouble();
+        return asDouble(pf['flatAmount'], 0);
       case 'percentage':
-        final pct = ((pf['percentage'] as num?) ?? 0).toDouble();
+        final pct = asDouble(pf['percentage'], 0);
         return (amount * pct / 100).round().toDouble();
       case 'tiered':
         final tiers = pf['tiers'];
         if (tiers is List) {
           for (final t in tiers) {
             if (t is Map) {
-              final min = ((t['minAmount'] as num?) ?? 0).toDouble();
+              final min = asDouble(t['minAmount'], 0);
               final maxRaw = t['maxAmount'];
-              final max = maxRaw == null ? double.infinity : ((maxRaw as num?) ?? double.infinity).toDouble();
+              final max = maxRaw == null ? double.infinity : asDouble(maxRaw, double.infinity);
               if (amount >= min && amount <= max) {
-                return ((t['feeAmount'] as num?) ?? 0).toDouble();
+                return asDouble(t['feeAmount'], 0);
               }
             }
           }

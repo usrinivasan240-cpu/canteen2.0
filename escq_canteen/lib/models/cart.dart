@@ -1,4 +1,5 @@
-import 'menu_item.dart';
+﻿import 'menu_item.dart';
+import '../utils/json_parse.dart';
 
 class CartItem {
   final MenuItem menuItem;
@@ -34,22 +35,22 @@ class Cart {
     if (cfg == null || subtotal <= 0) return 0;
     switch ((cfg['type'] ?? 'free').toString()) {
       case 'flat':
-        return ((cfg['flatAmount'] as num?) ?? 0).toDouble();
+        return asDouble(cfg['flatAmount'], 0);
       case 'percentage':
-        final pct = ((cfg['percentage'] as num?) ?? 0).toDouble();
+        final pct = asDouble(cfg['percentage'], 0);
         return (subtotal * pct / 100).round().toDouble();
       case 'tiered':
         final tiers = cfg['tiers'];
         if (tiers is List) {
           for (final t in tiers) {
             if (t is Map) {
-              final min = ((t['minAmount'] as num?) ?? 0).toDouble();
+              final min = asDouble(t['minAmount'], 0);
               final maxRaw = t['maxAmount'];
               final max = maxRaw == null
                   ? double.infinity
-                  : ((maxRaw as num?) ?? double.infinity).toDouble();
+                  : asDouble(maxRaw, double.infinity);
               if (subtotal >= min && subtotal <= max) {
-                return ((t['feeAmount'] as num?) ?? 0).toDouble();
+                return asDouble(t['feeAmount'], 0);
               }
             }
           }
@@ -60,7 +61,7 @@ class Cart {
     }
   }
 
-  /// Legacy hardcoded charges — retired in the single-fee model.
+  /// Legacy hardcoded charges â€” retired in the single-fee model.
   /// Kept (zero) so existing UI references keep compiling.
   double get convenienceFee => 0;
 
