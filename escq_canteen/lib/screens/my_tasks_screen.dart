@@ -4,8 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chef_provider.dart';
 import '../providers/theme_provider.dart';
-import '../models/chef.dart';
-import '../services/api_service.dart';
+import '../utils/json_parse.dart';
 
 class MyTasksScreen extends StatefulWidget {
   const MyTasksScreen({super.key});
@@ -15,7 +14,7 @@ class MyTasksScreen extends StatefulWidget {
 }
 
 class _MyTasksScreenState extends State<MyTasksScreen> {
-  final ApiService _api = ApiService();
+
   Timer? _refreshTimer;
   Timer? _tickTimer;
   bool _isLoading = true;
@@ -157,7 +156,7 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('My Kitchen Tasks', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1F2937))),
-                    Text('${user?.name ?? 'Chef'} · Live sync', style: TextStyle(fontSize: 11, color: Colors.green[500])),
+                    Text('${user?.name ?? 'Chef'} Â· Live sync', style: TextStyle(fontSize: 11, color: Colors.green[500])),
                   ],
                 ),
               ),
@@ -267,7 +266,7 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
 
     final items = (task['items'] as List?)?.map((i) => '${i['quantity']}x ${i['itemName']}').join(', ') ?? 'Unknown items';
     final orderId = task['orderId']?.toString() ?? '';
-    final createdAt = (task['createdAt'] as num?)?.toInt();
+    final createdAt = asIntOrNull(task['createdAt']);
     final liveTime = _liveElapsed(createdAt);
 
     return Container(

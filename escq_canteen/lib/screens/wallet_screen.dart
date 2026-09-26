@@ -5,9 +5,7 @@ import '../config.dart';
 import '../providers/auth_provider.dart';
 import '../providers/wallet_provider.dart';
 import '../models/wallet.dart';
-import '../services/api_service.dart';
 import '../services/auth_service.dart';
-import 'home_screen.dart';
 import 'login_screen.dart';
 
 /// Sends the user to a clean login screen no matter what broke the session.
@@ -364,6 +362,14 @@ class _WalletScreenState extends State<WalletScreen> {
               'Your transactions will appear here',
               style: TextStyle(fontSize: 13, color: Colors.grey[500]),
             ),
+            if (walletProvider.error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                walletProvider.error!,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.red[600]),
+              ),
+            ],
           ],
         ),
       );
@@ -412,6 +418,14 @@ class _WalletScreenState extends State<WalletScreen> {
               'Your top-up history will appear here',
               style: TextStyle(fontSize: 13, color: Colors.grey[500]),
             ),
+            if (walletProvider.error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                walletProvider.error!,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.red[600]),
+              ),
+            ],
           ],
         ),
       );
@@ -506,7 +520,6 @@ class _TransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCredit = transaction.isCredit;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1151,6 +1164,14 @@ class TransactionHistoryScreen extends StatelessWidget {
                     'Your transactions will appear here',
                     style: TextStyle(fontSize: 14, color: Colors.grey[400]),
                   ),
+                  if (walletProvider.error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      walletProvider.error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: Colors.red[600]),
+                    ),
+                  ],
                 ],
               ),
             )
@@ -1207,6 +1228,14 @@ class TopupHistoryScreen extends StatelessWidget {
                     'Your top-up history will appear here',
                     style: TextStyle(fontSize: 14, color: Colors.grey[400]),
                   ),
+                  if (walletProvider.error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      walletProvider.error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: Colors.red[600]),
+                    ),
+                  ],
                 ],
               ),
             )

@@ -1,4 +1,5 @@
-import 'dart:async';
+﻿import 'dart:async';
+import '../utils/json_parse.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -46,7 +47,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   int _recoverySeconds = 0;
   Order? _successOrder;
   // True when the failure is short balance (wallet 10 vs bill 11): the order
-  // is NOT placed and the ledger is untouched — top-up first, retry after.
+  // is NOT placed and the ledger is untouched â€” top-up first, retry after.
   bool _isInsufficient = false;
 
   @override
@@ -138,10 +139,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
       }
       await Future.delayed(const Duration(seconds: 2));
     }
-    debugPrint('[Razorpay] All recovery attempts exhausted — lastOrder still null');
+    debugPrint('[Razorpay] All recovery attempts exhausted â€” lastOrder still null');
     // Never claim success without an order: the payment may still settle via
     // server reconciliation, so this is UNCERTAIN, not complete.
-    if (mounted) setState(() { waitingForPayment = false; isUncertain = true; errorMessage = 'Payment status is uncertain. Please check My Orders before retrying — you may already have been charged.'; });
+    if (mounted) setState(() { waitingForPayment = false; isUncertain = true; errorMessage = 'Payment status is uncertain. Please check My Orders before retrying â€” you may already have been charged.'; });
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
@@ -163,7 +164,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
     final canteenId = (cart.canteenId ?? '').trim();
     if (canteenId.isEmpty) {
-      // Never send '' — the server would silently re-home the order to canteen_001.
+      // Never send '' â€” the server would silently re-home the order to canteen_001.
       setState(() { isProcessing = false; isFailed = true; errorMessage = 'Canteen not selected. Please go back and choose your canteen.'; });
       return;
     }
@@ -212,10 +213,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
         // Canonical key comes from the server; bundled key is only a fallback.
         _gatewayKey = result['razorpayKeyId'] as String? ?? AppConfig.razorpayKeyId;
         // Server is the source of truth for paise (Math.round); never truncate.
-        final paise = result['amountPaise'] as num?;
+        final paise = asIntOrNull(result['amountPaise']);
         _amountPaise = paise != null
             ? paise.round()
-            : ((result['amount'] as num? ?? widget.totalAmount) * 100).round();
+            : ((asDouble(result['amount'], widget.totalAmount)) * 100).round();
 
         setState(() { isProcessing = false; waitingForPayment = true; });
 
@@ -224,7 +225,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         _startPolling();
       }
       // Direct order success (free items or already paid, e.g. wallet).
-      // The order (with QR payload + bill lines) is already in hand — show
+      // The order (with QR payload + bill lines) is already in hand â€” show
       // it instantly instead of parking on the recovery spinner.
       else {
         try {
@@ -273,8 +274,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         _pollTimer?.cancel();
         if (!mounted) return;
         // The server may still fulfill the order via reconciliation after
-        // this timeout — report UNCERTAIN, never a hard failure.
-        setState(() { waitingForPayment = false; isUncertain = true; errorMessage = 'Payment is taking longer than expected. It may still confirm — please check My Orders before retrying.'; });
+        // this timeout â€” report UNCERTAIN, never a hard failure.
+        setState(() { waitingForPayment = false; isUncertain = true; errorMessage = 'Payment is taking longer than expected. It may still confirm â€” please check My Orders before retrying.'; });
         return;
       }
       if (!mounted) return;
@@ -407,7 +408,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please wait — your payment is in progress.')),
+            const SnackBar(content: Text('Please wait â€” your payment is in progress.')),
           );
         }
       },
@@ -662,8 +663,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Row(
                       children: [
-                        Expanded(child: Text('${it.name}  × ${it.quantity}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF111827)))),
-                        Text('₹${(it.price * it.quantity).toStringAsFixed(2)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey[700])),
+                        Expanded(child: Text('${it.name}  Ã— ${it.quantity}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF111827)))),
+                        Text('â‚¹${(it.price * it.quantity).toStringAsFixed(2)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey[700])),
                       ],
                     ),
                   )),
@@ -683,7 +684,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Total Paid', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
-                      Text('₹${order.totalPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF16A34A))),
+                      Text('â‚¹${order.totalPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF16A34A))),
                     ],
                   ),
                   Divider(color: Colors.grey.shade200, height: 18),
@@ -757,7 +758,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   /// Indeterminate outcome: verification and polling both exhausted without
   /// recovering the order. The charge may still settle server-side, so we
-  /// must NOT show success — and must NOT let the user pay again blindly.
+  /// must NOT show success â€” and must NOT let the user pay again blindly.
   Widget _buildUncertain() {
     return Center(
       child: Padding(
