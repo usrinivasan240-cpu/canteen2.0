@@ -5073,7 +5073,8 @@ app.get('/api/chefs', async (req, res) => {
       chefs = ((canteenState as any).chefs || []).filter((c: any) => c.canteenId === canteenId);
     }
     const paginated = chefs.slice(offset, offset + limitNum);
-    res.json({ success: true, chefs: paginated, page: pageNum, limit: limitNum, total: chefs.length });
+    const rows = pgReady ? coerceBigintColumnList(paginated, CHEF_BIGINT_COLUMNS) : paginated;
+    res.json({ success: true, chefs: rows, page: pageNum, limit: limitNum, total: chefs.length });
   } catch (err: any) {
     console.error('[Chefs] List error:', err?.message || err);
     res.status(500).json({ success: false, error: 'Failed to load chefs' });
@@ -5222,7 +5223,7 @@ app.get('/api/chefs/leaves', async (req, res) => {
         leaves = leaves.filter((l: any) => l.chefId === chefId);
       }
     }
-    res.json({ success: true, leave: leaves });
+    res.json({ success: true, leave: pgReady ? coerceBigintColumnList(leaves, CHEF_LEAVE_BIGINT_COLUMNS) : leaves });
   } catch (err: any) {
     console.error('[Chefs] Leave list error:', err?.message || err);
     res.status(500).json({ success: false, error: 'Failed to load leaves' });
@@ -5255,7 +5256,8 @@ app.get('/api/kitchen/tasks', async (req, res) => {
       );
     }
     const paginated = tasks.slice(offset, offset + limitNum);
-    res.json({ success: true, tasks: paginated, page: pageNum, limit: limitNum, total: tasks.length });
+    const rows = pgReady ? coerceBigintColumnList(paginated, KITCHEN_TASK_BIGINT_COLUMNS) : paginated;
+    res.json({ success: true, tasks: rows, page: pageNum, limit: limitNum, total: tasks.length });
   } catch (err: any) {
     console.error('[Kitchen Tasks] List error:', err?.message || err);
     res.status(500).json({ success: false, error: 'Failed to load kitchen tasks' });
@@ -5275,7 +5277,7 @@ app.get('/api/kitchen/tasks/:id', async (req, res) => {
     if (!task) {
       return res.status(404).json({ success: false, error: 'Task not found' });
     }
-    res.json({ success: true, task });
+    res.json({ success: true, task: pgReady ? coerceBigintColumns(task, KITCHEN_TASK_BIGINT_COLUMNS) : task });
   } catch (err: any) {
     console.error('[Kitchen Tasks] Get error:', err?.message || err);
     res.status(500).json({ success: false, error: 'Failed to load task' });
@@ -5458,6 +5460,37 @@ function toWalletResponse(w: any, balance: number): any {
   };
 }
 
+// `pg` returns Postgres bigint (int8) and numeric as JS strings to avoid silent
+// precision loss, so raw rows carry created_at/amount as "500" rather than 500.
+// The Flutter client casts these with `as num?`, which throws on a String — and a
+// throw inside `.map()` discards every remaining record, silently blanking whole
+// screens. Coerce at the response edge. Never delete: any route that ships a raw
+// pgGetWhere()/pgGetById() row to a client must run it through here first.
+function coerceBigintColumns<T extends Record<string, any>>(row: T, cols: readonly string[]): T {
+  const out: Record<string, any> = { ...row };
+  for (const col of cols) {
+    if (out[col] != null) out[col] = Number(out[col]);
+  }
+  return out as T;
+}
+
+function coerceBigintColumnList<T extends Record<string, any>>(rows: T[], cols: readonly string[]): T[] {
+  return rows.map((r) => coerceBigintColumns(r, cols));
+}
+
+const WALLET_BIGINT_COLUMNS = ['amount', 'created_at', 'updated_at'] as const;
+const CHEF_BIGINT_COLUMNS = ['created_at', 'updated_at'] as const;
+const CHEF_LEAVE_BIGINT_COLUMNS = ['start_date', 'end_date', 'created_at'] as const;
+const KITCHEN_TASK_BIGINT_COLUMNS = ['assigned_at', 'started_at', 'completed_at', 'created_at', 'updated_at'] as const;
+
+function normalizeWalletRow<T extends Record<string, any>>(row: T): T {
+  return coerceBigintColumns(row, WALLET_BIGINT_COLUMNS);
+}
+
+function normalizeWalletRows<T extends Record<string, any>>(rows: T[]): T[] {
+  return coerceBigintColumnList(rows, WALLET_BIGINT_COLUMNS);
+}
+
 // Users created before the users_* FKs (or via auth-only flows) may have no
 // public.users row — wallets.user_id FK then blocks wallet creation.
 // Recreate the minimal profile from the verified auth identity (best-effort,
@@ -5512,9 +5545,9 @@ app.get('/api/wallet', async (req, res) => {
       // Normalize to the camelCase shape clients expect (raw pg rows are snake_case).
       wallet = toWalletResponse(wrow, await getWalletBalancePaise(walletId));
       const transactionsRaw = await pgGetWhere('wallet_transactions', { walletId });
-      transactions = sortByCreatedAtDesc(transactionsRaw as any[]);
+      transactions = normalizeWalletRows(sortByCreatedAtDesc(transactionsRaw as any[]));
       const topupsRaw = await pgGetWhere('wallet_topups', { walletId });
-      topups = sortByCreatedAtDesc(topupsRaw as any[]);
+      topups = normalizeWalletRows(sortByCreatedAtDesc(topupsRaw as any[]));
     } else {
       wallet = (canteenState as any).wallets?.find((w: any) => w.userId === userId) || null;
       if (!wallet) {
@@ -5602,7 +5635,7 @@ if (pgReady) {
       if (wallet) walletId = wallet.id;
       const transactionsRaw = await pgGetWhere('wallet_transactions', { walletId });
       const sortedTxs = sortByCreatedAtDesc(transactionsRaw as any[]);
-      transactions = (sortedTxs as any[]).slice((pageNum - 1) * limitNum, pageNum * limitNum);
+      transactions = normalizeWalletRows(sortedTxs as any[]).slice((pageNum - 1) * limitNum, pageNum * limitNum);
     } else {
       const txs2 = (((canteenState as any).walletTransactions || []) as any[])
         .filter((t: any) => t.walletId === walletId);
@@ -5840,7 +5873,7 @@ app.post('/api/wallet/topup/confirm', async (req, res) => {
       (canteenState as any).walletTransactions.push(transaction);
     }
     
-    res.json({ success: true, topup: updatedTopup, wallet });
+    res.json({ success: true, topup: normalizeWalletRow(updatedTopup), wallet });
   } catch (err: any) {
     console.error('[Wallet Topup Confirm] Error:', err?.message || err);
     res.status(500).json({ success: false, error: 'Failed to confirm topup' });
@@ -5873,7 +5906,7 @@ app.post('/api/wallet/refund', async (req, res) => {
       existing = (canteenState as any).walletTransactions?.find((t: any) => t.metadata?.idempotencyKey === idempotencyKey) || null;
     }
     if (existing) {
-      return res.json({ success: true, transaction: existing, message: 'Already processed' });
+      return res.json({ success: true, transaction: normalizeWalletRow(existing), message: 'Already processed' });
     }
     
     // Get wallet (uuid-safe lookup + derived ledger balance)
@@ -6405,15 +6438,15 @@ app.get('/api/fcm-tokens', async (req, res) => {
 
 app.get('/api/diagnose-push', async (req, res) => {
   const report: any = {
-    hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT1,
-    serviceAccountLength: process.env.FIREBASE_SERVICE_ACCOUNT1?.length || 0,
+    hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+    serviceAccountLength: process.env.FIREBASE_SERVICE_ACCOUNT?.length || 0,
     projectId: process.env.FIREBASE_PROJECT_ID || 'canteen2-0 (default)',
     pgReady,
   };
 
-  if (process.env.FIREBASE_SERVICE_ACCOUNT1) {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     try {
-      const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT1);
+      const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
       report.serviceAccountProjectId = sa.project_id;
       report.hasClientEmail = !!sa.client_email;
       report.hasPrivateKey = !!sa.private_key;
@@ -6737,7 +6770,7 @@ async function sendPushNotification(userId: string, title: string, body: string,
 }
 
 async function getFcmAccessToken(): Promise<string> {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT1;
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!serviceAccount) return '';
   try {
     const sa = JSON.parse(serviceAccount);
