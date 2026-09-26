@@ -11,6 +11,17 @@ export const API_BASE = isLocalDev
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) || '';
 const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || '';
 
+// Build-time misconfiguration, not a session problem: no re-login can fix it.
+export const isSupabaseConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+if (!isSupabaseConfigured) {
+  console.error(
+    '[config] VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not both set. ' +
+    'Add them to the build environment (for Vercel: project Settings -> Environment ' +
+    'Variables, then redeploy). Login and token refresh cannot work until they are.'
+  );
+}
+
 function getTokenExp(token: string): number | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
@@ -28,6 +39,10 @@ function needsRefresh(token: string): boolean {
 
 function hardResetAuth(): void {
   ['bb_token', 'bb_refresh_token', 'bb_user', 'bb_role', 'bb_loggedIn'].forEach((k) => localStorage.removeItem(k));
+  // Reloading only helps if a fresh session can be established. When the Supabase
+  // env pair is missing it cannot, so reloading here would trap the visitor in an
+  // endless refresh loop with no way back out.
+  if (!isSupabaseConfigured) return;
   window.location.reload();
 }
 
