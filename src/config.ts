@@ -6,8 +6,10 @@ export const API_BASE = isLocalDev
   ? ''
   : (import.meta.env.VITE_API_BASE_URL as string) || window.location.origin;
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) || 'https://pgqjkkbcaiefdzzljjfn.supabase.co';
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBncWpra2JjYWllZmR6emxqamZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5NzMxMzEsImV4cCI6MjEwNDU0OTEzMX0.yCsPf_FpgQJ1xvTzN7YCKkIxOH_nfAdDixbAx240T_4';
+// Never hardcode these: they are baked into the public bundle and cannot be
+// rotated without a rebuild. Unset in dev is fine — token refresh no-ops.
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) || '';
+const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || '';
 
 function getTokenExp(token: string): number | null {
   try {
@@ -33,7 +35,7 @@ let refreshingPromise: Promise<string | null> | null = null;
 
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = localStorage.getItem('bb_refresh_token');
-  if (!refreshToken) return null;
+  if (!refreshToken || !SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
   try {
     const res = await _originalFetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
       method: 'POST',
