@@ -7,6 +7,7 @@ canteen2-0-firebase-adminsdk-*.json
 *.log
 .env
 .env.*
+!.env*.example
 ~$*
 vercel-env-value.txt
 .vercel
