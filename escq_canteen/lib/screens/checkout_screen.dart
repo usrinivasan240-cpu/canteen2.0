@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import '../utils/json_parse.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/menu_provider.dart';
-import '../providers/order_provider.dart';
 import '../providers/theme_provider.dart';
 import '../models/offer.dart';
 import '../services/api_service.dart';
@@ -25,7 +25,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _loadingOffers = true;
   bool _validatingOffer = false;
   double? _walletBalance;
-  bool _loadingWallet = false;
 
   @override
   void initState() {
@@ -33,7 +32,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _fetchOffers();
     _fetchWallet();
     // Bill shows the live superadmin platform fee for the shopper's college
-    // (single-fee model — no hardcoded convenience/gateway charges).
+    // (single-fee model â€” no hardcoded convenience/gateway charges).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         final userCollegeId = context.read<AuthProvider>().user?.collegeId ?? '';
@@ -48,19 +47,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _fetchWallet() async {
-    setState(() => _loadingWallet = true);
     try {
       final bal = await ApiService().getWalletBalance();
-      if (mounted) setState(() { _walletBalance = (bal['balance'] as num?)?.toDouble(); _loadingWallet = false; });
+      if (mounted) setState(() { _walletBalance = asDoubleOrNull(bal['balance']); });
     } catch (_) {
-      if (mounted) setState(() => _loadingWallet = false);
+      if (mounted) setState(() {});
     }
   }
 
   Future<void> _fetchOffers() async {
     try {
       final cart = context.read<CartProvider>();
-      // Fail closed: never query offers with a missing canteen id — the
+      // Fail closed: never query offers with a missing canteen id â€” the
       // server would silently serve canteen_001's offers.
       final canteenId = (cart.canteenId ?? '').trim();
       if (canteenId.isEmpty) {
@@ -83,7 +81,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   /// Offer selection is validated against the SERVER (/api/offers/apply),
   /// which enforces active-window, min-order and usage limits. The validated
   /// offer id is sent with placeOrder so the server charges the discounted
-  /// total — the discount shown here is never trusted on its own.
+  /// total â€” the discount shown here is never trusted on its own.
   Future<void> _applyOffer(Offer? offer) async {
     final cart = context.read<CartProvider>();
     if (offer == null || _selectedOffer?.id == offer.id) {
@@ -116,7 +114,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         (cart.canteenId ?? '').trim(),
       );
       if (!mounted) return;
-      final serverDisc = (res['discount'] as num?)?.toDouble() ?? 0;
+      final serverDisc = asDouble(res['discount']);
       if (res['success'] == true && serverDisc > 0) {
         setState(() {
           _selectedOffer = offer;
@@ -199,7 +197,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   const SizedBox(height: 16),
                   const Text('Your cart is empty', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))),
                   const SizedBox(height: 8),
-                  Text('Add items from the menu to get started', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                  Text('Add items from the menu to get started', style: TextStyle(fontSize: 12, color: themeProv.isDark ? Colors.grey[500] : Colors.grey[400])),
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: () => Navigator.pop(context),
@@ -249,7 +247,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                   decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(10)),
                                   child: item.menuItem.imageUrl != null && item.menuItem.imageUrl!.isNotEmpty
                                       ? ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(item.menuItem.imageUrl!, fit: BoxFit.cover))
-                                      : const Center(child: Text('🍲', style: TextStyle(fontSize: 18))),
+                                      : const Center(child: Text('ðŸ²', style: TextStyle(fontSize: 18))),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -258,7 +256,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                     children: [
                                       Text(item.menuItem.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textColor), maxLines: 1, overflow: TextOverflow.ellipsis),
                                       const SizedBox(height: 2),
-                                      Text('₹${item.menuItem.price.toStringAsFixed(2)}', style: TextStyle(fontSize: 11, color: Colors.amber[700], fontWeight: FontWeight.bold)),
+                                      Text('â‚¹${item.menuItem.price.toStringAsFixed(2)}', style: TextStyle(fontSize: 11, color: Colors.amber[700], fontWeight: FontWeight.bold)),
                                     ],
                                   ),
                                 ),
@@ -332,7 +330,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // ── AVAILABLE OFFERS ──
+                  // â”€â”€ AVAILABLE OFFERS â”€â”€
                   if (!_loadingOffers && _activeOffers.isNotEmpty) ...[
                     Container(
                       width: double.infinity,
@@ -361,10 +359,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               margin: const EdgeInsets.only(bottom: 8),
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: _selectedOffer?.id == offer.id ? const Color(0xFFD1FAE5) : Colors.grey[50],
+                                color: _selectedOffer?.id == offer.id
+                                    ? (themeProv.isDark ? const Color(0xFF0C2B22) : const Color(0xFFD1FAE5))
+                                    : (themeProv.isDark ? const Color(0xFF1F2937) : Colors.grey[50]),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: _selectedOffer?.id == offer.id ? const Color(0xFF059669) : Colors.grey[200]!,
+                                  color: _selectedOffer?.id == offer.id ? const Color(0xFF059669) : (themeProv.isDark ? const Color(0xFF374151) : Colors.grey[200]!),
                                   width: _selectedOffer?.id == offer.id ? 2 : 1,
                                 ),
                               ),
@@ -383,7 +383,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(offer.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                                        Text(offer.title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: themeProv.isDark ? Colors.white : const Color(0xFF111827))),
                                         Text(offer.displayText, style: const TextStyle(fontSize: 10, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
                                       ],
                                     ),
@@ -391,7 +391,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                   if (_selectedOffer?.id == offer.id)
                                     const Icon(Icons.check_circle, size: 18, color: Color(0xFF059669))
                                   else
-                                    Icon(Icons.radio_button_unchecked, size: 18, color: Colors.grey[400]),
+                                    Icon(Icons.radio_button_unchecked, size: 18, color: themeProv.isDark ? Colors.grey[500] : Colors.grey[400]),
                                 ],
                               ),
                             ),
@@ -401,7 +401,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-                  // ── BILL SUMMARY ──
+                  // â”€â”€ BILL SUMMARY â”€â”€
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -411,21 +411,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                     child: Column(
                       children: [
-                        _summaryRow('Subtotal', '₹${cart.subtotal.toStringAsFixed(2)}'),
+                        _summaryRow('Subtotal', 'â‚¹${cart.subtotal.toStringAsFixed(2)}'),
                         if (_discount > 0)
-                          _summaryRow('Offer Discount ($_selectedOffer!.displayText)', '-₹${_discount.toStringAsFixed(2)}', bold: false, isDiscount: true),
+                          _summaryRow('Offer Discount ($_selectedOffer!.displayText)', '-â‚¹${_discount.toStringAsFixed(2)}', bold: false, isDiscount: true),
                         _summaryRow(
                           'Platform Fee',
                           cart.platformFee > 0
-                              ? '₹${cart.platformFee.toStringAsFixed(2)}'
+                              ? 'â‚¹${cart.platformFee.toStringAsFixed(2)}'
                               : 'FREE',
                         ),
                         const Divider(color: Color(0xFFFEE2E2)),
-                        _summaryRow('Grand Total', '₹${(cart.totalAmount - _discount).toStringAsFixed(2)}', bold: true),
+                        _summaryRow('Grand Total', 'â‚¹${(cart.totalAmount - _discount).toStringAsFixed(2)}', bold: true),
                       ],
                     ),
                   ),
-                  // ── PAYMENT METHOD ──
+                  // â”€â”€ PAYMENT METHOD â”€â”€
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: cardBorder)),
@@ -436,11 +436,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         const SizedBox(height: 10),
                         _gatewayTile('razorpay', 'Razorpay', Icons.credit_card, subTextColor, textColor),
                         if (selectedGateway == 'razorpay' && (cart.totalAmount - _discount) < 1)
-                          Padding(padding: const EdgeInsets.only(top: 8), child: Text('Razorpay needs a minimum order of ₹1.00.', style: TextStyle(fontSize: 11, color: Colors.red[600], fontWeight: FontWeight.w600))),
+                          Padding(padding: const EdgeInsets.only(top: 8), child: Text('Razorpay needs a minimum order of â‚¹1.00.', style: TextStyle(fontSize: 11, color: themeProv.isDark ? Colors.red[400] : Colors.red[600], fontWeight: FontWeight.w600))),
                         const SizedBox(height: 8),
-                        _gatewayTile('wallet', 'Wallet${_walletBalance != null ? ' (₹${_walletBalance!.toStringAsFixed(2)})' : ''}', Icons.account_balance_wallet, subTextColor, textColor),
+                        _gatewayTile('wallet', 'Wallet${_walletBalance != null ? ' (â‚¹${_walletBalance!.toStringAsFixed(2)})' : ''}', Icons.account_balance_wallet, subTextColor, textColor),
                         if (selectedGateway == 'wallet' && _walletBalance != null && _walletBalance! < (cart.totalAmount - _discount))
-                          Padding(padding: const EdgeInsets.only(top: 8), child: Text('Insufficient wallet balance — please top up.', style: TextStyle(fontSize: 11, color: Colors.red[600], fontWeight: FontWeight.w600))),
+                          Padding(padding: const EdgeInsets.only(top: 8), child: Text('Insufficient wallet balance â€” please top up.', style: TextStyle(fontSize: 11, color: themeProv.isDark ? Colors.red[400] : Colors.red[600], fontWeight: FontWeight.w600))),
                       ],
                     ),
                   ),
@@ -455,7 +455,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           return;
                         }
                         if (selectedGateway == 'razorpay' && (cart.totalAmount - _discount) < 1) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order total must be at least ₹1.00 for Razorpay.')));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order total must be at least â‚¹1.00 for Razorpay.')));
                           return;
                         }
                         Navigator.push(
@@ -481,14 +481,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         children: [
                           Icon(selectedGateway == 'wallet' ? Icons.account_balance_wallet : Icons.lock, size: 16),
                           const SizedBox(width: 8),
-                          Text(selectedGateway == 'wallet' ? 'Pay via Wallet ₹${(cart.totalAmount - _discount).toStringAsFixed(2)}' : 'Pay via Razorpay ₹${(cart.totalAmount - _discount).toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                          Text(selectedGateway == 'wallet' ? 'Pay via Wallet â‚¹${(cart.totalAmount - _discount).toStringAsFixed(2)}' : 'Pay via Razorpay â‚¹${(cart.totalAmount - _discount).toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
                   Center(
-                    child: Text('SECURE ENCRYPTED PAYMENT', style: TextStyle(fontSize: 9, color: Colors.grey[400], letterSpacing: 1)),
+                    child: Text('SECURE ENCRYPTED PAYMENT', style: TextStyle(fontSize: 9, color: themeProv.isDark ? Colors.grey[500] : Colors.grey[400], letterSpacing: 1)),
                   ),
                 ],
               ),
@@ -497,21 +497,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _gatewayTile(String value, String label, IconData icon, Color subTextColor, Color textColor) {
+    final themeProv = context.watch<ThemeProvider>();
     final selected = selectedGateway == value;
     return GestureDetector(
       onTap: () => setState(() => selectedGateway = value),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFFEF3C7) : Colors.grey[50],
+          color: selected
+              ? (themeProv.isDark ? const Color(0xFF3B2F12) : const Color(0xFFFEF3C7))
+              : (themeProv.isDark ? const Color(0xFF1F2937) : Colors.grey[50]),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: selected ? const Color(0xFFF59E0B) : Colors.grey[200]!, width: selected ? 2 : 1),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFFF59E0B)
+                : (themeProv.isDark ? const Color(0xFF374151) : Colors.grey[200]!),
+            width: selected ? 2 : 1,
+          ),
         ),
         child: Row(children: [
-          Icon(icon, size: 18, color: selected ? const Color(0xFFD97706) : Colors.grey[500]),
+          Icon(icon, size: 18, color: selected ? (themeProv.isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706)) : (themeProv.isDark ? Colors.grey[400] : Colors.grey[500])),
           const SizedBox(width: 10),
           Expanded(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: textColor))),
-          Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18, color: selected ? const Color(0xFFF59E0B) : Colors.grey[400]),
+          Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18, color: selected ? const Color(0xFFF59E0B) : (themeProv.isDark ? Colors.grey[500] : Colors.grey[400])),
         ]),
       ),
     );
