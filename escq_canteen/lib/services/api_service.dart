@@ -6,7 +6,6 @@ import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../models/college.dart';
 import '../models/review.dart';
-import '../models/chef.dart';
 import 'auth_service.dart';
 
 class ApiService {

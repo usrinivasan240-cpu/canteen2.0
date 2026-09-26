@@ -5,8 +5,6 @@ import '../providers/auth_provider.dart';
 import '../providers/chef_provider.dart';
 import '../providers/theme_provider.dart';
 import '../models/chef.dart';
-import '../models/menu_item.dart';
-import '../services/api_service.dart';
 
 class OwnerScreen extends StatefulWidget {
   const OwnerScreen({super.key});
@@ -17,7 +15,7 @@ class OwnerScreen extends StatefulWidget {
 
 class _OwnerScreenState extends State<OwnerScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final ApiService _api = ApiService();
+
   Timer? _refreshTimer;
   bool _isLoading = true;
 

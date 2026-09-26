@@ -21,6 +21,9 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
+    # Enum constants use SCREAMING_SNAKE_CASE consistently across the model
+    # layer, which the Dart style guide explicitly permits for enum values.
+    constant_identifier_names: false
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
 

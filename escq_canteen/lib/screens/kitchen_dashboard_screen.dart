@@ -582,7 +582,6 @@ class _KitchenDashboardScreenState extends State<KitchenDashboardScreen> {
   }
 
   Widget _buildOrderCard(Order order, String phase, bool isDark) {
-    final items = order.items.map((i) => '${i.quantity}x ${i.name}').join(', ');
     final liveTime = _liveElapsed(order.createdAt);
     final busy = _updatingIds.contains(order.id);
 
